@@ -1,0 +1,826 @@
+import { Router } from 'express';
+import { body, param, query } from 'express-validator';
+import { DatabaseService } from '../services/database';
+import { GeminiService } from '../services/geminiService';
+import { validateRequest } from '../middleware/validation';
+import { asyncHandler } from '../middleware/errorHandler';
+import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import { logger } from '../utils/logger';
+
+// Import WebSocket service to broadcast Maya's responses
+import { WebSocketService } from '../services/websocket';
+
+const router = Router();
+const dbService = new DatabaseService();
+const geminiService = new GeminiService();
+
+// Validation rules
+const sendMessageValidation = [
+  body('content').trim().isLength({ min: 1, max: 2000 }).withMessage('Message content must be between 1 and 2000 characters'),
+  body('type').optional().isIn(['text', 'user', 'system', 'ai', 'ai_facilitator']).withMessage('Invalid message type'),
+  body('metadata').optional().isObject().withMessage('Metadata must be an object'),
+];
+
+const groupIdValidation = [
+  param('groupId').isUUID().withMessage('Invalid group ID format'),
+];
+
+const messageIdValidation = [
+  param('messageId').isUUID().withMessage('Invalid message ID format'),
+];
+
+// Get messages for a group
+router.get('/:groupId', validateRequest([
+  ...groupIdValidation,
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  query('before').optional().isISO8601().withMessage('Before must be a valid ISO 8601 date'),
+  query('after').optional().isISO8601().withMessage('After must be a valid ISO 8601 date'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const groupId = req.params.groupId;
+  const userId = req.user!.id;
+  const isAdmin = req.user!.role === 'admin';
+
+  // Check if user has access to this group
+  const group = await dbService.getGroupById(groupId);
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!isAdmin && !group.members.includes(userId)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 50;
+  const before = req.query.before as string;
+  const after = req.query.after as string;
+
+  const filters = {
+    before: before ? new Date(before) : undefined,
+    after: after ? new Date(after) : undefined,
+  };
+
+  const result = await dbService.getMessages(groupId, page, limit, filters);
+
+  res.json({
+    success: true,
+    data: {
+      messages: result.messages,
+      pagination: {
+        page,
+        limit,
+        total: result.total,
+        pages: Math.ceil(result.total / limit),
+      }
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Send message to a group
+router.post('/:groupId', validateRequest([...groupIdValidation, ...sendMessageValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const groupId = req.params.groupId;
+  const userId = req.user!.id;
+  const isAdmin = req.user!.role === 'admin';
+
+  // Check if user has access to this group
+  const group = await dbService.getGroupById(groupId);
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!group.isActive) {
+    return res.status(400).json({
+      success: false,
+      error: 'Group is not active',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!isAdmin && !group.members.includes(userId)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const messageData = {
+    groupId,
+    userId,
+    content: req.body.content,
+    type: req.body.type || 'text',
+    metadata: req.body.metadata || {},
+  };
+
+  const message = await dbService.createMessage(messageData);
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId,
+    action: 'message_send',
+    resource: 'message',
+    resourceId: message.id,
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: {
+      groupId,
+      messageType: message.type,
+      contentLength: message.content.length
+    }
+  });
+
+  logger.info(`Message sent: ${message.id} in group ${groupId} by ${userId}`);
+
+  // Trigger AI facilitator response (async, don't wait for completion)
+  triggerAIFacilitatorResponse(message, group).catch(error => {
+    logger.error('Error triggering AI facilitator response:', error);
+  });
+
+  res.status(201).json({
+    success: true,
+    data: {
+      message
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Get specific message
+router.get('/:groupId/:messageId', validateRequest([...groupIdValidation, ...messageIdValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const groupId = req.params.groupId;
+  const messageId = req.params.messageId;
+  const userId = req.user!.id;
+  const isAdmin = req.user!.role === 'admin';
+
+  // Check if user has access to this group
+  const group = await dbService.getGroupById(groupId);
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!isAdmin && !group.members.includes(userId)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const message = await dbService.getMessageById(messageId);
+  if (!message || message.groupId !== groupId) {
+    return res.status(404).json({
+      success: false,
+      error: 'Message not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      message
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Edit message
+router.patch('/:groupId/:messageId', validateRequest([
+  ...groupIdValidation,
+  ...messageIdValidation,
+  body('content').trim().isLength({ min: 1, max: 2000 }).withMessage('Message content must be between 1 and 2000 characters'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const groupId = req.params.groupId;
+  const messageId = req.params.messageId;
+  const userId = req.user!.id;
+  const isAdmin = req.user!.role === 'admin';
+
+  // Check if user has access to this group
+  const group = await dbService.getGroupById(groupId);
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!isAdmin && !group.members.includes(userId)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const message = await dbService.getMessageById(messageId);
+  if (!message || message.groupId !== groupId) {
+    return res.status(404).json({
+      success: false,
+      error: 'Message not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Check if user can edit this message
+  if (!isAdmin && message.userId !== userId) {
+    return res.status(403).json({
+      success: false,
+      error: 'Can only edit your own messages',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Check if message is too old to edit (15 minutes)
+  const messageAge = Date.now() - message.createdAt.getTime();
+  const maxEditAge = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+  if (!isAdmin && messageAge > maxEditAge) {
+    return res.status(400).json({
+      success: false,
+      error: 'Message is too old to edit',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const updatedMessage = await dbService.updateMessage(messageId, {
+    content: req.body.content,
+    isEdited: true,
+    editedAt: new Date(),
+  });
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId,
+    action: 'message_edit',
+    resource: 'message',
+    resourceId: messageId,
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: {
+      groupId,
+      originalContent: message.content,
+      newContent: req.body.content
+    }
+  });
+
+  logger.info(`Message edited: ${messageId} in group ${groupId} by ${userId}`);
+
+  res.json({
+    success: true,
+    data: {
+      message: updatedMessage
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Delete message
+router.delete('/:groupId/:messageId', validateRequest([...groupIdValidation, ...messageIdValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const groupId = req.params.groupId;
+  const messageId = req.params.messageId;
+  const userId = req.user!.id;
+  const isAdmin = req.user!.role === 'admin';
+
+  // Check if user has access to this group
+  const group = await dbService.getGroupById(groupId);
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!isAdmin && !group.members.includes(userId)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const message = await dbService.getMessageById(messageId);
+  if (!message || message.groupId !== groupId) {
+    return res.status(404).json({
+      success: false,
+      error: 'Message not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Check if user can delete this message
+  if (!isAdmin && message.userId !== userId && !group.facilitators.includes(userId)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Can only delete your own messages or as a facilitator',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  await dbService.deleteMessage(messageId);
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId,
+    action: 'message_delete',
+    resource: 'message',
+    resourceId: messageId,
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: {
+      groupId,
+      deletedContent: message.content,
+      originalUserId: message.userId
+    }
+  });
+
+  logger.info(`Message deleted: ${messageId} in group ${groupId} by ${userId}`);
+
+  res.json({
+    success: true,
+    message: 'Message deleted successfully',
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Add reaction to message
+router.post('/:groupId/:messageId/reactions', validateRequest([
+  ...groupIdValidation,
+  ...messageIdValidation,
+  body('emoji').trim().isLength({ min: 1, max: 10 }).withMessage('Emoji must be between 1 and 10 characters'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const groupId = req.params.groupId;
+  const messageId = req.params.messageId;
+  const userId = req.user!.id;
+  const { emoji } = req.body;
+  const isAdmin = req.user!.role === 'admin';
+
+  // Check if user has access to this group
+  const group = await dbService.getGroupById(groupId);
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!isAdmin && !group.members.includes(userId)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const message = await dbService.getMessageById(messageId);
+  if (!message || message.groupId !== groupId) {
+    return res.status(404).json({
+      success: false,
+      error: 'Message not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const updatedMessage = await dbService.addMessageReaction(messageId, userId, emoji);
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId,
+    action: 'reaction_add',
+    resource: 'message',
+    resourceId: messageId,
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: {
+      groupId,
+      emoji
+    }
+  });
+
+  res.json({
+    success: true,
+    data: {
+      message: updatedMessage
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Remove reaction from message
+router.delete('/:groupId/:messageId/reactions', validateRequest([
+  ...groupIdValidation,
+  ...messageIdValidation,
+  body('emoji').trim().isLength({ min: 1, max: 10 }).withMessage('Emoji must be between 1 and 10 characters'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const groupId = req.params.groupId;
+  const messageId = req.params.messageId;
+  const userId = req.user!.id;
+  const { emoji } = req.body;
+  const isAdmin = req.user!.role === 'admin';
+
+  // Check if user has access to this group
+  const group = await dbService.getGroupById(groupId);
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!isAdmin && !group.members.includes(userId)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const message = await dbService.getMessageById(messageId);
+  if (!message || message.groupId !== groupId) {
+    return res.status(404).json({
+      success: false,
+      error: 'Message not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const updatedMessage = await dbService.removeMessageReaction(messageId, userId, emoji);
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId,
+    action: 'reaction_remove',
+    resource: 'message',
+    resourceId: messageId,
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: {
+      groupId,
+      emoji
+    }
+  });
+
+  res.json({
+    success: true,
+    data: {
+      message: updatedMessage
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Manual AI facilitator trigger for therapists/admins
+router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const groupId = req.params.groupId;
+  const userId = req.user!.id;
+  const isAdmin = req.user!.role === 'admin';
+  const isTherapist = req.user!.role === 'therapist';
+
+  // Only admins and therapists can manually trigger Maya
+  if (!isAdmin && !isTherapist) {
+    return res.status(403).json({
+      success: false,
+      error: 'Only therapists and admins can manually trigger Maya',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Check if user has access to this group
+  const group = await dbService.getGroupById(groupId);
+  if (!group) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  if (!group.isActive) {
+    return res.status(400).json({
+      success: false,
+      error: 'Group is not active',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // Get recent messages for context
+    const recentMessages = await dbService.getRecentMessages(group.id, 10);
+    const activeUsers = await dbService.getGroupMembers(group.id);
+
+    // Create a synthetic "therapist request" message for Maya to respond to
+    const contextMessage = {
+      id: `manual-trigger-${Date.now()}`,
+      groupId,
+      userId: 'therapist-trigger',
+      authorId: 'therapist-trigger',
+      content: 'Therapist has requested Maya to provide therapeutic facilitation for the current conversation.',
+      type: 'system' as const,
+      createdAt: new Date(),
+      timestamp: new Date(),
+      isEdited: false,
+      reactions: {} as Record<string, string[]>
+    };
+
+    // Generate AI facilitator response
+    const aiResponse = await geminiService.generateFacilitatorResponse(
+      contextMessage,
+      recentMessages,
+      group,
+      activeUsers
+    );
+
+    if (!aiResponse) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate Maya response',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Create AI message in database
+    const aiMessage = await dbService.createMessage({
+      groupId: group.id,
+      userId: 'ai-facilitator',
+      content: aiResponse.message,
+      type: 'ai_facilitator'
+    });
+
+    // Log audit event
+    await dbService.createAuditLog({
+      userId,
+      action: 'manual_maya_trigger',
+      resource: 'message',
+      resourceId: aiMessage.id,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent') || 'unknown',
+      metadata: {
+        groupId,
+        triggeredBy: req.user!.role
+      }
+    });
+
+    logger.info(`Maya manually triggered by ${req.user!.role} ${userId} in group ${groupId}`);
+
+    // Broadcast WebSocket event
+    setTimeout(() => {
+      const wsService = WebSocketService.getInstance();
+      if (wsService) {
+        wsService.broadcastToGroup(group.id, 'new_message', {
+          ...aiMessage,
+          user: {
+            id: 'ai-facilitator',
+            firstName: 'AI',
+            lastName: 'Facilitator',
+            profilePicture: null
+          }
+        });
+      }
+    }, 500);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        message: aiMessage,
+        trigger: 'manual'
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Error manually triggering Maya:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to trigger Maya',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// AI Facilitator trigger function
+async function triggerAIFacilitatorResponse(userMessage: any, group: any) {
+  try {
+    logger.info(`🤖 Checking AI trigger for group ${group.id}, type: ${group.type}, message: "${userMessage.content}"`);
+
+    // Trigger AI for recovery, support, wellness, and general groups
+    const aiEnabledTypes = ['recovery', 'support', 'wellness', 'general'];
+    const shouldTriggerForType = aiEnabledTypes.some(type => group.type.includes(type));
+
+    if (!shouldTriggerForType) {
+      logger.info(`❌ AI not enabled for group type: ${group.type}`);
+      return;
+    }
+
+    logger.info(`✅ AI enabled for group type: ${group.type}`);
+
+    // Get recent messages and users for context
+    const recentMessages = await dbService.getRecentMessages(group.id, 10);
+    const activeUsers = await dbService.getGroupMembers(group.id);
+
+    // Check if AI should respond based on message content
+    const shouldRespond = await shouldAIRespond(recentMessages, userMessage, group);
+
+    logger.info(`🎯 Should AI respond? ${shouldRespond} for message: "${userMessage.content}"`);
+
+    if (!shouldRespond) {
+      logger.info(`❌ AI decided not to respond based on conversation flow`);
+      return;
+    }
+
+    logger.info(`✅ AI will respond to message: "${userMessage.content}"`);
+
+    // Generate AI facilitator response using Gemini
+    const aiResponse = await geminiService.generateFacilitatorResponse(
+      userMessage,
+      recentMessages,
+      group,
+      activeUsers
+    );
+
+    if (!aiResponse) {
+      logger.error(`❌ Failed to generate AI response`);
+      return;
+    }
+
+    logger.info(`✅ AI response generated: "${aiResponse.message}"`);
+
+    // Create AI message in database
+    const aiMessage = await dbService.createMessage({
+      groupId: group.id,
+      userId: 'ai-facilitator',
+      content: aiResponse.message,
+      type: 'ai_facilitator'
+    });
+
+    logger.info(`💾 AI message saved to database with ID: ${aiMessage.id}`);
+
+    // Broadcast WebSocket event to notify all group members (match WebSocket version format)
+    setTimeout(() => {
+      const wsService = WebSocketService.getInstance();
+      if (wsService) {
+        wsService.broadcastToGroup(group.id, 'new_message', {
+          ...aiMessage,
+          user: {
+            id: 'ai-facilitator',
+            firstName: 'AI',
+            lastName: 'Facilitator',
+            profilePicture: null
+          }
+        });
+
+        logger.info(`📡 AI message broadcasted via WebSocket to group: ${group.id}`);
+      }
+    }, 1000 + Math.random() * 2000); // 1-3 second delay for natural feel
+
+  } catch (error) {
+    logger.error('Error triggering AI facilitator response:', error);
+  }
+}
+
+// AI response decision logic - Maya as a selective therapeutic tool
+async function shouldAIRespond(recentMessages: any[], userMessage: any, group: any): Promise<boolean> {
+  logger.info(`🔍 Checking if Maya should respond to: "${userMessage.content}"`);
+
+  // Get AI messages in recent conversation
+  const aiMessages = recentMessages.filter(m => m.type === 'ai_facilitator');
+  const userMessages = recentMessages.filter(m => m.type === 'user' || m.type === 'text');
+
+  logger.info(`📊 Recent messages: ${userMessages.length} user messages, ${aiMessages.length} AI messages`);
+
+  // Strong frequency control - Maya should be much less chatty
+  if (aiMessages.length >= 1 && userMessages.length < 5) {
+    logger.info(`⏸️ Recent AI activity detected (${aiMessages.length} AI vs ${userMessages.length} user) - Maya staying quiet`);
+    return false;
+  }
+
+  // Don't respond if Maya spoke in the last 3 messages
+  const lastThreeMessages = recentMessages.slice(-3);
+  if (lastThreeMessages.some(m => m.type === 'ai_facilitator')) {
+    logger.info(`⏸️ Maya spoke recently in last 3 messages - staying quiet`);
+    return false;
+  }
+
+  const messageContent = userMessage.content.toLowerCase();
+
+  // Check for crisis language using Gemini (if available)
+  try {
+    const isCrisis = await geminiService.checkCrisisLanguage(userMessage.content);
+    if (isCrisis) {
+      logger.info(`🚨 Crisis language detected - Maya responding immediately`);
+      return true; // Always respond to crisis indicators
+    }
+  } catch (error) {
+    logger.warn('Crisis detection unavailable, continuing with other checks');
+  }
+
+  // Direct mentions of Maya or explicit facilitator requests
+  const directMentions = ['maya', '@maya', 'facilitator'];
+  const explicitRequests = ['need facilitator', 'facilitator help', 'maya help', 'ai help'];
+  
+  const hasDirectMention = directMentions.some(mention => messageContent.includes(mention));
+  const hasExplicitRequest = explicitRequests.some(request => messageContent.includes(request));
+  
+  if (hasDirectMention || hasExplicitRequest) {
+    logger.info(`🎯 Direct Maya mention/request detected - responding`);
+    return true;
+  }
+
+  // Severe crisis/distress indicators - high priority
+  const severeCrisisTriggers = [
+    'want to die', 'kill myself', 'end it all', 'no point living', 'suicide',
+    'can\'t go on', 'giving up completely', 'no hope left', 'completely lost'
+  ];
+
+  const hasSevereCrisis = severeCrisisTriggers.some(trigger => messageContent.includes(trigger));
+  if (hasSevereCrisis) {
+    logger.info(`🚨 Severe crisis language detected - Maya intervening`);
+    return true;
+  }
+
+  // High-impact therapeutic moments - but only occasionally
+  const therapeuticMoments = [
+    'relapsed today', 'had a relapse', 'used again', 'broke my sobriety',
+    'hitting rock bottom', 'lost everything', 'family left me', 'fired from job',
+    'overdosed', 'hospitalized', 'in crisis'
+  ];
+
+  const hasTherapeuticMoment = therapeuticMoments.some(moment => messageContent.includes(moment));
+  if (hasTherapeuticMoment) {
+    // Only 60% chance even for therapeutic moments
+    const shouldRespond = Math.random() > 0.4;
+    logger.info(`🏥 Therapeutic moment detected - Maya responding with 60% chance: ${shouldRespond}`);
+    return shouldRespond;
+  }
+
+  // Major milestones worth celebrating - but selectively
+  const majorMilestones = [
+    'sober for', 'clean for', 'months sober', 'years sober', 'one year', 'six months',
+    'graduated', 'got the job', 'moved out', 'new apartment', 'engaged', 'married'
+  ];
+
+  const hasMajorMilestone = majorMilestones.some(milestone => messageContent.includes(milestone));
+  if (hasMajorMilestone) {
+    // Only 40% chance to celebrate milestones
+    const shouldRespond = Math.random() > 0.6;
+    logger.info(`🎉 Major milestone detected - Maya celebrating with 40% chance: ${shouldRespond}`);
+    return shouldRespond;
+  }
+
+  // Questions seeking guidance - but not every question
+  const guidanceQuestions = [
+    'what should i do', 'how do i', 'any advice', 'need guidance', 'not sure how to',
+    'struggling with', 'don\'t know what', 'help me figure out'
+  ];
+
+  const hasGuidanceQuestion = guidanceQuestions.some(question => messageContent.includes(question));
+  if (hasGuidanceQuestion) {
+    // Only 25% chance to answer guidance questions
+    const shouldRespond = Math.random() > 0.75;
+    logger.info(`❓ Guidance question detected - Maya responding with 25% chance: ${shouldRespond}`);
+    return shouldRespond;
+  }
+
+  // Very long silence (30+ minutes) - check-in opportunity
+  const lastMessage = recentMessages[recentMessages.length - 2];
+  if (lastMessage && (Date.now() - new Date(lastMessage.createdAt).getTime()) > 30 * 60 * 1000) {
+    // Only 20% chance to break long silence
+    const shouldRespond = Math.random() > 0.8;
+    logger.info(`🕐 Long silence (30+ min) detected - Maya checking in with 20% chance: ${shouldRespond}`);
+    return shouldRespond;
+  }
+
+  // New member introduction - welcome them
+  if (messageContent.includes('new here') || messageContent.includes('first time') || messageContent.includes('just joined')) {
+    // 50% chance to welcome new members
+    const shouldRespond = Math.random() > 0.5;
+    logger.info(`👋 New member detected - Maya welcoming with 50% chance: ${shouldRespond}`);
+    return shouldRespond;
+  }
+
+  // Default: Maya stays quiet for general conversation
+  logger.info(`💬 General conversation - Maya staying quiet (tool-like behavior)`);
+  return false;
+}
+
+export default router;

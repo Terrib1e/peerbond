@@ -1,0 +1,218 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "PeerBond Orchestration Dashboard",
+    "description": "Monitoring dashboard for PeerBond AI orchestration system",
+    "tags": ["peerbond", "orchestration", "ai", "mental-health"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"peerbond-api\"}",
+            "legendFormat": "API Status"
+          },
+          {
+            "expr": "orchestration_active_sessions",
+            "legendFormat": "Active Sessions"
+          },
+          {
+            "expr": "rate(orchestration_sessions_total[5m]) * 60",
+            "legendFormat": "Sessions/min"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "displayMode": "list",
+              "orientation": "horizontal"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 80}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Crisis Interventions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(orchestration_crisis_alerts_total[1h])",
+            "legendFormat": "Crisis Alerts/hour"
+          },
+          {
+            "expr": "increase(orchestration_crisis_alerts_total[24h])",
+            "legendFormat": "Crisis Alerts (24h)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 10}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_ms_count[5m])",
+            "legendFormat": "{{method}} {{route}}"
+          }
+        ],
+        "yAxes": [
+          {"label": "Requests/sec", "min": 0},
+          {"show": false}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_ms_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_ms_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "yAxes": [
+          {"label": "Milliseconds", "min": 0},
+          {"show": false}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Agent Usage",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "rate(orchestration_agent_calls_total[5m])",
+            "legendFormat": "{{agent_name}}"
+          }
+        ],
+        "options": {
+          "pieType": "pie",
+          "tooltip": {"mode": "single"},
+          "legend": {"displayMode": "table", "placement": "right"}
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Confidence Scores",
+        "type": "histogram",
+        "targets": [
+          {
+            "expr": "rate(orchestration_confidence_score_bucket[5m])",
+            "legendFormat": "Confidence Distribution"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(orchestration_errors_total[5m])",
+            "legendFormat": "{{operation}} - {{error_type}}"
+          }
+        ],
+        "yAxes": [
+          {"label": "Errors/sec", "min": 0},
+          {"show": false}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [0.1], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "High Error Rate",
+          "noDataState": "no_data",
+          "notifications": []
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24}
+      },
+      {
+        "id": 8,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "peerbond_memory_usage_bytes{type=\"heapUsed\"} / 1024 / 1024",
+            "legendFormat": "Heap Used (MB)"
+          },
+          {
+            "expr": "peerbond_memory_usage_bytes{type=\"heapTotal\"} / 1024 / 1024",
+            "legendFormat": "Heap Total (MB)"
+          }
+        ],
+        "yAxes": [
+          {"label": "Megabytes", "min": 0},
+          {"show": false}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+      },
+      {
+        "id": 9,
+        "title": "Session Duration Distribution",
+        "type": "histogram",
+        "targets": [
+          {
+            "expr": "rate(orchestration_session_duration_seconds_bucket[5m])",
+            "legendFormat": "Session Duration"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "PeerBond Orchestration Dashboard",
+    "uid": "peerbond-orchestration",
+    "version": 1,
+    "weekStart": ""
+  }
+}

@@ -1,0 +1,373 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  password         String
+  firstName        String
+  lastName         String
+  avatar           String?
+  recoveryGoals    String?  // JSON string
+  wellnessGoals    String?  // JSON string
+  experienceLevel  String   @default("beginner")
+  joinedAt         DateTime @default(now())
+  lastActive       DateTime @default(now())
+  isPremium        Boolean  @default(false)
+  role             String   @default("member")
+  isActive         Boolean  @default(true)
+
+  // Relationships
+  groupMemberships GroupMember[]
+  messages         Message[]
+  actionItems      ActionItem[]
+  subscription     Subscription?
+  therapistProfile TherapistProfile?
+  sessions         Session[]
+
+  // Audit fields
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Group {
+  id            String      @id @default(cuid())
+  name          String
+  description   String
+  type          String
+  maxMembers    Int         @default(6)
+  facilitatorId String?
+  isActive      Boolean     @default(true)
+  isPrivate     Boolean     @default(false)
+  createdBy     String?
+
+  // Relationships
+  members       GroupMember[]
+  messages      Message[]
+  actionItems   ActionItem[]
+  insights      Insight[]
+
+  // Audit fields
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  lastActivity  DateTime    @default(now())
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id       String @id @default(cuid())
+  userId   String
+  groupId  String
+  role     String @default("member")
+  joinedAt DateTime  @default(now())
+
+  // Relationships
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@map("group_members")
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  groupId   String
+  userId    String
+  authorId  String?     // Add authorId for compatibility (can be same as userId)
+  content   String
+  type      String      @default("user")
+  isEdited  Boolean     @default(false)
+
+  // Relationships
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+
+  // Audit fields
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@map("messages")
+}
+
+model Reaction {
+  id        String @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+
+  // Relationships
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  // Audit fields
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@map("reactions")
+}
+
+model ActionItem {
+  id          String           @id @default(cuid())
+  groupId     String
+  assignedTo  String
+  createdBy   String
+  title       String?          // Add title field expected by code
+  description String
+  dueDate     DateTime?        // Make optional
+  status      String           @default("pending")
+  priority    String           @default("medium")
+
+  // Relationships
+  group       Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  assignee    User             @relation(fields: [assignedTo], references: [id], onDelete: Cascade)
+
+  // Audit fields
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("action_items")
+}
+
+model Insight {
+  id               String         @id @default(cuid())
+  groupId          String
+  title            String
+  description      String
+  category         String
+  relevantMembers  String?        // JSON string
+  confidence       Float          @default(0.5)
+
+  // Relationships
+  group            Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // Audit fields
+  generatedAt      DateTime       @default(now())
+
+  @@map("insights")
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  type               String             @default("free")
+  status             String             @default("active")
+  stripeCustomerId   String?
+  stripeSubscriptionId String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  priceId            String?
+
+  // Relationships
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Audit fields
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@map("subscriptions")
+}
+
+model TherapistProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  licenseNumber     String
+  specializations   String?  // JSON string
+  bio               String?
+  isVerified        Boolean  @default(false)
+
+  // Relationships
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Audit fields
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("therapist_profiles")
+}
+
+model AIFacilitator {
+  id             String   @id @default(cuid())
+  name           String
+  personality    String
+  specialization String?  // JSON string
+  responseStyle  String
+  isActive       Boolean  @default(true)
+
+  // Audit fields
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("ai_facilitators")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+
+  // Relationships
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Audit fields
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}
+
+// Additional models required by the codebase
+
+model ToolExecution {
+  id            String   @id @default(cuid())
+  userId        String
+  toolName      String
+  arguments     String?  // JSON string
+  result        String?  // JSON string
+  status        String   @default("pending")
+  error         String?
+  startedAt     DateTime? // Add field expected by code
+  executedAt    DateTime?
+  executionTime Int?     // Add field expected by code
+  completedAt   DateTime? // Add field expected by code
+  metadata      String?  // JSON string - Add field expected by code
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("tool_executions")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String
+  entityType  String?
+  entityId    String?
+  details     String?  // JSON string
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime? // Add field expected by code
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model MoodEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  score       Int
+  emotions    String?  // JSON string
+  triggers    String?  // JSON string
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@map("mood_entries")
+}
+
+model CrisisAlert {
+  id          String   @id @default(cuid())
+  userId      String
+  groupId     String?
+  severity    String
+  indicators  String?  // JSON string
+  status      String   @default("active")
+  escalatedBy String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("crisis_alerts")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String
+  title       String
+  message     String
+  data        String?  // JSON string
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model SessionSummary {
+  id          String   @id @default(cuid())
+  groupId     String
+  sessionDate DateTime
+  startTime   DateTime? // Add field expected by code
+  endTime     DateTime? // Add field expected by code
+  summary     String
+  keyTopics   String?  // JSON string
+  actionItems String?  // JSON string
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  @@map("session_summaries")
+}
+
+model ResourceProvision {
+  id           String   @id @default(cuid())
+  userId       String
+  resourceType String
+  type         String?  // Add field expected by code
+  severity     String?  // Add field expected by code
+  resourceData String  // JSON string
+  providedAt   DateTime @default(now())
+
+  @@map("resource_provisions")
+}
+
+model EmergencySession {
+  id           String   @id @default(cuid())
+  userId       String
+  crisisAlertId String? // Add field expected by code
+  type         String?  // Add field expected by code
+  scheduledFor DateTime
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+
+  @@map("emergency_sessions")
+}
+
+model GroupRestriction {
+  id              String   @id @default(cuid())
+  userId          String
+  groupId         String
+  restrictionType String
+  type            String?  // Add field expected by code
+  reason          String?
+  active          Boolean? // Add field expected by code
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  @@map("group_restrictions")
+}
+
+model TherapistAlert {
+  id           String   @id @default(cuid())
+  userId       String
+  alertType    String
+  type         String?  // Add field expected by code
+  severity     String
+  data         String?  // JSON string
+  details      String?  // JSON string - Add field expected by code
+  acknowledged Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@map("therapist_alerts")
+}
+
+// Note: SQLite doesn't support enums, so we use String fields with validation in the application layer
