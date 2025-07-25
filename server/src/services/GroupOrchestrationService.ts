@@ -6,6 +6,8 @@
 import { ProductionOrchestratorService, AgentResponse } from '../orchestration/production-ready-fixed';
 import { DatabaseService } from './database';
 import { logger } from '../utils/logger';
+import ToolExecutor, { ToolAuditLog } from '../tools/executor';
+import { ToolContext } from '../tools/schemas';
 
 export interface GroupContext {
   groupId: string;
@@ -58,12 +60,14 @@ export interface GroupDynamics {
 
 export class GroupOrchestrationService extends ProductionOrchestratorService {
   private dbService: DatabaseService;
+  private toolExecutor: ToolExecutor;
   private groupContextCache: Map<string, GroupContext> = new Map();
   private groupSessionsMap: Map<string, string> = new Map(); // groupId -> sessionId
 
   constructor() {
     super();
     this.dbService = new DatabaseService();
+    this.toolExecutor = new ToolExecutor();
   }
 
   /**
@@ -310,8 +314,8 @@ Provide:
     messageType: 'user' | 'system';
   }): Promise<AgentResponse> {
     const { userId, sessionId, content, messageType } = params;
-    
-    console.log('[GroupOrchestration] Processing message with meta-query detection:', { 
+
+    console.log('[GroupOrchestration] Processing message with meta-query detection:', {
       content: content.slice(0, 100),
       messageType,
       sessionId: sessionId.slice(0, 20) + '...'
@@ -327,9 +331,18 @@ Provide:
       return metaResponse;
     }
 
-    // Fall back to parent class processing
-    console.log('[GroupOrchestration] No meta-query detected, using parent processMessage');
-    return super.processMessage(params);
+    // Use enhanced tool-based processing instead of parent class
+    console.log('[GroupOrchestration] No meta-query detected, using enhanced tool-based processing');
+
+    // Route through AI router first for intent analysis
+    const routingResult = await this.callAgentWithTools(
+      'ai-router',
+      content,
+      sessionId,
+      userId
+    );
+
+    return routingResult;
   }
 
   /**
@@ -590,6 +603,232 @@ The system learns and adapts to better serve your group while maintaining the hi
 • "How does this system work?"
 
 I'm here to support your group's healing journey with intelligent, compassionate assistance. What would you like to know?`;
+  }
+
+  /**
+   * Execute a tool with full validation and audit logging
+   */
+  async executeToolSafely(
+    toolName: string,
+    parameters: any,
+    context: {
+      userId: string;
+      sessionId: string;
+      groupId?: string;
+      messageId?: string;
+      agent: string;
+    }
+  ): Promise<any> {
+    try {
+      const toolContext: ToolContext = {
+        userId: context.userId,
+        sessionId: context.sessionId,
+        groupId: context.groupId,
+        messageId: context.messageId,
+        timestamp: new Date(),
+        agent: context.agent,
+        metadata: { source: 'GroupOrchestrationService' }
+      };
+
+      console.log(`[GroupOrchestration] Executing tool: ${toolName}`, {
+        agent: context.agent,
+        userId: context.userId,
+        sessionId: context.sessionId.slice(0, 20) + '...'
+      });
+
+      const result = await this.toolExecutor.executeTool(toolName, parameters, toolContext);
+
+      if (!result.success) {
+        console.error(`[GroupOrchestration] Tool execution failed: ${toolName}`, result.error);
+        return null;
+      }
+
+      console.log(`[GroupOrchestration] Tool executed successfully: ${toolName}`, {
+        confidence: result.confidence,
+        requiresEscalation: result.requiresHumanEscalation
+      });
+
+      return result.data;
+    } catch (error) {
+      console.error(`[GroupOrchestration] Tool execution error: ${toolName}`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get audit logs for a session
+   */
+  async getSessionAuditLogs(sessionId: string): Promise<ToolAuditLog[]> {
+    return this.toolExecutor.getAuditLogs(sessionId);
+  }
+
+  /**
+   * Enhanced agent calling with tool integration
+   */
+  async callAgentWithTools(
+    agentId: string,
+    message: string,
+    sessionId: string,
+    userId: string,
+    groupId?: string
+  ): Promise<AgentResponse> {
+    console.log(`[GroupOrchestration] Calling agent with tools: ${agentId}`, { message: message.slice(0, 50) });
+
+    try {
+      // First analyze intent if this is the router
+      if (agentId === 'ai-router') {
+        const intentResult = await this.executeToolSafely('analyzeLLMIntent', {
+          message,
+          conversationHistory: [],
+          groupContext: groupId ? await this.buildGroupContext(groupId) : undefined
+        }, {
+          userId,
+          sessionId,
+          groupId,
+          agent: 'ai-router'
+        });
+
+        if (intentResult) {
+          console.log('[GroupOrchestration] Intent analysis completed:', {
+            intent: intentResult.primaryIntent,
+            suggestedAgent: intentResult.suggestedAgent,
+            urgency: intentResult.urgency
+          });
+
+          // Route to suggested agent if high confidence
+          if (intentResult.confidence > 0.7) {
+            return this.callAgentWithTools(
+              intentResult.suggestedAgent,
+              message,
+              sessionId,
+              userId,
+              groupId
+            );
+          }
+        }
+      }
+
+      // Execute agent-specific tools
+      let toolResult = null;
+      const context = { userId, sessionId, groupId, agent: agentId };
+
+      switch (agentId) {
+        case 'facilitator':
+          // Analyze emotional state first
+          const sentimentResult = await this.executeToolSafely('analyzeSentiment', {
+            text: message
+          }, { ...context, agent: 'sentiment' });
+
+          if (sentimentResult) {
+            const emotionalState = this.mapSentimentToEmotionalState(sentimentResult.overallSentiment);
+
+            toolResult = await this.executeToolSafely('provideSupportiveResponse', {
+              userMessage: message,
+              emotionalState,
+              therapeuticApproach: 'validation',
+              sessionContext: {
+                isFirstMessage: false,
+                previousTopics: [],
+                userGoals: []
+              }
+            }, context);
+          }
+          break;
+
+        case 'sentiment':
+          toolResult = await this.executeToolSafely('analyzeSentiment', {
+            text: message,
+            contextualFactors: {}
+          }, context);
+          break;
+
+        case 'crisis':
+          // First detect crisis level
+          const crisisDetection = await this.executeToolSafely('detectCrisis', {
+            message,
+            userHistory: [],
+            contextualCues: {}
+          }, { ...context, agent: 'sentiment' });
+
+          if (crisisDetection?.crisisDetected) {
+            toolResult = await this.executeToolSafely('provideCrisisSupport', {
+              crisisType: 'emotional_overwhelm',
+              severityLevel: crisisDetection.severityLevel,
+              immediateNeeds: [],
+              availableSupports: []
+            }, context);
+          }
+          break;
+      }
+
+      // If we have tool results, format them into a response
+      if (toolResult) {
+        return {
+          success: true,
+          response: this.formatToolResponse(agentId, toolResult),
+          confidence: 0.9,
+          agentUsed: [agentId],
+          toolResults: [toolResult],
+          needsCrisisIntervention: toolResult.requiresHumanEscalation || false,
+          suggestGroupMatching: false,
+          metadata: {
+            toolsUsed: [agentId],
+            hasToolResults: true,
+            toolExecutionTime: new Date().toISOString()
+          }
+        };
+      }
+
+      // Fall back to parent class behavior if no tools executed
+      const parentResponse = await super.callAgentDirectly(agentId, message, sessionId, userId);
+      return {
+        ...parentResponse,
+        agentUsed: Array.isArray(parentResponse.agentUsed) ? parentResponse.agentUsed : [parentResponse.agentUsed]
+      };
+
+    } catch (error) {
+      console.error(`[GroupOrchestration] Error in callAgentWithTools:`, error);
+      const parentResponse = await super.callAgentDirectly(agentId, message, sessionId, userId);
+      return {
+        ...parentResponse,
+        agentUsed: Array.isArray(parentResponse.agentUsed) ? parentResponse.agentUsed : [parentResponse.agentUsed]
+      };
+    }
+  }
+
+  /**
+   * Map sentiment analysis to emotional state for facilitator tool
+   */
+  private mapSentimentToEmotionalState(sentiment: string): string {
+    const mapping: Record<string, string> = {
+      'very_negative': 'crisis',
+      'negative': 'distressed',
+      'neutral': 'neutral',
+      'positive': 'positive',
+      'very_positive': 'positive'
+    };
+    return mapping[sentiment] || 'neutral';
+  }
+
+  /**
+   * Format tool results into natural language response
+   */
+  private formatToolResponse(agentId: string, toolResult: any): string {
+    switch (agentId) {
+      case 'facilitator':
+        return toolResult.response || 'I hear you and want to support you through this.';
+
+      case 'sentiment':
+        const sentiment = toolResult.overallSentiment;
+        const emotions = toolResult.primaryEmotions?.map((e: any) => e.emotion).join(', ') || 'mixed emotions';
+        return `I'm picking up on ${emotions} in what you've shared. The overall tone seems ${sentiment}. How does that feel for you?`;
+
+      case 'crisis':
+        return toolResult.immediateResponse || 'I\'m concerned about what you\'re sharing. Let me connect you with some immediate support resources.';
+
+      default:
+        return toolResult.response || 'Thank you for sharing that with me.';
+    }
   }
 
   // Private helper methods

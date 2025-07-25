@@ -468,11 +468,6 @@ export class ApiService {
     version: string;
     components: any;
   }> {
-    // Skip the main system as it has route registration issues
-    if (system === 'main') {
-      throw new Error('Main orchestration system is currently under maintenance');
-    }
-
     const path = this.getOrchestrationPath(system);
     const response = await this.makeRequest<{
       success: boolean;

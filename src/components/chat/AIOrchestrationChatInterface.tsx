@@ -47,11 +47,11 @@ interface EnhancedMessage extends Message {
   requiresResponse?: boolean;
 }
 
-export default function AIOrchestrationChatInterface({ 
-  groupId, 
-  currentUser, 
-  group, 
-  className 
+export default function AIOrchestrationChatInterface({
+  groupId,
+  currentUser,
+  group,
+  className
 }: AIOrchestrationChatProps) {
   const [messageInput, setMessageInput] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -139,14 +139,14 @@ export default function AIOrchestrationChatInterface({
       if (!sessionId) {
         console.log('🤖 [AI-ORCHESTRATION] No session ID, starting session...');
         await orchestration.actions.startSession();
-        
+
         // Wait for the session to be established
         sessionId = await orchestration.waitForSession();
-        
+
         if (!sessionId) {
           throw new Error('Failed to establish orchestration session');
         }
-        
+
         console.log('🤖 [AI-ORCHESTRATION] Session established:', sessionId);
       }
 
@@ -168,20 +168,20 @@ export default function AIOrchestrationChatInterface({
 
       try {
         // Process through orchestration service for AI agent routing
-        console.log('🤖 [AI-ORCHESTRATION] Processing message through orchestration:', { 
-          content, 
+        console.log('🤖 [AI-ORCHESTRATION] Processing message through orchestration:', {
+          content,
           sessionId: sessionId,
           sessionIdValid: sessionId && sessionId.match(/^session_\d+_[a-f0-9\-]{36}$/)
         });
-        
+
         const messageRequest = {
           content,
           sessionId: sessionId!,
           messageType: 'user' as const
         };
-        
+
         console.log('🤖 [AI-ORCHESTRATION] Sending request:', messageRequest);
-        
+
         const response = await api.sendOrchestrationMessage(messageRequest);
 
         console.log('🤖 [AI-ORCHESTRATION] Orchestration response received:', {
@@ -194,7 +194,7 @@ export default function AIOrchestrationChatInterface({
         // Remove temp message and add both user and AI messages
         queryClient.setQueryData(['messages', groupId], (old: any[] | undefined) => {
           const filtered = (old || []).filter((msg: any) => msg.id !== tempMessage.id);
-          
+
           const userMessage = {
             ...tempMessage,
             isLoading: false,
@@ -232,12 +232,12 @@ export default function AIOrchestrationChatInterface({
       } catch (error) {
         console.error('🤖 [AI-ORCHESTRATION] ERROR:', error);
         console.error('🤖 [AI-ORCHESTRATION] Error details:', {
-          message: error.message,
-          status: error.response?.status,
-          data: error.response?.data
+          message: (  error as any).message,
+          status: (error as any).response?.status,
+          data: (error as any).response?.data
         });
-        // Remove optimistic message on error
-        queryClient.setQueryData(['messages', groupId], (old: any[] | undefined) => 
+        // Remove optimistic message on error since request failed
+        queryClient.setQueryData(['messages', groupId], (old: any[] | undefined) =>
           (old || []).filter((msg: any) => msg.id !== tempMessage.id)
         );
         throw error;
@@ -293,7 +293,7 @@ export default function AIOrchestrationChatInterface({
       if (messageData.groupId === groupId) {
         queryClient.setQueryData(['messages', groupId], (old: any[] | undefined) => {
           const filtered = (old || []).filter((msg: any) => !msg.id.startsWith('temp-'));
-          
+
           // Ensure valid timestamp
           let timestamp: Date;
           try {
@@ -304,7 +304,7 @@ export default function AIOrchestrationChatInterface({
           } catch (error) {
             timestamp = new Date();
           }
-          
+
           return [...filtered, {
             ...messageData,
             timestamp,
@@ -369,7 +369,7 @@ export default function AIOrchestrationChatInterface({
     const isOwnMessage = message.userId === currentUser.id;
     const isAI = message.isAIGenerated;
     const isMetaQuery = message.metadata?.isMetaQuery;
-    
+
     return (
       <motion.div
         key={message.id}
@@ -385,12 +385,12 @@ export default function AIOrchestrationChatInterface({
         {/* Avatar */}
         <div className={cn(
           'w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium',
-          isMetaQuery ? 'bg-blue-500' : 
-          isAI ? 'bg-purple-500' : 
+          isMetaQuery ? 'bg-blue-500' :
+          isAI ? 'bg-purple-500' :
           isOwnMessage ? 'bg-blue-500' : 'bg-gray-500'
         )}>
           {isMetaQuery ? <Bot className="w-4 h-4" /> :
-           isAI ? <Brain className="w-4 h-4" /> : 
+           isAI ? <Brain className="w-4 h-4" /> :
            (message.user?.firstName?.[0] || message.userId.slice(0, 2).toUpperCase())}
         </div>
 
@@ -400,11 +400,11 @@ export default function AIOrchestrationChatInterface({
           <div className={cn('flex items-center gap-2 mb-1', isOwnMessage && 'justify-end')}>
             <span className="text-sm font-medium text-gray-900">
               {isMetaQuery ? 'AI System Info' :
-               isAI ? 'AI Facilitator' : 
-               message.user ? `${message.user.firstName} ${message.user.lastName}` : 
+               isAI ? 'AI Facilitator' :
+               message.user ? `${message.user.firstName} ${message.user.lastName}` :
                'Unknown User'}
             </span>
-            
+
             {message.aiContext && (
               <div className="flex items-center gap-1">
                 <Zap className="w-3 h-3 text-purple-500" />
@@ -413,7 +413,7 @@ export default function AIOrchestrationChatInterface({
                 </span>
               </div>
             )}
-            
+
             <span className="text-xs text-gray-500">
               {(() => {
                 try {
@@ -433,9 +433,9 @@ export default function AIOrchestrationChatInterface({
           {/* Message Body */}
           <div className={cn(
             'rounded-lg px-3 py-2 text-sm',
-            isOwnMessage ? 'bg-blue-500 text-white' : 
+            isOwnMessage ? 'bg-blue-500 text-white' :
             isMetaQuery ? 'bg-blue-100 text-blue-900 border border-blue-200' :
-            isAI ? 'bg-purple-100 text-purple-900 border border-purple-200' : 
+            isAI ? 'bg-purple-100 text-purple-900 border border-purple-200' :
             'bg-gray-100 text-gray-900'
           )}>
             {message.isLoading ? (
@@ -452,7 +452,7 @@ export default function AIOrchestrationChatInterface({
                     return !inline && match ? (
                       <SyntaxHighlighter
                         style={oneLight as any}
-                        language={match[1]} 
+                        language={match[1]}
                         PreTag="div"
                       >
                         {String(children).replace(/\n$/, '')}
@@ -545,7 +545,7 @@ export default function AIOrchestrationChatInterface({
           </Button>
 
           <Button
-            variant="outline" 
+            variant="outline"
             size="sm"
             onClick={() => orchestration.actions.requestInsights()}
             disabled={!orchestration.sessionId}
@@ -619,7 +619,7 @@ export default function AIOrchestrationChatInterface({
         ) : (
           <div className="space-y-0">
             {messages.map(renderMessage)}
-            
+
             {/* AI Typing Indicator */}
             {orchestration.aiTyping && (
               <motion.div
@@ -676,7 +676,7 @@ export default function AIOrchestrationChatInterface({
             className="flex-1"
             disabled={sendMessageMutation.isPending}
           />
-          
+
           <Button
             type="submit"
             disabled={!messageInput.trim() || sendMessageMutation.isPending}
@@ -704,7 +704,7 @@ export default function AIOrchestrationChatInterface({
               ))}
             </>
           )}
-          
+
           {/* Meta-query quick buttons */}
           {messages.length === 0 && (
             <>
@@ -770,7 +770,7 @@ export default function AIOrchestrationChatInterface({
                   </p>
                 </div>
               </div>
-              
+
               <Button
                 variant="outline"
                 size="sm"

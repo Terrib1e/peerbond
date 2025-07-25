@@ -27,6 +27,7 @@ import testRoutes from './routes/test';
 import orchestrationRoutes from './routes/production-orchestration';
 import simpleAiRoutes from './routes/simple-ai';
 import basicChatRoutes from './routes/basic-chat';
+import toolRoutes from './routes/tools';
 
 // Import services
 import { DatabaseService } from './services/database';
@@ -195,6 +196,9 @@ app.use('/api/messages', authenticateToken, messageRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/test', authenticateToken, testRoutes);
+console.log('[Server] Registering tools routes...');
+app.use('/api/tools', authenticateToken, toolRoutes);
+console.log('[Server] ✅ Tools routes registered at /api/tools');
 
 // Orchestration route already registered early - this was the duplicate registration
 

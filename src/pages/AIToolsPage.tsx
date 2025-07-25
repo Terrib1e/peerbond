@@ -65,10 +65,10 @@ function AIToolsPage() {
       borderColor: 'border-purple-200'
     },
     main: {
-      name: 'Advanced AI',
+      name: 'Advanced Orchestration System',
       icon: Bot,
-      description: 'Next-generation orchestration platform',
-      features: ['Advanced reasoning', 'Context awareness', 'Personalized responses'],
+      description: 'Tool-based AI agents with formal validation & audit logging',
+      features: ['Formal tool schemas', 'Crisis detection', 'Audit compliance', 'Agent specialization'],
       color: 'text-green-500',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200'

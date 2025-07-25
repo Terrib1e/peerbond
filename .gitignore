@@ -45,4 +45,5 @@ Thumbs.db
 coverage/
 
 # Claude
-.claude/
+.claude/server/.env
+./server/.env
