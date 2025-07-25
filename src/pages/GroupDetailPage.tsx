@@ -5,7 +5,7 @@ import { ArrowLeft, Users, Calendar, MessageCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { Group } from '@/types';
-import ChatInterface from '@/components/chat/ChatInterface';
+import AIOrchestrationChatInterface from '@/components/chat/AIOrchestrationChatInterface';
 
 function GroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -188,7 +188,7 @@ function GroupDetailPage() {
 
         {activeTab === 'chat' && user && (
           <div className="h-[600px] border border-gray-200 rounded-lg overflow-hidden">
-            <ChatInterface
+            <AIOrchestrationChatInterface
               groupId={groupId!}
               currentUser={user}
               group={group}

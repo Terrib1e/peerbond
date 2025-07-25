@@ -173,6 +173,12 @@ export class ApiService {
       console.log('❌ makeRequest: response not ok, trying to parse error...');
       const error = await response.json().catch(() => ({ error: 'Network error' }));
       console.log('❌ makeRequest: error =', error);
+      
+      // Log validation details if available
+      if (error.details && Array.isArray(error.details)) {
+        console.log('❌ makeRequest: validation details =', error.details);
+      }
+      
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
 

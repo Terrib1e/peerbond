@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Bot, Brain, Zap, Heart, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Bot, Brain, Zap, Heart, AlertCircle, CheckCircle, Clock, TestTube } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 import AIChatInterface from '@/components/chat/AIChatInterface';
 import AIToolsPanel from '@/components/ai/AIToolsPanel';
+import AgentTester from '@/components/ai/AgentTester';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { api, OrchestrationSystem } from '@/lib/api';
@@ -20,7 +21,7 @@ function AIToolsPage() {
     main: 'checking',
     working: 'checking'
   });
-  const [selectedDemo, setSelectedDemo] = useState<'chat' | 'tools' | 'status'>('chat');
+  const [selectedDemo, setSelectedDemo] = useState<'chat' | 'tools' | 'status' | 'tester'>('chat');
 
   useEffect(() => {
     checkSystemHealth();
@@ -128,6 +129,13 @@ function AIToolsPage() {
             <Brain className="w-4 h-4 mr-2" />
             AI Tools
           </Button>
+          <Button
+            variant={selectedDemo === 'tester' ? 'default' : 'outline'}
+            onClick={() => setSelectedDemo('tester')}
+          >
+            <TestTube className="w-4 h-4 mr-2" />
+            Agent Tester
+          </Button>
         </div>
       </div>
 
@@ -232,6 +240,10 @@ function AIToolsPage() {
 
       {selectedDemo === 'tools' && (
         <AIToolsPanel groupId="ai-tools-demo" />
+      )}
+
+      {selectedDemo === 'tester' && (
+        <AgentTester />
       )}
     </div>
   );

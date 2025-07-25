@@ -310,6 +310,221 @@ export class ProductionOrchestratorService {
   }
 
   /**
+   * List all available agents and their tools
+   */
+  public getAvailableAgentsAndTools(): {
+    agents: {
+      id: string;
+      name: string;
+      description: string;
+      capabilities: string[];
+      tools: string[];
+    }[];
+    tools: {
+      name: string;
+      description: string;
+      agent: string;
+      parameters?: any;
+    }[];
+  } {
+    const agents = [
+      {
+        id: 'ai-router',
+        name: 'AI Router',
+        description: 'Intelligently routes user messages to the most appropriate agent using LLM analysis',
+        capabilities: ['intent_analysis', 'agent_routing', 'decision_making'],
+        tools: ['analyzeLLMIntent', 'routeToAgent', 'provideRoutingInsight']
+      },
+      {
+        id: 'sentiment',
+        name: 'Sentiment Agent',
+        description: 'Analyzes emotional content and detects crisis indicators for safety',
+        capabilities: ['sentiment_analysis', 'crisis_detection', 'emotional_assessment'],
+        tools: ['analyzeSentiment', 'detectCrisis', 'assessEmotionalState']
+      },
+      {
+        id: 'crisis',
+        name: 'Crisis Agent',
+        description: 'Handles crisis intervention and provides immediate safety resources',
+        capabilities: ['crisis_intervention', 'safety_planning', 'emergency_response'],
+        tools: ['provideCrisisSupport', 'escalateToHuman', 'createSafetyPlan']
+      },
+      {
+        id: 'facilitator',
+        name: 'Facilitator Agent (Maya)',
+        description: 'Primary therapeutic conversation handler providing empathetic support',
+        capabilities: ['therapeutic_support', 'emotional_validation', 'coping_strategies'],
+        tools: ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies']
+      },
+      {
+        id: 'matching',
+        name: 'Matching Agent',
+        description: 'Finds and recommends suitable peer support groups based on user needs',
+        capabilities: ['group_matching', 'peer_connection', 'community_building'],
+        tools: ['searchGroups', 'rankGroupsByRelevance', 'generateGroupRecommendations', 'listAllGroups']
+      },
+      {
+        id: 'insight',
+        name: 'Insight Agent',
+        description: 'Analyzes user progress and provides journey insights and growth tracking',
+        capabilities: ['progress_tracking', 'pattern_analysis', 'growth_insights'],
+        tools: ['analyzeUserProgress', 'generateProgressInsights', 'trackJourney', 'identifyPatterns']
+      }
+    ];
+
+    const tools = [
+      // AI Router Tools
+      { name: 'analyzeLLMIntent', description: 'Use LLM to analyze user intent and determine routing', agent: 'ai-router' },
+      { name: 'routeToAgent', description: 'Route message to appropriate agent based on analysis', agent: 'ai-router' },
+      { name: 'provideRoutingInsight', description: 'Explain why specific routing decision was made', agent: 'ai-router' },
+
+      // Sentiment Agent Tools
+      { name: 'analyzeSentiment', description: 'Analyze emotional tone and sentiment score of user message', agent: 'sentiment' },
+      { name: 'detectCrisis', description: 'Identify crisis keywords and risk levels', agent: 'sentiment' },
+      { name: 'assessEmotionalState', description: 'Comprehensive emotional state assessment', agent: 'sentiment' },
+
+      // Crisis Agent Tools
+      { name: 'provideCrisisSupport', description: 'Provide immediate crisis intervention and safety resources', agent: 'crisis' },
+      { name: 'escalateToHuman', description: 'Escalate to human crisis counselor when needed', agent: 'crisis' },
+      { name: 'createSafetyPlan', description: 'Help user create a personalized safety plan', agent: 'crisis' },
+
+      // Facilitator Agent Tools
+      { name: 'provideSupportiveResponse', description: 'Generate empathetic, therapeutic responses', agent: 'facilitator' },
+      { name: 'validateFeelings', description: 'Acknowledge and validate user emotions', agent: 'facilitator' },
+      { name: 'suggestCopingStrategies', description: 'Recommend evidence-based coping techniques', agent: 'facilitator' },
+
+      // Matching Agent Tools
+      { name: 'searchGroups', description: 'Search for groups matching specific criteria', agent: 'matching' },
+      { name: 'rankGroupsByRelevance', description: 'Rank groups by match score to user needs', agent: 'matching' },
+      { name: 'generateGroupRecommendations', description: 'Create personalized group recommendations', agent: 'matching' },
+      { name: 'listAllGroups', description: 'List all available peer support groups', agent: 'matching' },
+
+      // Insight Agent Tools
+      { name: 'analyzeUserProgress', description: 'Analyze patterns in user\'s conversation and growth', agent: 'insight' },
+      { name: 'generateProgressInsights', description: 'Provide insights about user\'s journey', agent: 'insight' },
+      { name: 'trackJourney', description: 'Track user\'s progress over time', agent: 'insight' },
+      { name: 'identifyPatterns', description: 'Identify behavioral and emotional patterns', agent: 'insight' }
+    ];
+
+    return { agents, tools };
+  }
+
+  /**
+   * Call a specific agent directly with a message
+   */
+  public async callAgentDirectly(
+    agentId: string,
+    message: string,
+    sessionId: string,
+    userId: string,
+    toolName?: string
+  ): Promise<{
+    success: boolean;
+    response: string;
+    agentUsed: string;
+    toolsUsed?: string[];
+    confidence: number;
+    metadata?: any;
+  }> {
+    try {
+      // Validate session
+      const session = this.sessions.get(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+
+      if (session.userId !== userId) {
+        throw new Error('Unauthorized access to session');
+      }
+
+      console.log(`[ProductionOrchestrator] Direct agent call: ${agentId} with message: "${message}"`);
+      if (toolName) {
+        console.log(`[ProductionOrchestrator] Specific tool requested: ${toolName}`);
+      }
+
+      let result;
+      let toolsUsed: string[] = [];
+
+      switch (agentId) {
+        case 'facilitator':
+          result = await this.facilitatorAgent(message, session);
+          toolsUsed = ['provideSupportiveResponse'];
+          break;
+
+        case 'matching':
+          const matchingResult = await this.matchingAgent(message, session);
+          result = {
+            response: matchingResult.response,
+            confidence: matchingResult.confidence
+          };
+          toolsUsed = toolName ? [toolName] : ['searchGroups', 'generateGroupRecommendations'];
+          break;
+
+        case 'sentiment':
+          const sentimentResult = await this.sentimentAgent(message, session);
+          result = {
+            response: `Sentiment Analysis Results:\n• Sentiment Score: ${sentimentResult.sentimentScore}\n• Crisis Level: ${sentimentResult.crisisLevel}\n• Emotional State: ${sentimentResult.sentimentScore > 0 ? 'Positive' : sentimentResult.sentimentScore < 0 ? 'Negative' : 'Neutral'}`,
+            confidence: 0.9
+          };
+          toolsUsed = ['analyzeSentiment', 'detectCrisis'];
+          session.lastSentimentScore = sentimentResult.sentimentScore;
+          session.crisisLevel = sentimentResult.crisisLevel;
+          break;
+
+        case 'crisis':
+          result = await this.crisisAgent(message, session);
+          toolsUsed = ['provideCrisisSupport'];
+          break;
+
+        case 'insight':
+          result = await this.insightAgent(message, session);
+          toolsUsed = ['analyzeUserProgress', 'generateProgressInsights'];
+          break;
+
+        case 'ai-router':
+          const routingResult = await this.aiRouterAgent(message, session);
+          result = {
+            response: `AI Router Analysis:\n• Primary Agent: ${routingResult.primaryAgent}\n• Recommended Tools: ${routingResult.tools.join(', ')}\n• Reasoning: ${routingResult.reasoning}\n• Confidence: ${routingResult.confidence}`,
+            confidence: routingResult.confidence
+          };
+          toolsUsed = ['analyzeLLMIntent'];
+          break;
+
+        default:
+          throw new Error(`Unknown agent: ${agentId}`);
+      }
+
+      // Update session with agent call
+      session.currentAgent = agentId;
+      session.agentHistory.push(agentId);
+      session.lastActivity = new Date();
+
+      return {
+        success: true,
+        response: result.response,
+        agentUsed: agentId,
+        toolsUsed,
+        confidence: result.confidence,
+        metadata: {
+          directCall: true,
+          requestedTool: toolName,
+          sessionUpdated: true
+        }
+      };
+
+    } catch (error) {
+      console.error(`[ProductionOrchestrator] Error in direct agent call:`, error);
+      return {
+        success: false,
+        response: `Error calling agent ${agentId}: ${error.message}`,
+        agentUsed: 'error',
+        confidence: 0,
+        metadata: { error: error.message }
+      };
+    }
+  }
+
+  /**
    * Clean up expired sessions
    */
   private async cleanupExpiredSessions(): Promise<void> {
@@ -554,10 +769,11 @@ What's one small thing that has brought you even a tiny bit of comfort recently?
       console.log('[MatchingAgent] Extracted goals:', goals);
       console.log('[MatchingAgent] Extracted challenges:', challenges);
 
-            // Fetch available groups from database
+            // Fetch available groups from database - match frontend Groups tab behavior
       const { groups: allGroups } = await this.databaseService.getGroups(1, 50, {
         status: true, // Only active groups
-        privacy: true // Only public groups
+        privacy: undefined, // Include both public and private groups (like frontend)
+        userId: session.userId // Show groups the user has access to
       });
 
       // Use all available groups (no filtering - show user-created groups too)
@@ -817,9 +1033,13 @@ Once our systems are back online, I'll be able to give you personalized group re
 
     } catch (error) {
       console.error('[ProductionOrchestrator] LLM intent analysis failed, using fallback:', error);
-
       // Fallback to simplified rule-based routing if LLM fails
-      return this.getFallbackRouting(content);
+      return {
+        primaryAgent: 'facilitator', // Default to facilitator as safest option
+        tools: ['provideSupportiveResponse', 'validateFeelings'],
+        reasoning: 'Fallback routing due to LLM analysis failure - defaulting to general support',
+        confidence: 0.3 // Low confidence since this is a fallback
+      };
     }
   }
 
@@ -926,7 +1146,7 @@ Special attention: Any request to LIST, SHOW, or SEE AVAILABLE groups should use
   }
 
   /**
-   * Parse LLM response for intent analysis
+   * Parse LLM response for intent analysis with improved reliability
    */
   private parseIntentResponse(responseText: string): {
     primaryAgent: string;
@@ -935,95 +1155,217 @@ Special attention: Any request to LIST, SHOW, or SEE AVAILABLE groups should use
     confidence: number;
   } {
     try {
+      console.log('[ProductionOrchestrator] Parsing LLM response:', responseText);
+
       // Clean the response and extract JSON
       let cleanResponse = responseText.trim();
 
-      // Find JSON object in the response
-      const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
+      // Remove markdown code blocks if present
+      cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+
+      // Find JSON object in the response (more robust matching)
+      const jsonMatch = cleanResponse.match(/\{[\s\S]*?\}/);
       if (jsonMatch) {
         cleanResponse = jsonMatch[0];
       }
 
-      const parsed = JSON.parse(cleanResponse);
+      console.log('[ProductionOrchestrator] Cleaned JSON:', cleanResponse);
 
-      // Validate the response structure
-      return {
+      const parsed = JSON.parse(cleanResponse);
+      console.log('[ProductionOrchestrator] Parsed JSON:', parsed);
+
+      // Validate and sanitize the response structure
+      const result = {
         primaryAgent: this.validateAgent(parsed.primaryAgent),
-        tools: Array.isArray(parsed.tools) ? parsed.tools : ['provideSupportiveResponse'],
-        reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : 'LLM analysis completed',
-        confidence: typeof parsed.confidence === 'number' ?
-          Math.max(0.1, Math.min(1.0, parsed.confidence)) : 0.7
+        tools: this.validateTools(parsed.tools, parsed.primaryAgent),
+        reasoning: this.validateReasoning(parsed.reasoning),
+        confidence: this.validateConfidence(parsed.confidence)
       };
+
+      console.log('[ProductionOrchestrator] Validated result:', result);
+      return result;
 
     } catch (error) {
       console.error('[ProductionOrchestrator] Error parsing LLM response:', error);
       console.log('[ProductionOrchestrator] Raw response text:', responseText);
 
-      // Return intelligent fallback based on content analysis
-      return this.getFallbackRouting(responseText);
+      // Enhanced fallback analysis
+      const fallback = this.getEnhancedFallbackRouting(responseText);
+      console.log('[ProductionOrchestrator] Using fallback routing:', fallback);
+      return fallback;
     }
   }
 
   /**
-   * Validate agent name and provide fallback
+   * Validate and sanitize agent name
    */
-  private validateAgent(agentName: string): string {
+  private validateAgent(agentName: any): string {
     const validAgents = ['matching', 'facilitator', 'insight'];
-    return validAgents.includes(agentName) ? agentName : 'facilitator';
+    if (typeof agentName === 'string' && validAgents.includes(agentName)) {
+      return agentName;
+    }
+    console.warn('[ProductionOrchestrator] Invalid agent name:', agentName, 'defaulting to facilitator');
+    return 'facilitator';
   }
 
-    /**
-   * Fallback routing when LLM analysis fails
+  /**
+   * Validate and sanitize tools array
    */
-  private getFallbackRouting(content: string): {
+  private validateTools(tools: any, primaryAgent: string): string[] {
+    if (!Array.isArray(tools)) {
+      // Return default tools based on agent
+      return this.getDefaultToolsForAgent(primaryAgent);
+    }
+
+    const validTools = this.getValidToolsForAgent(primaryAgent);
+    const filteredTools = tools.filter(tool =>
+      typeof tool === 'string' && validTools.includes(tool)
+    );
+
+    if (filteredTools.length === 0) {
+      return this.getDefaultToolsForAgent(primaryAgent);
+    }
+
+    return filteredTools;
+  }
+
+  /**
+   * Validate reasoning text
+   */
+  private validateReasoning(reasoning: any): string {
+    if (typeof reasoning === 'string' && reasoning.trim().length > 0) {
+      return reasoning.trim();
+    }
+    return 'AI analysis completed with standard routing logic';
+  }
+
+  /**
+   * Validate confidence score
+   */
+  private validateConfidence(confidence: any): number {
+    if (typeof confidence === 'number' && confidence >= 0 && confidence <= 1) {
+      return confidence;
+    }
+    return 0.7; // Default confidence
+  }
+
+  /**
+   * Get default tools for an agent
+   */
+  private getDefaultToolsForAgent(agent: string): string[] {
+    const defaultTools = {
+      'matching': ['searchGroups', 'generateGroupRecommendations'],
+      'facilitator': ['provideSupportiveResponse', 'validateFeelings'],
+      'insight': ['analyzeUserProgress', 'generateProgressInsights']
+    };
+    return defaultTools[agent] || defaultTools['facilitator'];
+  }
+
+  /**
+   * Get valid tools for an agent
+   */
+  private getValidToolsForAgent(agent: string): string[] {
+    const agentTools = {
+      'matching': ['searchGroups', 'rankGroupsByRelevance', 'generateGroupRecommendations', 'listAllGroups'],
+      'facilitator': ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'],
+      'insight': ['analyzeUserProgress', 'generateProgressInsights', 'trackJourney', 'identifyPatterns']
+    };
+    return agentTools[agent] || agentTools['facilitator'];
+  }
+
+  /**
+   * Enhanced fallback routing when LLM analysis fails
+   */
+  private getEnhancedFallbackRouting(content: string): {
     primaryAgent: string;
     tools: string[];
     reasoning: string;
     confidence: number;
   } {
     const lowerContent = content.toLowerCase();
+    console.log('[ProductionOrchestrator] Analyzing content for fallback routing:', lowerContent);
 
-    // Check for group listing requests first (highest priority)
+    // Group listing requests (highest priority)
     const listingKeywords = ['list groups', 'show groups', 'groups available', 'what groups',
-                            'available groups', 'group options', 'all groups', 'list all'];
-    if (listingKeywords.some(keyword => lowerContent.includes(keyword))) {
+                            'available groups', 'group options', 'all groups', 'list all', 'show all groups'];
+    const listingMatch = listingKeywords.some(keyword => lowerContent.includes(keyword));
+    if (listingMatch) {
+      console.log('[ProductionOrchestrator] Fallback: Group listing detected');
       return {
         primaryAgent: 'matching',
         tools: ['listAllGroups', 'searchGroups'],
-        reasoning: 'Fallback: Detected group listing request',
+        reasoning: 'Enhanced fallback: Detected group listing request with high confidence',
+        confidence: 0.85
+      };
+    }
+
+    // Group finding/matching requests
+    const groupKeywords = ['find group', 'join group', 'group for', 'support group', 'recommend group', 'match me', 'connect me'];
+    const groupMatch = groupKeywords.some(keyword => lowerContent.includes(keyword));
+    const hasGroupContext = lowerContent.includes('group') || lowerContent.includes('connect') ||
+                           lowerContent.includes('community') || lowerContent.includes('others');
+
+    if (groupMatch || hasGroupContext) {
+      console.log('[ProductionOrchestrator] Fallback: Group matching detected');
+      return {
+        primaryAgent: 'matching',
+        tools: ['searchGroups', 'generateGroupRecommendations', 'rankGroupsByRelevance'],
+        reasoning: 'Enhanced fallback: Detected group/connection request',
+        confidence: 0.75
+      };
+    }
+
+    // Progress/insight requests
+    const insightKeywords = ['my progress', 'how am i doing', 'journey', 'growth', 'insights', 'milestones', 'improvement'];
+    const insightMatch = insightKeywords.some(keyword => lowerContent.includes(keyword));
+    const hasProgressContext = lowerContent.includes('progress') || lowerContent.includes('better') ||
+                              lowerContent.includes('growing') || lowerContent.includes('learning');
+
+    if (insightMatch || hasProgressContext) {
+      console.log('[ProductionOrchestrator] Fallback: Insight request detected');
+      return {
+        primaryAgent: 'insight',
+        tools: ['analyzeUserProgress', 'generateProgressInsights', 'trackJourney'],
+        reasoning: 'Enhanced fallback: Detected progress/insight request',
+        confidence: 0.7
+      };
+    }
+
+    // Crisis-related content (even though crisis agent is handled separately)
+    const crisisKeywords = ['help', 'crisis', 'emergency', 'urgent', 'desperate', 'cant cope', 'overwhelmed'];
+    const crisisMatch = crisisKeywords.some(keyword => lowerContent.includes(keyword));
+
+    if (crisisMatch) {
+      console.log('[ProductionOrchestrator] Fallback: Crisis context detected, routing to facilitator');
+      return {
+        primaryAgent: 'facilitator',
+        tools: ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'],
+        reasoning: 'Enhanced fallback: Crisis context detected, providing therapeutic support',
         confidence: 0.8
       };
     }
 
-    // Check for general group/connection requests
-    if (lowerContent.includes('group') || lowerContent.includes('connect') ||
-        lowerContent.includes('others') || lowerContent.includes('community') ||
-        lowerContent.includes('find') || lowerContent.includes('match')) {
+    // Emotional support content
+    const emotionalKeywords = ['feeling', 'sad', 'happy', 'anxious', 'depressed', 'angry', 'frustrated', 'worried'];
+    const emotionalMatch = emotionalKeywords.some(keyword => lowerContent.includes(keyword));
+
+    if (emotionalMatch) {
+      console.log('[ProductionOrchestrator] Fallback: Emotional content detected');
       return {
-        primaryAgent: 'matching',
-        tools: ['searchGroups', 'generateGroupRecommendations'],
-        reasoning: 'Fallback: Detected group/connection-related keywords',
-        confidence: 0.6
+        primaryAgent: 'facilitator',
+        tools: ['provideSupportiveResponse', 'validateFeelings'],
+        reasoning: 'Enhanced fallback: Emotional content requires therapeutic support',
+        confidence: 0.75
       };
     }
 
-    // Check for progress/insight requests
-    if (lowerContent.includes('progress') || lowerContent.includes('journey') ||
-        lowerContent.includes('growth') || lowerContent.includes('insight')) {
-      return {
-        primaryAgent: 'insight',
-        tools: ['analyzeUserProgress', 'generateProgressInsights'],
-        reasoning: 'Fallback: Detected progress/insight-related keywords',
-        confidence: 0.6
-      };
-    }
-
-    // Default to facilitator
+    // Default to facilitator with basic support
+    console.log('[ProductionOrchestrator] Fallback: Using default facilitator routing');
     return {
       primaryAgent: 'facilitator',
-      tools: ['provideSupportiveResponse', 'validateFeelings'],
-      reasoning: 'Fallback: Default therapeutic support',
-      confidence: 0.5
+      tools: ['provideSupportiveResponse'],
+      reasoning: 'Enhanced fallback: Default therapeutic support for general conversation',
+      confidence: 0.6
     };
   }
 
@@ -1050,40 +1392,100 @@ Special attention: Any request to LIST, SHOW, or SEE AVAILABLE groups should use
     console.log(`[ProductionOrchestrator] Executing routing decision: ${decision.primaryAgent} with tools: ${decision.tools.join(', ')}`);
     console.log(`[ProductionOrchestrator] Reasoning: ${decision.reasoning}`);
 
-    // Execute the primary agent based on AI routing decision
-    switch (decision.primaryAgent) {
-      case 'matching':
-        const matchingResult = await this.matchingAgent(content, session);
-        agentsUsed.push('matching');
-        response = matchingResult.response;
-        confidence = matchingResult.confidence;
-        suggestGroupMatching = true;
-        if (matchingResult.toolResults) {
-          toolResults.push(...matchingResult.toolResults);
-        }
-        break;
+    // Execute the primary agent based on AI routing decision with proper agent switching
+    try {
+      switch (decision.primaryAgent) {
+        case 'matching':
+          console.log('[ProductionOrchestrator] Switching to MATCHING agent');
+          const matchingResult = await this.matchingAgent(content, session);
+          agentsUsed.push('matching');
+          response = matchingResult.response;
+          confidence = Math.max(matchingResult.confidence, decision.confidence);
+          suggestGroupMatching = true;
 
-      case 'insight':
-        const insightResult = await this.insightAgent(content, session);
-        agentsUsed.push('insight');
-        response = insightResult.response;
-        confidence = insightResult.confidence;
-        break;
+          // Add matching-specific tool results
+          if (matchingResult.toolResults) {
+            toolResults.push(...matchingResult.toolResults);
+          }
 
-      case 'facilitator':
-      default:
-        const facilitatorResult = await this.facilitatorAgent(content, session);
-        agentsUsed.push('facilitator');
-        response = facilitatorResult.response;
-        confidence = facilitatorResult.confidence;
-        break;
+          // Execute specific tools requested by AI router
+          for (const tool of decision.tools) {
+            if (['searchGroups', 'listAllGroups', 'generateGroupRecommendations'].includes(tool)) {
+              toolResults.push({
+                tool,
+                agent: 'matching',
+                executed: true,
+                timestamp: new Date()
+              });
+            }
+          }
+          break;
+
+        case 'insight':
+          console.log('[ProductionOrchestrator] Switching to INSIGHT agent');
+          const insightResult = await this.insightAgent(content, session);
+          agentsUsed.push('insight');
+          response = insightResult.response;
+          confidence = Math.max(insightResult.confidence, decision.confidence);
+
+          // Execute insight-specific tools
+          for (const tool of decision.tools) {
+            if (['analyzeUserProgress', 'generateProgressInsights', 'trackJourney'].includes(tool)) {
+              toolResults.push({
+                tool,
+                agent: 'insight',
+                executed: true,
+                timestamp: new Date()
+              });
+            }
+          }
+          break;
+
+        case 'facilitator':
+        default:
+          console.log('[ProductionOrchestrator] Switching to FACILITATOR agent (Maya)');
+          const facilitatorResult = await this.facilitatorAgent(content, session);
+          agentsUsed.push('facilitator');
+          response = facilitatorResult.response;
+          confidence = Math.max(facilitatorResult.confidence, decision.confidence);
+
+          // Execute facilitator-specific tools
+          for (const tool of decision.tools) {
+            if (['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'].includes(tool)) {
+              toolResults.push({
+                tool,
+                agent: 'facilitator',
+                executed: true,
+                timestamp: new Date()
+              });
+            }
+          }
+          break;
+      }
+
+      // Update session with the agent that was actually used
+      session.currentAgent = decision.primaryAgent;
+      console.log(`[ProductionOrchestrator] ✅ Successfully switched to ${decision.primaryAgent} agent`);
+
+    } catch (error) {
+      console.error(`[ProductionOrchestrator] Error executing ${decision.primaryAgent} agent:`, error);
+
+      // Fallback to facilitator if primary agent fails
+      console.log('[ProductionOrchestrator] Falling back to facilitator agent');
+      const fallbackResult = await this.facilitatorAgent(content, session);
+      agentsUsed.push('facilitator-fallback');
+      response = fallbackResult.response;
+      confidence = 0.3; // Lower confidence for fallback
+      session.currentAgent = 'facilitator';
     }
 
-    // Log the tools that were conceptually used
+    // Log the AI routing decision and tool execution
     toolResults.push({
       tool: 'aiRouting',
       decision: decision,
-      toolsUsed: decision.tools
+      toolsUsed: decision.tools,
+      executedAgent: session.currentAgent,
+      timestamp: new Date()
     });
 
     return {

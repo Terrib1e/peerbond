@@ -168,6 +168,42 @@ class WebSocketService {
     return this.socket?.connected || false;
   }
 
+  // Emit events to server
+  emit(event: string, data?: any): void {
+    if (this.socket?.connected) {
+      this.socket.emit(event, data);
+    } else {
+      console.warn('⚠️ Cannot emit event - WebSocket not connected:', event);
+    }
+  }
+
+  // Listen for events from server
+  on(event: string, callback: (data: any) => void): void {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    } else {
+      // Try to initialize and then set up the listener
+      this.connect().then(() => {
+        if (this.socket) {
+          this.socket.on(event, callback);
+        }
+      }).catch(error => {
+        console.warn('⚠️ Cannot listen for event - WebSocket initialization failed:', event, error.message);
+      });
+    }
+  }
+
+  // Remove event listeners
+  off(event: string, callback?: (data: any) => void): void {
+    if (this.socket) {
+      if (callback) {
+        this.socket.off(event, callback);
+      } else {
+        this.socket.off(event);
+      }
+    }
+  }
+
   // Get connection status for debugging
   getConnectionStatus(): { connected: boolean; attempts: number; maxAttempts: number } {
     return {

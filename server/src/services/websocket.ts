@@ -3,6 +3,8 @@ import { Server as HTTPServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { DatabaseService } from './database';
 import { GeminiService } from './geminiService';
+import { ProductionOrchestratorService } from '../orchestration/production-ready-fixed';
+import { GroupOrchestrationService } from './GroupOrchestrationService';
 import { logger } from '../utils/logger';
 import { WebSocketMessage, User, Message, Group } from '../types';
 
@@ -15,12 +17,17 @@ export class WebSocketService {
   private io: SocketIOServer;
   private dbService: DatabaseService;
   private geminiService: GeminiService;
+  private orchestratorService: ProductionOrchestratorService;
+  private groupOrchestrationService: GroupOrchestrationService;
   private connectedUsers: Map<string, string> = new Map(); // userId -> socketId
   private typingUsers: Map<string, Set<string>> = new Map(); // groupId -> Set of userIds
+  private groupSessions: Map<string, string> = new Map(); // groupId -> sessionId
 
   constructor(server: HTTPServer, dbService: DatabaseService) {
     this.dbService = dbService;
     this.geminiService = new GeminiService();
+    this.orchestratorService = new ProductionOrchestratorService();
+    this.groupOrchestrationService = new GroupOrchestrationService();
     this.io = new SocketIOServer(server, {
       cors: {
         origin: process.env.CORS_ORIGIN || "http://localhost:3000",
@@ -117,6 +124,23 @@ export class WebSocketService {
       // Handle manual AI facilitator request
       socket.on('request_facilitator', async (data: { groupId: string; type?: string }) => {
         await this.handleFacilitatorRequest(socket, data);
+      });
+
+      // AI Orchestration Events
+      socket.on('ai:start_session', async (data: { groupId: string; userProfile?: any }) => {
+        await this.handleAISessionStart(socket, data);
+      });
+
+      socket.on('ai:agent_call', async (data: { groupId: string; agentId: string; message: string; sessionId: string }) => {
+        await this.handleAIAgentCall(socket, data);
+      });
+
+      socket.on('ai:crisis_intervention', async (data: { groupId: string; messageId: string; severity: string }) => {
+        await this.handleCrisisIntervention(socket, data);
+      });
+
+      socket.on('ai:request_insights', async (data: { groupId: string }) => {
+        await this.handleGroupInsightsRequest(socket, data);
       });
 
       // Handle disconnection
@@ -230,13 +254,181 @@ export class WebSocketService {
       // Clear typing indicator
       this.clearTyping(groupId, user.id);
 
-      // Trigger AI facilitator response for recovery groups
-      await this.triggerAIFacilitatorResponse(groupId, message, group);
+      // Enhanced AI orchestration for group messages
+      await this.processGroupMessageWithAI(groupId, message, user);
 
       logger.info(`Message sent in group ${groupId} by ${user.email}`);
     } catch (error) {
       logger.error('Error sending message:', error);
       socket.emit('error', { message: 'Failed to send message' });
+    }
+  }
+
+  /**
+   * Process group message through AI orchestration pipeline
+   */
+  private async processGroupMessageWithAI(groupId: string, message: any, user: User) {
+    try {
+      console.log('[WebSocket] Processing group message with AI:', {
+        groupId,
+        messageContent: message.content,
+        userId: user.id
+      });
+
+      // Process message through group orchestration service
+      const aiResponse = await this.groupOrchestrationService.processGroupMessage({
+        groupId,
+        userId: user.id,
+        message: message.content,
+        messageId: message.id
+      });
+
+      console.log('[WebSocket] AI response received:', {
+        success: aiResponse.success,
+        agentUsed: aiResponse.agentUsed,
+        isMetaQuery: aiResponse.metadata?.isMetaQuery
+      });
+
+      // Handle different AI response scenarios
+      if (aiResponse.needsCrisisIntervention) {
+        await this.handleAutomaticCrisisDetection(groupId, message, aiResponse);
+      }
+
+      if (aiResponse.needsGroupAction) {
+        await this.handleGroupActionRequired(groupId, aiResponse);
+      }
+
+      if (aiResponse.suggestGroupMatching) {
+        await this.handleGroupMatchingSuggestion(groupId, aiResponse);
+      }
+
+      // Send AI response as a message if there's actual content to respond with
+      if (aiResponse.response && aiResponse.response.trim()) {
+        console.log('[WebSocket] Sending AI response message');
+
+        // Create AI message in database
+        const aiMessage = await this.dbService.createMessage({
+          groupId,
+          userId: aiResponse.metadata?.isMetaQuery ? 'ai-system' : 'ai-facilitator',
+          content: aiResponse.response,
+          type: aiResponse.metadata?.isMetaQuery ? 'system' : 'ai_facilitator'
+        });
+
+        // Broadcast AI response to all group members
+        this.io.to(groupId).emit('new_message', {
+          ...aiMessage,
+          isAIGenerated: true,
+          aiContext: {
+            agentUsed: aiResponse.agentUsed,
+            confidence: aiResponse.confidence,
+            metadata: aiResponse.metadata
+          }
+        });
+      }
+
+      // Send AI insights to group if available
+      if (aiResponse.groupInsights && aiResponse.groupInsights.length > 0) {
+        this.io.to(groupId).emit('ai:insights_update', {
+          groupId,
+          insights: aiResponse.groupInsights,
+          timestamp: new Date()
+        });
+      }
+
+      // Emit updated agent status based on group context
+      this.io.to(groupId).emit('ai:agent_status_update', {
+        groupId,
+        agentStatus: {
+          facilitator: true,
+          sentiment: aiResponse.agentUsed.includes('sentiment'),
+          crisis: aiResponse.needsCrisisIntervention || false,
+          insight: aiResponse.groupInsights && aiResponse.groupInsights.length > 0,
+          matching: aiResponse.suggestGroupMatching || false
+        },
+        groupContext: {
+          mood: aiResponse.groupContext?.groupMood,
+          activity: aiResponse.groupContext?.recentActivity,
+          memberCount: aiResponse.groupContext?.memberCount
+        },
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      logger.error('Error processing group message with AI:', error);
+      // Fallback to basic AI response if group orchestration fails
+      await this.triggerAIFacilitatorResponse(groupId, message, await this.dbService.getGroupById(groupId));
+    }
+  }
+
+  private async handleAutomaticCrisisDetection(groupId: string, message: any, aiResponse: any) {
+    // Create crisis alert message
+    const crisisMessage = await this.dbService.createMessage({
+      groupId,
+      userId: 'ai-crisis',
+      content: aiResponse.response,
+      type: 'crisis_intervention'
+    });
+
+    // Broadcast crisis intervention
+    this.io.to(groupId).emit('ai:crisis_detected', {
+      groupId,
+      messageId: message.id,
+      severity: aiResponse.metadata?.crisisLevel || 'moderate',
+      aiResponse: crisisMessage,
+      resources: aiResponse.metadata?.crisisResources || []
+    });
+
+    // Alert facilitators
+    const group = await this.dbService.getGroupById(groupId);
+    if (group?.facilitators) {
+      const facilitatorSockets = group.facilitators
+        .map(facId => this.connectedUsers.get(facId))
+        .filter(Boolean);
+
+      facilitatorSockets.forEach(socketId => {
+        this.io.to(socketId!).emit('ai:facilitator_alert', {
+          type: 'crisis_detected',
+          groupId,
+          messageId: message.id,
+          severity: aiResponse.metadata?.crisisLevel || 'moderate',
+          requiresAction: true
+        });
+      });
+    }
+  }
+
+  private async handleGroupActionRequired(groupId: string, aiResponse: any) {
+    // Emit group action needed event
+    this.io.to(groupId).emit('ai:group_action_needed', {
+      groupId,
+      actionType: aiResponse.metadata?.actionType || 'general_support',
+      recommendation: aiResponse.response,
+      priority: aiResponse.metadata?.priority || 'medium',
+      timestamp: new Date()
+    });
+  }
+
+  private async handleGroupMatchingSuggestion(groupId: string, aiResponse: any) {
+    // Get group matching suggestions
+    try {
+      const sessionId = this.groupSessions.get(groupId);
+      if (sessionId) {
+        const matchingResponse = await this.orchestratorService.callAgentDirectly(
+          'matching',
+          'Suggest similar groups for better peer connection',
+          sessionId,
+          'system'
+        );
+
+        this.io.to(groupId).emit('ai:group_matching_suggestion', {
+          groupId,
+          suggestions: matchingResponse.metadata?.suggestions || [],
+          reason: matchingResponse.response,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      logger.error('Error getting group matching suggestions:', error);
     }
   }
 
@@ -709,6 +901,243 @@ export class WebSocketService {
     } catch (error) {
       logger.error('Error handling facilitator request:', error);
       socket.emit('error', { message: 'Failed to request facilitator response' });
+    }
+  }
+
+  // AI Orchestration Event Handlers
+  private async handleAISessionStart(socket: AuthenticatedSocket, data: { groupId: string; userProfile?: any }) {
+    try {
+      const user = socket.user!;
+      const { groupId, userProfile } = data;
+
+      // Verify user access to group
+      const group = await this.dbService.getGroupById(groupId);
+      if (!group || !group.members.includes(user.id)) {
+        socket.emit('ai:error', { message: 'Access denied to group' });
+        return;
+      }
+
+      // Start orchestration session for the group
+      const session = await this.orchestratorService.startSession(user.id, groupId, userProfile);
+
+      // Store the session ID for this group
+      this.groupSessions.set(groupId, session.sessionId);
+
+      // Emit session started event to all group members
+      this.io.to(groupId).emit('ai:session_started', {
+        groupId,
+        sessionId: session.sessionId,
+        welcomeMessage: session.welcomeMessage,
+        agentStatus: {
+          facilitator: true,
+          sentiment: true,
+          crisis: true,
+          insight: false,
+          matching: false
+        },
+        timestamp: new Date()
+      });
+
+      logger.info(`AI orchestration session started for group ${groupId} by ${user.email}`);
+    } catch (error) {
+      logger.error('Error starting AI session:', error);
+      socket.emit('ai:error', { message: 'Failed to start AI session' });
+    }
+  }
+
+  private async handleAIAgentCall(socket: AuthenticatedSocket, data: { groupId: string; agentId: string; message: string; sessionId: string }) {
+    try {
+      const user = socket.user!;
+      const { groupId, agentId, message, sessionId } = data;
+
+      // Verify user access to group
+      const group = await this.dbService.getGroupById(groupId);
+      if (!group || !group.members.includes(user.id)) {
+        socket.emit('ai:error', { message: 'Access denied to group' });
+        return;
+      }
+
+      // Call the specific agent
+      const response = await this.orchestratorService.callAgentDirectly(agentId, message, sessionId, user.id);
+
+      // Emit AI typing indicator
+      this.io.to(groupId).emit('ai:typing', {
+        groupId,
+        agentId,
+        isTyping: true
+      });
+
+      // Simulate processing delay for better UX
+      setTimeout(async () => {
+        // Create AI message in database
+        const aiMessage = await this.dbService.createMessage({
+          groupId,
+          userId: 'ai-facilitator',
+          content: response.response,
+          type: 'ai_facilitator'
+        });
+
+        // Stop typing indicator
+        this.io.to(groupId).emit('ai:typing', {
+          groupId,
+          agentId,
+          isTyping: false
+        });
+
+        // Broadcast AI response to all group members
+        this.io.to(groupId).emit('ai:response', {
+          ...aiMessage,
+          agentContext: {
+            agentUsed: response.agentUsed,
+            confidence: response.confidence,
+            toolsUsed: response.toolsUsed,
+            metadata: response.metadata
+          }
+        });
+
+        // Handle crisis intervention if detected
+        if (response.metadata?.needsCrisisIntervention) {
+          this.io.to(groupId).emit('ai:crisis_detected', {
+            groupId,
+            messageId: aiMessage.id,
+            severity: response.metadata.crisisLevel || 'moderate',
+            resources: response.metadata.crisisResources
+          });
+        }
+
+      }, 1500);
+
+      logger.info(`AI agent ${agentId} called for group ${groupId} by ${user.email}`);
+    } catch (error) {
+      logger.error('Error handling AI agent call:', error);
+      socket.emit('ai:error', { message: 'Failed to call AI agent' });
+    }
+  }
+
+  private async handleCrisisIntervention(socket: AuthenticatedSocket, data: { groupId: string; messageId: string; severity: string }) {
+    try {
+      const user = socket.user!;
+      const { groupId, messageId, severity } = data;
+
+      // Verify user has facilitator permissions
+      const group = await this.dbService.getGroupById(groupId);
+      if (!group || (!group.facilitators.includes(user.id) && user.role !== 'admin')) {
+        socket.emit('ai:error', { message: 'Insufficient permissions for crisis intervention' });
+        return;
+      }
+
+      // Get the original message for context
+      const message = await this.dbService.getMessageById(messageId);
+      if (!message) {
+        socket.emit('ai:error', { message: 'Message not found' });
+        return;
+      }
+
+      // Call crisis agent
+      const sessionId = this.groupSessions.get(groupId);
+      if (!sessionId) {
+        socket.emit('ai:error', { message: 'No active AI session for this group' });
+        return;
+      }
+
+      const crisisResponse = await this.orchestratorService.callAgentDirectly(
+        'crisis',
+        `Crisis intervention needed for message: "${message.content}". Severity: ${severity}`,
+        sessionId,
+        user.id
+      );
+
+      // Create crisis intervention message
+      const crisisMessage = await this.dbService.createMessage({
+        groupId,
+        userId: 'ai-crisis',
+        content: crisisResponse.response,
+        type: 'crisis_intervention'
+      });
+
+      // Broadcast crisis intervention to group
+      this.io.to(groupId).emit('ai:crisis_intervention', {
+        ...crisisMessage,
+        originalMessageId: messageId,
+        severity,
+        resources: crisisResponse.metadata?.resources || []
+      });
+
+      // Notify facilitators privately
+      const facilitatorSockets = group.facilitators
+        .map(facId => this.connectedUsers.get(facId))
+        .filter(Boolean);
+
+      facilitatorSockets.forEach(socketId => {
+        this.io.to(socketId!).emit('ai:facilitator_alert', {
+          groupId,
+          messageId,
+          severity,
+          interventionType: 'crisis',
+          requiresAction: severity === 'severe'
+        });
+      });
+
+      logger.info(`Crisis intervention triggered for group ${groupId} by ${user.email}`);
+    } catch (error) {
+      logger.error('Error handling crisis intervention:', error);
+      socket.emit('ai:error', { message: 'Failed to handle crisis intervention' });
+    }
+  }
+
+  private async handleGroupInsightsRequest(socket: AuthenticatedSocket, data: { groupId: string }) {
+    try {
+      const user = socket.user!;
+      const { groupId } = data;
+
+      // Verify user access to group
+      const group = await this.dbService.getGroupById(groupId);
+      if (!group || !group.members.includes(user.id)) {
+        socket.emit('ai:error', { message: 'Access denied to group' });
+        return;
+      }
+
+      // Get session for group
+      const sessionId = this.groupSessions.get(groupId);
+      if (!sessionId) {
+        socket.emit('ai:error', { message: 'No active AI session for this group' });
+        return;
+      }
+
+      // Get recent group messages for context
+      const recentMessagesResult = await this.dbService.getMessages(groupId, 50);
+      const recentMessages = recentMessagesResult.messages;
+      const messagesContext = recentMessages
+        .map(msg => `${msg.user?.firstName || 'User'}: ${msg.content}`)
+        .join('\n');
+
+      // Call insight agent
+      const insightResponse = await this.orchestratorService.callAgentDirectly(
+        'insight',
+        `Generate insights for group discussion. Recent messages:\n${messagesContext}`,
+        sessionId,
+        user.id
+      );
+
+      // Emit insights to group
+      this.io.to(groupId).emit('ai:group_insights', {
+        groupId,
+        insights: {
+          summary: insightResponse.response,
+          patterns: insightResponse.metadata?.patterns || [],
+          recommendations: insightResponse.metadata?.recommendations || [],
+          mood: insightResponse.metadata?.groupMood || 'neutral',
+          engagement: insightResponse.metadata?.engagement || 'moderate'
+        },
+        generatedBy: insightResponse.agentUsed,
+        confidence: insightResponse.confidence,
+        timestamp: new Date()
+      });
+
+      logger.info(`Group insights generated for group ${groupId} by ${user.email}`);
+    } catch (error) {
+      logger.error('Error generating group insights:', error);
+      socket.emit('ai:error', { message: 'Failed to generate group insights' });
     }
   }
 

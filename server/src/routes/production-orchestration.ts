@@ -1,12 +1,12 @@
 import express from 'express';
-import { ProductionOrchestratorService } from '../orchestration/production-ready-fixed';
+import { GroupOrchestrationService } from '../services/GroupOrchestrationService';
 import { authenticateToken } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
 import { body, param } from 'express-validator';
 import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
-const orchestratorService = new ProductionOrchestratorService();
+const orchestratorService = new GroupOrchestrationService();
 
 // Diagnostic endpoints removed - issue resolved!
 
@@ -323,6 +323,126 @@ router.get('/health',
       res.status(503).json({
         success: false,
         error: 'Health check failed',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        performance: {
+          duration_ms: duration
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/production-orchestration/agents
+ * List all available agents and their tools
+ */
+router.get('/agents',
+  async (req, res) => {
+    const startTime = Date.now();
+
+    try {
+      const agentsAndTools = orchestratorService.getAvailableAgentsAndTools();
+      const duration = Date.now() - startTime;
+
+      res.json({
+        success: true,
+        data: agentsAndTools,
+        timestamp: new Date().toISOString(),
+        performance: {
+          duration_ms: duration
+        }
+      });
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      console.error('[ProductionOrchestration] Error getting agents:', error);
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get available agents and tools',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        performance: {
+          duration_ms: duration
+        }
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/production-orchestration/agent/call
+ * Call a specific agent directly with a message
+ */
+router.post('/agent/call',
+  authenticateToken,
+  messageLimiter,
+  validateRequest([
+    body('agentId')
+      .notEmpty()
+      .withMessage('Agent ID is required')
+      .isIn(['ai-router', 'sentiment', 'crisis', 'facilitator', 'matching', 'insight'])
+      .withMessage('Invalid agent ID'),
+    body('message')
+      .notEmpty()
+      .withMessage('Message is required')
+      .isLength({ max: 4000 })
+      .withMessage('Message too long (max 4000 characters)'),
+    body('sessionId')
+      .notEmpty()
+      .withMessage('Session ID is required')
+      .matches(/^session_\d+_[a-f0-9\-]{36}$/)
+      .withMessage('Invalid session ID format'),
+    body('toolName')
+      .optional()
+      .isString()
+      .withMessage('Tool name must be a string')
+  ]),
+  async (req, res) => {
+    const startTime = Date.now();
+
+    try {
+      const { agentId, message, sessionId, toolName } = req.body;
+      const userId = req.user.id;
+
+      console.log(`[ProductionOrchestration] Direct agent call: ${agentId} for session ${sessionId}`);
+
+      const result = await orchestratorService.callAgentDirectly(
+        agentId,
+        message,
+        sessionId,
+        userId,
+        toolName
+      );
+
+      const duration = Date.now() - startTime;
+
+      res.json({
+        success: result.success,
+        data: {
+          response: result.response,
+          agentUsed: result.agentUsed,
+          toolsUsed: result.toolsUsed,
+          confidence: result.confidence,
+          metadata: result.metadata
+        },
+        timestamp: new Date().toISOString(),
+        performance: {
+          duration_ms: duration,
+          confidence: result.confidence
+        }
+      });
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      console.error('[ProductionOrchestration] Error in direct agent call:', error);
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to call agent directly',
         message: error.message,
         timestamp: new Date().toISOString(),
         performance: {

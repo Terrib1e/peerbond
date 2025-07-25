@@ -53,8 +53,19 @@ export interface Message {
   userId: string;
   content: string;
   timestamp: Date;
-  type: 'text' | 'user' | 'ai_facilitator' | 'system';
-  reactions?: { emoji: string; users: string[] }[];
+  type: 'text' | 'user' | 'ai_facilitator' | 'system' | 'crisis_intervention';
+  reactions?: { emoji: string; users: string[]; count?: number }[];
+  user?: User; // Populated user object
+  metadata?: {
+    agentUsed?: string[];
+    confidence?: number;
+    interventionType?: 'crisis' | 'support' | 'insight' | 'matching';
+    sentiment?: number;
+    crisisLevel?: 'mild' | 'moderate' | 'severe';
+    originalMessageId?: string;
+    automaticDetection?: boolean;
+    [key: string]: any;
+  };
 }
 
 export interface AIFacilitator {
