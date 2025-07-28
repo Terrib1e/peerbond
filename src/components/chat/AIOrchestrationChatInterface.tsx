@@ -37,8 +37,8 @@ interface EnhancedMessage extends Message {
   isLoading?: boolean;
   error?: string;
   aiContext?: {
-    agentUsed: string[];
-    confidence: number;
+    agentUsed?: string[] | string;
+    confidence?: number;
     interventionType?: 'crisis' | 'support' | 'insight' | 'matching';
     sentiment?: number;
     metadata?: any;
@@ -405,7 +405,7 @@ export default function AIOrchestrationChatInterface({
                'Unknown User'}
             </span>
 
-            {message.aiContext && (
+            {message.aiContext && typeof message.aiContext.confidence === 'number' && (
               <div className="flex items-center gap-1">
                 <Zap className="w-3 h-3 text-purple-500" />
                 <span className="text-xs text-purple-600">
@@ -474,7 +474,12 @@ export default function AIOrchestrationChatInterface({
           {message.aiContext && (
             <div className="mt-2 text-xs text-gray-500">
               <div className="flex items-center gap-2">
-                <span>Agents: {message.aiContext.agentUsed.join(', ')}</span>
+                <span>
+                  Agents: {Array.isArray(message.aiContext.agentUsed) 
+                    ? message.aiContext.agentUsed.join(', ') 
+                    : String(message.aiContext.agentUsed || 'Unknown')
+                  }
+                </span>
                 {message.aiContext.interventionType && (
                   <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
                     {message.aiContext.interventionType}
@@ -705,39 +710,47 @@ export default function AIOrchestrationChatInterface({
             </>
           )}
 
-          {/* Meta-query quick buttons */}
-          {messages.length === 0 && (
-            <>
-              <span className="text-xs text-gray-500">Ask about the AI:</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMessageInput("How many agents are there?")}
-                className="text-xs bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-              >
-                <Bot className="w-3 h-3 mr-1" />
-                Agent Count
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMessageInput("What tools do you have?")}
-                className="text-xs bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-              >
-                <Zap className="w-3 h-3 mr-1" />
-                Tools List
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMessageInput("What are your capabilities?")}
-                className="text-xs bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-              >
-                <Brain className="w-3 h-3 mr-1" />
-                Capabilities
-              </Button>
-            </>
-          )}
+          {/* AI Tools - Always available */}
+          <>
+            <span className="text-xs text-gray-500">AI Tools:</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMessageInput("How many agents are there?")}
+              className="text-xs bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+            >
+              <Bot className="w-3 h-3 mr-1" />
+              Agent Count
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMessageInput("What tools do you have?")}
+              className="text-xs bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+            >
+              <Zap className="w-3 h-3 mr-1" />
+              Tools List
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMessageInput("What are your capabilities?")}
+              className="text-xs bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+            >
+              <Brain className="w-3 h-3 mr-1" />
+              Capabilities
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleCallAgent('facilitator', 'Can you help facilitate this group discussion?')}
+              disabled={!orchestration.sessionId}
+              className="text-xs bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100"
+            >
+              <Heart className="w-3 h-3 mr-1" />
+              Request Maya
+            </Button>
+          </>
         </div>
       </div>
 

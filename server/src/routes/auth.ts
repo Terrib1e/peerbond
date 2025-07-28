@@ -8,6 +8,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { LoginRequest, RegisterRequest, User } from '../types';
+import { emailService } from '../services/emailService';
 
 const router = Router();
 const dbService = new DatabaseService();
@@ -23,6 +24,7 @@ const registerValidation = [
   body('lastName').trim().isLength({ min: 1 }).withMessage('Last name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('role').isIn(['member', 'therapist', 'admin']).withMessage('Valid role is required'),
   body('experienceLevel').optional().isIn(['beginner', 'intermediate', 'advanced']),
 ];
 
@@ -47,7 +49,7 @@ const generateToken = (user: User): string => {
 
 // Register endpoint
 router.post('/register', validateRequest(registerValidation), asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, password, recoveryGoals, wellnessGoals, experienceLevel }: RegisterRequest = req.body;
+  const { firstName, lastName, email, password, role, recoveryGoals, wellnessGoals, experienceLevel }: RegisterRequest = req.body;
 
   // Check if user already exists
   const existingUser = await dbService.getUserByEmail(email);
@@ -69,6 +71,7 @@ router.post('/register', validateRequest(registerValidation), asyncHandler(async
     lastName,
     email,
     password: hashedPassword,
+    role: role || 'member',
     recoveryGoals: recoveryGoals || [],
     wellnessGoals: wellnessGoals || [],
     experienceLevel: experienceLevel || 'beginner'
@@ -98,6 +101,9 @@ router.post('/register', validateRequest(registerValidation), asyncHandler(async
   });
 
   logger.info(`User registered: ${email}`);
+
+  // Send welcome email
+  await emailService.sendWelcomeEmail(email, firstName);
 
   // Remove password from response
   const { password: _, ...userWithoutPassword } = newUser;
@@ -219,6 +225,37 @@ router.get('/me', authenticateToken, asyncHandler(async (req: AuthenticatedReque
   });
 }));
 
+// Test email endpoint
+router.post('/test-email', asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      error: 'Email is required',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    const result = await emailService.sendTestEmail(email);
+    
+    res.json({
+      success: result,
+      message: result ? 'Test email sent successfully' : 'Email service not configured or failed',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Test email error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send test email',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
 // Logout endpoint
 router.post('/logout', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const authHeader = req.headers.authorization;
@@ -280,5 +317,193 @@ router.post('/refresh', authenticateToken, asyncHandler(async (req: Authenticate
     timestamp: new Date().toISOString()
   });
 }));
+
+// Password reset validation
+const forgotPasswordValidation = [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+];
+
+const resetPasswordValidation = [
+  body('token').notEmpty().withMessage('Reset token is required'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+];
+
+// Forgot password endpoint
+router.post('/forgot-password', validateRequest(forgotPasswordValidation), asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    // Find user by email
+    const user = await dbService.getUserByEmail(email);
+    if (!user) {
+      // Don't reveal if email exists or not for security
+      return res.json({
+        success: true,
+        message: 'If an account with this email exists, a password reset link has been sent.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Generate reset token (6-character code for simplicity)
+    const resetToken = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const resetTokenExpiry = new Date();
+    resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 1); // 1 hour expiry
+
+    // Save reset token to user
+    await dbService.updateUser(user.id, {
+      resetToken,
+      resetTokenExpiry
+    });
+
+    // Send password reset email
+    await emailService.sendPasswordResetEmail(email, resetToken);
+
+    res.json({
+      success: true,
+      message: 'If an account with this email exists, a password reset link has been sent.',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process password reset request',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Reset password endpoint
+router.post('/reset-password', validateRequest(resetPasswordValidation), asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+
+  try {
+    // Find user with valid reset token
+    const user = await dbService.client.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: {
+          gt: new Date() // Token not expired
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired reset token',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Hash new password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Update password and clear reset token
+    await dbService.updateUser(user.id, {
+      password: hashedPassword,
+      resetToken: null,
+      resetTokenExpiry: null
+    });
+
+    logger.info(`Password reset successful for user ${user.id}`);
+
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reset password',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Verify reset token endpoint (optional - for checking token validity)
+router.post('/verify-reset-token', validateRequest([
+  body('token').notEmpty().withMessage('Reset token is required'),
+]), asyncHandler(async (req, res) => {
+  const { token } = req.body;
+
+  try {
+    const user = await dbService.client.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: {
+          gt: new Date()
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired reset token',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Reset token is valid',
+      data: {
+        email: user.email // Return masked email for confirmation
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Verify reset token error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify reset token',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Test email endpoint (development only)
+if (process.env.NODE_ENV === 'development') {
+  router.post('/test-email', asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    try {
+      // Reinitialize email service to pick up new env vars
+      emailService.reinitialize();
+      
+      const sent = await emailService.sendTestEmail(email);
+      
+      res.json({
+        success: true,
+        message: sent ? 'Test email sent successfully' : 'Email service not configured - check logs',
+        emailSent: sent,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Test email error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to send test email',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }));
+}
 
 export default router;

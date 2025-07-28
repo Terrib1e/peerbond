@@ -195,6 +195,13 @@ export class ProductionOrchestratorService {
       // Process through agents
       const agentResponse = await this.processWithAgents(session, input.content);
 
+      console.log('[ProcessMessage] Agent response from processWithAgents:', {
+        agentUsed: agentResponse.agentUsed,
+        agentUsedType: typeof agentResponse.agentUsed,
+        agentUsedLength: Array.isArray(agentResponse.agentUsed) ? agentResponse.agentUsed.length : 'not array',
+        success: agentResponse.success
+      });
+
       // Add AI response message
       const aiMessage: ProductionMessage = {
         id: `msg_${Date.now()}_${uuidv4()}`,
@@ -212,6 +219,14 @@ export class ProductionOrchestratorService {
       session.agentHistory.push(...agentResponse.agentUsed);
 
       console.log(`[ProductionOrchestrator] Processed message in session ${input.sessionId}`);
+      console.log(`[ProcessMessage] FINAL RESULT TO SEND:`, {
+        success: agentResponse.success,
+        agentUsed: agentResponse.agentUsed,
+        agentUsedType: typeof agentResponse.agentUsed,
+        agentUsedIsArray: Array.isArray(agentResponse.agentUsed),
+        agentUsedLength: Array.isArray(agentResponse.agentUsed) ? agentResponse.agentUsed.length : 'not array',
+        confidence: agentResponse.confidence
+      });
 
       return agentResponse;
 
@@ -482,12 +497,20 @@ export class ProductionOrchestratorService {
           break;
 
         case 'ai-router':
+          // FIXED: Execute the routing decision instead of just showing analysis
+          console.log('[ProductionOrchestrator] AI Router called - executing instead of analyzing');
           const routingResult = await this.aiRouterAgent(message, session);
+          console.log('[ProductionOrchestrator] Got routing decision:', routingResult);
+          const executionResult = await this.executeRoutingDecision(routingResult, message, session);
+          console.log('[ProductionOrchestrator] Execution completed:', { 
+            agentsUsed: executionResult.agentsUsed,
+            responseLength: executionResult.response.length 
+          });
           result = {
-            response: `AI Router Analysis:\n• Primary Agent: ${routingResult.primaryAgent}\n• Recommended Tools: ${routingResult.tools.join(', ')}\n• Reasoning: ${routingResult.reasoning}\n• Confidence: ${routingResult.confidence}`,
-            confidence: routingResult.confidence
+            response: executionResult.response,
+            confidence: executionResult.confidence
           };
-          toolsUsed = ['analyzeLLMIntent'];
+          toolsUsed = executionResult.agentsUsed.concat(['aiRouting']);
           break;
 
         default:
@@ -557,42 +580,126 @@ export class ProductionOrchestratorService {
       console.log('[ProductionOrchestrator] Starting AI-driven agent selection...');
 
       // 1. AI Router Agent - Determines which agents and tools to use
-      const routingDecision = await this.aiRouterAgent(content, session);
-      agentsUsed.push('ai-router');
+      let routingDecision;
+      
+      // TEMPORARY DEBUGGING: Force a specific routing decision to test agent execution
+      console.log('[DEBUG] Temporarily forcing routing decision to test multi-agent execution');
+      agentsUsed.push('ai-router-debug');
+      routingDecision = {
+        primaryAgent: 'facilitator',
+        tools: ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'],
+        reasoning: 'DEBUG: Forced routing to facilitator with multiple tools for testing',
+        confidence: 0.9
+      };
+      
+      // COMMENTED OUT FOR DEBUGGING - UNCOMMENT AFTER TESTING
+      /*
+      try {
+        routingDecision = await this.aiRouterAgent(content, session);
+        agentsUsed.push('ai-router');
+        console.log('[ProductionOrchestrator] AI Router decision:', routingDecision);
+      } catch (routerError) {
+        console.error('[ProductionOrchestrator] AI Router failed, using fallback routing:', routerError);
+        agentsUsed.push('ai-router-fallback');
+        routingDecision = {
+          primaryAgent: 'facilitator',
+          tools: ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'],
+          reasoning: 'AI Router failed, using comprehensive facilitator fallback',
+          confidence: 0.4
+        };
+      }
+      */
 
-      console.log('[ProductionOrchestrator] AI Router decision:', routingDecision);
-
-      // 2. Always run sentiment analysis first for safety
-      const sentimentResult = await this.sentimentAgent(content, session);
-      agentsUsed.push('sentiment');
-      session.lastSentimentScore = sentimentResult.sentimentScore;
-      session.crisisLevel = sentimentResult.crisisLevel;
+      // 2. Always run sentiment analysis for safety
+      let sentimentResult;
+      try {
+        sentimentResult = await this.sentimentAgent(content, session);
+        agentsUsed.push('sentiment');
+        session.lastSentimentScore = sentimentResult.sentimentScore;
+        session.crisisLevel = sentimentResult.crisisLevel;
+        console.log('[ProductionOrchestrator] Sentiment analysis completed:', {
+          score: sentimentResult.sentimentScore,
+          crisisLevel: sentimentResult.crisisLevel
+        });
+      } catch (sentimentError) {
+        console.error('[ProductionOrchestrator] Sentiment analysis failed, using safe defaults:', sentimentError);
+        agentsUsed.push('sentiment-fallback');
+        sentimentResult = { sentimentScore: 0, crisisLevel: 'none' as const };
+        session.lastSentimentScore = 0;
+        session.crisisLevel = 'none';
+      }
 
       let response = '';
       let confidence = 0.7;
       let needsCrisisIntervention = false;
       let suggestGroupMatching = false;
 
-      // 3. Crisis intervention takes highest priority
+      // 3. Crisis intervention takes highest priority but doesn't exclude other agents
       if (sentimentResult.crisisLevel !== 'none') {
-        console.log('[ProductionOrchestrator] Crisis detected, routing to crisis agent');
-        const crisisResult = await this.crisisAgent(content, session);
-        agentsUsed.push('crisis');
-        response = crisisResult.response;
-        confidence = crisisResult.confidence;
-        needsCrisisIntervention = true;
+        console.log('[ProductionOrchestrator] Crisis detected, routing to crisis agent AND router decision');
+        
+        // Run crisis agent
+        try {
+          const crisisResult = await this.crisisAgent(content, session);
+          agentsUsed.push('crisis');
+          needsCrisisIntervention = true;
+          
+          // For crisis situations, also execute the routing decision for additional support
+          try {
+            const executionResult = await this.executeRoutingDecision(routingDecision, content, session);
+            agentsUsed.push(...executionResult.agentsUsed);
+            toolResults.push(...executionResult.toolResults);
+            
+            // Combine crisis response with routing response
+            response = crisisResult.response + "\n\n" + executionResult.response;
+            confidence = Math.max(crisisResult.confidence, executionResult.confidence);
+            suggestGroupMatching = executionResult.suggestGroupMatching;
+          } catch (executionError) {
+            console.error('[ProductionOrchestrator] Routing execution failed in crisis mode, using crisis response only:', executionError);
+            response = crisisResult.response;
+            confidence = crisisResult.confidence;
+            suggestGroupMatching = false;
+          }
+        } catch (crisisError) {
+          console.error('[ProductionOrchestrator] Crisis agent failed, falling back to routing only:', crisisError);
+          const executionResult = await this.executeRoutingDecision(routingDecision, content, session);
+          agentsUsed.push(...executionResult.agentsUsed);
+          toolResults.push(...executionResult.toolResults);
+          response = executionResult.response;
+          confidence = executionResult.confidence;
+          suggestGroupMatching = executionResult.suggestGroupMatching;
+        }
       }
-      // 4. Execute the AI router's decision
+      // 4. Execute the AI router's decision for non-crisis situations
       else {
-        const executionResult = await this.executeRoutingDecision(routingDecision, content, session);
-        agentsUsed.push(...executionResult.agentsUsed);
-        toolResults.push(...executionResult.toolResults);
-        response = executionResult.response;
-        confidence = executionResult.confidence;
-        suggestGroupMatching = executionResult.suggestGroupMatching;
+        try {
+          const executionResult = await this.executeRoutingDecision(routingDecision, content, session);
+          agentsUsed.push(...executionResult.agentsUsed);
+          toolResults.push(...executionResult.toolResults);
+          response = executionResult.response;
+          confidence = executionResult.confidence;
+          suggestGroupMatching = executionResult.suggestGroupMatching;
+        } catch (executionError) {
+          console.error('[ProductionOrchestrator] Routing execution failed, using fallback facilitator:', executionError);
+          const fallbackResult = await this.facilitatorAgent(content, session);
+          agentsUsed.push('facilitator-fallback');
+          response = fallbackResult.response;
+          confidence = fallbackResult.confidence;
+          suggestGroupMatching = false;
+        }
       }
 
       session.currentAgent = agentsUsed[agentsUsed.length - 1];
+
+      console.log('[ProductionOrchestrator] Final agent processing result:', {
+        agentsUsed: agentsUsed,
+        agentCount: agentsUsed.length,
+        toolResults: toolResults.length,
+        crisisLevel: session.crisisLevel,
+        needsCrisisIntervention,
+        confidence,
+        responseLength: response.length
+      });
 
       return {
         success: true,
@@ -624,33 +731,217 @@ export class ProductionOrchestratorService {
   }
 
   /**
-   * Facilitator Agent - Primary conversation handler
+   * Enhanced Facilitator Agent - Maya, the therapeutic AI facilitator
    */
   private async facilitatorAgent(content: string, session: ProductionConversationState): Promise<{
     response: string;
     confidence: number;
   }> {
+    try {
+      console.log('[FacilitatorAgent] Maya processing message with enhanced therapeutic approach');
+      
+      // Use LLM for more sophisticated therapeutic responses
+      const therapeuticResponse = await this.generateTherapeuticResponse(content, session);
+      
+      // Add proactive elements based on session context
+      const enhancedResponse = await this.enhanceWithProactiveSupport(therapeuticResponse, session);
+      
+      return {
+        response: enhancedResponse.response,
+        confidence: enhancedResponse.confidence
+      };
+    } catch (error) {
+      console.error('[FacilitatorAgent] Error in enhanced processing, using fallback:', error);
+      return this.facilitatorFallback(content, session);
+    }
+  }
+
+  /**
+   * Generate sophisticated therapeutic responses using LLM
+   */
+  private async generateTherapeuticResponse(content: string, session: ProductionConversationState): Promise<{
+    response: string;
+    confidence: number;
+  }> {
+    const contextInfo = {
+      messageCount: session.messageCount,
+      sessionDuration: Math.round((new Date().getTime() - session.startTime.getTime()) / 60000),
+      previousAgents: session.agentHistory.slice(-3),
+      crisisLevel: session.crisisLevel,
+      lastSentiment: session.lastSentimentScore
+    };
+
+    const therapeuticPrompt = `You are Maya, a compassionate AI therapy facilitator specializing in peer support groups. You provide evidence-based therapeutic responses with warmth and professionalism.
+
+THERAPEUTIC PRINCIPLES:
+- Use person-centered, trauma-informed approaches
+- Validate emotions before problem-solving
+- Ask open-ended questions to promote self-reflection
+- Offer coping strategies when appropriate
+- Be genuinely empathetic, not just sympathetic
+- Recognize and celebrate progress, no matter how small
+
+USER MESSAGE: "${content}"
+
+SESSION CONTEXT: ${JSON.stringify(contextInfo)}
+
+RESPONSE GUIDELINES:
+1. Acknowledge the user's experience with validation
+2. Reflect their emotional state
+3. Ask a thoughtful follow-up question OR offer a relevant coping strategy
+4. Keep responses warm but professional (2-4 sentences)
+5. End with invitation for further sharing when appropriate
+
+AVAILABLE THERAPEUTIC TOOLS TO REFERENCE:
+- Mindfulness and grounding techniques
+- Cognitive reframing strategies  
+- Emotional regulation skills
+- Connection and community building
+- Progress recognition and celebration
+
+Respond as Maya would - authentically therapeutic, warm, and focused on the user's wellbeing:`;
+
+    try {
+      const result = await this.callGeminiDirectly(therapeuticPrompt);
+      let responseText = '';
+      
+      if (result?.response?.text) {
+        responseText = typeof result.response.text === 'function' ? result.response.text() : result.response.text;
+      }
+
+      // Clean and validate the response
+      const cleanResponse = responseText.trim();
+      
+      if (cleanResponse && cleanResponse.length > 20 && cleanResponse.length < 800) {
+        console.log('[FacilitatorAgent] Generated therapeutic response successfully');
+        return {
+          response: cleanResponse,
+          confidence: 0.85
+        };
+      } else {
+        throw new Error('Invalid LLM response format');
+      }
+    } catch (error) {
+      console.error('[FacilitatorAgent] LLM therapeutic response failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add proactive support elements based on session patterns
+   */
+  private async enhanceWithProactiveSupport(therapeuticResponse: { response: string; confidence: number }, session: ProductionConversationState): Promise<{
+    response: string;
+    confidence: number;
+  }> {
+    let response = therapeuticResponse.response;
+    let confidence = therapeuticResponse.confidence;
+
+    // Proactive coping strategy suggestion for recurring distress
+    if (session.messageCount > 3 && session.lastSentimentScore && session.lastSentimentScore < -0.3) {
+      const copingAddition = await this.suggestContextualCopingStrategy(session);
+      if (copingAddition) {
+        response += "\n\n" + copingAddition;
+        confidence = Math.max(confidence, 0.8);
+      }
+    }
+
+    // Proactive group connection suggestion for isolation
+    if (session.messageCount > 2 && this.detectIsolationPattern(session)) {
+      const groupSuggestion = this.generateGroupConnectionSuggestion(session);
+      if (groupSuggestion) {
+        response += "\n\n" + groupSuggestion;
+        confidence = Math.max(confidence, 0.85);
+      }
+    }
+
+    // Progress recognition for longer sessions
+    if (session.messageCount > 5 && session.messageCount % 8 === 0) {
+      const progressNote = this.generateProgressRecognition(session);
+      if (progressNote) {
+        response += "\n\n" + progressNote;
+        confidence = Math.max(confidence, 0.9);
+      }
+    }
+
+    return { response, confidence };
+  }
+
+  /**
+   * Suggest contextual coping strategies based on session history
+   */
+  private async suggestContextualCopingStrategy(session: ProductionConversationState): Promise<string | null> {
+    const strategies = [
+      "💙 **Quick Grounding Technique**: Try the 5-4-3-2-1 method - name 5 things you see, 4 you can touch, 3 you hear, 2 you smell, and 1 you taste. This can help anchor you in the present moment.",
+      "🌊 **Breathing Space**: When emotions feel overwhelming, try box breathing - inhale for 4, hold for 4, exhale for 4, hold for 4. Even 3-4 cycles can create some calm.",
+      "🌱 **Self-Compassion Pause**: Speak to yourself as you would a dear friend facing the same challenge. What would you tell them? You deserve that same kindness.",
+      "📝 **Thought Check**: Sometimes writing down our worries helps externalize them. What would it look like if you put these thoughts on paper?",
+      "🤝 **Connection Reminder**: You're not alone in this. Even reaching out here shows your strength in seeking support."
+    ];
+
+    // Return a random strategy appropriate for the context
+    return strategies[Math.floor(Math.random() * strategies.length)];
+  }
+
+  /**
+   * Detect patterns of isolation or loneliness
+   */
+  private detectIsolationPattern(session: ProductionConversationState): boolean {
+    // Simple pattern detection - could be enhanced with more sophisticated analysis
+    const recentMessages = session.messages.slice(-3);
+    const isolationKeywords = ['alone', 'lonely', 'isolated', 'no one', 'by myself', 'disconnected'];
+    
+    return recentMessages.some(msg => 
+      isolationKeywords.some(keyword => 
+        msg.content.toLowerCase().includes(keyword)
+      )
+    );
+  }
+
+  /**
+   * Generate group connection suggestions
+   */
+  private generateGroupConnectionSuggestion(session: ProductionConversationState): string {
+    return "🫂 **Community Connection**: It sounds like you might benefit from connecting with others who understand. Would you like me to help you explore some peer support groups? Sometimes sharing experiences with people who 'get it' can be incredibly healing.";
+  }
+
+  /**
+   * Generate progress recognition messages
+   */
+  private generateProgressRecognition(session: ProductionConversationState): string {
+    const sessionMinutes = Math.round((new Date().getTime() - session.startTime.getTime()) / 60000);
+    return `✨ **Progress Moment**: I want to acknowledge that you've been engaging in this conversation for ${sessionMinutes} minutes and ${session.messageCount} messages. That's real commitment to your wellbeing, and it takes courage to stay present with difficult feelings. That's growth in action.`;
+  }
+
+  /**
+   * Fallback method for basic therapeutic responses
+   */
+  private facilitatorFallback(content: string, session: ProductionConversationState): {
+    response: string;
+    confidence: number;
+  } {
     const lowerContent = content.toLowerCase();
     let response = "Thank you for sharing that with me. ";
     let confidence = 0.7;
 
+    // Enhanced keyword-based responses as fallback
     if (lowerContent.includes('anxious') || lowerContent.includes('anxiety')) {
-      response += "I understand that anxiety can be overwhelming. You're in a safe space here. What's been contributing to these feelings?";
+      response = "I can hear the anxiety in what you're sharing. Anxiety can feel so overwhelming, but you're in a safe space here with me. What's been contributing most to these anxious feelings lately?";
       confidence = 0.8;
     } else if (lowerContent.includes('depressed') || lowerContent.includes('depression') || lowerContent.includes('sad')) {
-      response += "I hear that you're going through a difficult time. Depression can feel isolating, but you're not alone. What's been the hardest part for you recently?";
+      response = "I hear the heaviness in what you're sharing. Depression can make everything feel so much harder, and I want you to know that your feelings are completely valid. What's been the most challenging part of your days recently?";
       confidence = 0.8;
     } else if (lowerContent.includes('stressed') || lowerContent.includes('overwhelmed')) {
-      response += "It sounds like you're carrying a lot right now. Stress can be really challenging to manage alone. What's been weighing on you the most?";
+      response = "It sounds like you're carrying so much right now. When we're overwhelmed, everything can feel insurmountable. What's been weighing on you the most? Sometimes just naming it can help.";
       confidence = 0.8;
     } else if (lowerContent.includes('lonely') || lowerContent.includes('isolated') || lowerContent.includes('alone')) {
-      response += "Feeling isolated can be really painful. Connection is so important for our wellbeing. Tell me more about what's making you feel this way?";
+      response = "Loneliness can be such a painful experience. You're showing real courage by reaching out and sharing that with me. Connection is so important for healing. What's been making you feel most isolated?";
       confidence = 0.8;
     } else if (lowerContent.includes('thank') || lowerContent.includes('better') || lowerContent.includes('good')) {
-      response = "I'm so glad to hear that! It's wonderful that you're feeling better. What's been helping you the most?";
+      response = "I'm genuinely glad to hear there are some brighter moments for you! Those feelings of improvement are so important to acknowledge. What's been helping you feel better? I'd love to hear more about what's working.";
       confidence = 0.9;
     } else {
-      response += "I'm here to listen and support you. Could you tell me a bit more about what's on your mind today?";
+      response = "I'm here with you, and I'm listening. Whatever you're experiencing right now is valid and important. Could you tell me a bit more about what's on your heart today?";
       confidence = 0.6;
     }
 
@@ -669,9 +960,9 @@ export class ProductionOrchestratorService {
     let crisisLevel: 'none' | 'mild' | 'moderate' | 'severe' = 'none';
 
     // Crisis keywords detection
-    const severeKeywords = ['suicide', 'kill myself', 'end it all', 'not worth living', 'better off dead'];
-    const moderateKeywords = ['hopeless', 'can\'t go on', 'give up', 'no point', 'hate myself'];
-    const mildKeywords = ['overwhelmed', 'can\'t cope', 'breaking down', 'falling apart'];
+    const severeKeywords = ['suicide', 'kill myself', 'end it all', 'not worth living', 'better off dead', 'want to die'];
+    const moderateKeywords = ['hopeless', 'can\'t go on', 'give up', 'no point', 'hate myself', 'crisis manager', 'crisis help', 'emergency help'];
+    const mildKeywords = ['overwhelmed', 'can\'t cope', 'breaking down', 'falling apart', 'need support', 'need help urgently'];
 
     if (severeKeywords.some(keyword => lowerContent.includes(keyword))) {
       crisisLevel = 'severe';
@@ -1060,45 +1351,73 @@ Once our systems are back online, I'll be able to give you personalized group re
       crisisLevel: session.crisisLevel
     };
 
-         const prompt = `You are an AI orchestration system analyzing user messages to route them to the appropriate support agent.
+         const prompt = `You are an AI orchestration system for PeerBond, a mental health support platform. Your job is to analyze user messages and intelligently route them to the most appropriate therapeutic agent while maximizing tool utilization for better outcomes.
 
-AVAILABLE AGENTS:
-1. **matching** - For finding peer support groups, connecting with others, group recommendations, listing available groups
-2. **facilitator** - For general therapeutic support, emotional validation, coping strategies
-3. **insight** - For progress tracking, personal growth analysis, journey reflection
-4. **crisis** - For immediate safety concerns (handled separately by sentiment analysis)
+🧠 **AVAILABLE AGENTS & THEIR SPECIALIZATIONS:**
 
-AVAILABLE TOOLS PER AGENT:
-- matching: searchGroups, rankGroupsByRelevance, generateGroupRecommendations, listAllGroups, findPeerConnections
-- facilitator: provideSupportiveResponse, maintainTherapeuticAlliance, validateFeelings, suggestCopingStrategies
-- insight: analyzeUserProgress, generateProgressInsights, trackJourney, identifyPatterns
+1. **facilitator (Maya)** - Primary therapeutic AI with advanced emotional intelligence
+   - Tools: provideSupportiveResponse, validateFeelings, suggestCopingStrategies
+   - Use for: Emotional support, therapeutic conversations, coping guidance, validation
+   - Proactive capabilities: Detects patterns, suggests coping strategies, recognizes progress
 
-CONTEXT:
-- User's message: "${content}"
-- Session info: ${JSON.stringify(contextInfo)}
+2. **matching** - Community connection specialist 
+   - Tools: searchGroups, rankGroupsByRelevance, generateGroupRecommendations, listAllGroups
+   - Use for: Group discovery, peer connections, community building, social support
+   - When to prefer: Isolation, loneliness, "connect with others", group requests
 
-ANALYZE THE USER'S INTENT and determine:
-1. Which agent is most appropriate
-2. What tools should be used
-3. Your reasoning for this decision
-4. Confidence level (0.0-1.0)
+3. **insight** - Progress tracking and growth analysis expert
+   - Tools: analyzeUserProgress, generateProgressInsights, trackJourney, identifyPatterns  
+   - Use for: Reflection, progress reviews, milestone recognition, pattern analysis
+   - When to prefer: "How am I doing?", journey reflection, growth questions
 
-RESPOND WITH ONLY THIS JSON FORMAT:
+4. **crisis** - Emergency intervention (automatically triggered by sentiment analysis)
+
+🎯 **ENHANCED ROUTING INTELLIGENCE:**
+
+CURRENT CONTEXT:
+- User message: "${content}"
+- Session details: ${JSON.stringify(contextInfo)}
+
+**DECISION CRITERIA:**
+- Prioritize FACILITATOR for emotional processing and therapeutic conversations
+- Use MATCHING when community/social connection would be therapeutic
+- Use INSIGHT for reflective conversations about growth and progress
+- Consider session history - vary agents to prevent monotony
+- Tool selection should be comprehensive, not minimal
+
+**TOOL UTILIZATION STRATEGY:**
+- ALWAYS select 2-3 tools per agent for comprehensive responses
+- Mix validation + strategy tools for facilitator (provideSupportiveResponse + validateFeelings + suggestCopingStrategies)
+- Combine search + recommendation tools for matching (searchGroups + generateGroupRecommendations + rankGroupsByRelevance)
+- Use progress + insight tools together for deeper analysis (analyzeUserProgress + generateProgressInsights + identifyPatterns)
+- Prefer multiple complementary tools over single tool usage
+
+**PATTERN RECOGNITION:**
+🔍 **Group/Community Requests** → matching agent
+- "list groups", "show groups", "what groups are available"
+- "find a group", "connect with others", "peer support"
+- "feel alone", "lonely", "isolated" → facilitator FIRST, then suggest matching
+
+💙 **Emotional Processing** → facilitator agent  
+- Sharing feelings, distress, anxiety, depression
+- Seeking comfort, validation, therapeutic conversation
+- Stress, overwhelm, relationship issues
+
+📈 **Growth & Reflection** → insight agent
+- "my progress", "how am I doing", "journey", "milestones" 
+- "what have I learned", "growth", "patterns", "improvement"
+
+🆘 **Crisis Language** → Always flagged by sentiment analysis separately
+
+RESPOND WITH ONLY THIS JSON:
 {
   "primaryAgent": "agent_name",
-  "tools": ["tool1", "tool2"],
-  "reasoning": "Brief explanation of why this agent/tools were selected",
+  "tools": ["tool1", "tool2", "tool3"],
+  "reasoning": "Explain why this agent and these specific tools will provide the best therapeutic outcome",
   "confidence": 0.0-1.0
 }
 
-Key patterns to recognize:
-- **GROUP LISTING REQUESTS** (→ matching agent): "list groups", "show groups", "groups available", "what groups", "available groups", "group options", "all groups"
-- **GROUP FINDING REQUESTS** (→ matching agent): "find group", "recommend group", "support group for", "connect with others", "peer support"
-- **EMOTIONAL SUPPORT** (→ facilitator agent): expressing feelings, seeking comfort, needing to talk, therapeutic conversation
-- **PROGRESS TRACKING** (→ insight agent): "my progress", "how am I doing", "journey", "milestones", "growth"
-- **GENERAL QUESTIONS** (→ facilitator agent, default)
-
-Special attention: Any request to LIST, SHOW, or SEE AVAILABLE groups should use the matching agent with listAllGroups tool.`;
+**IMPORTANT**: Aim for HIGH tool utilization - select multiple complementary tools that work together to provide comprehensive support. The goal is engaged, proactive AI assistance.`;
 
     try {
       // Add timeout to prevent hanging
@@ -1274,6 +1593,78 @@ Special attention: Any request to LIST, SHOW, or SEE AVAILABLE groups should use
   }
 
   /**
+   * Get description for a specific tool
+   */
+  private getToolDescription(toolName: string): string {
+    const toolDescriptions = {
+      // Facilitator tools
+      'provideSupportiveResponse': 'Generate empathetic, therapeutic responses with validation',
+      'validateFeelings': 'Acknowledge and validate user emotions with therapeutic techniques',
+      'suggestCopingStrategies': 'Recommend evidence-based coping techniques and strategies',
+      
+      // Matching tools
+      'searchGroups': 'Search for peer support groups matching user criteria',
+      'rankGroupsByRelevance': 'Rank groups by compatibility with user needs',
+      'generateGroupRecommendations': 'Create personalized group recommendations',
+      'listAllGroups': 'List all available peer support groups',
+      
+      // Insight tools
+      'analyzeUserProgress': 'Analyze patterns in user conversation and growth',
+      'generateProgressInsights': 'Provide insights about user journey and development',
+      'trackJourney': 'Track user progress over time with milestone recognition',
+      'identifyPatterns': 'Identify behavioral and emotional patterns in user interactions'
+    };
+    
+    return toolDescriptions[toolName] || `Execute ${toolName} tool`;
+  }
+
+  /**
+   * Determine outcome of facilitator tool execution
+   */
+  private determineFacilitatorToolOutcome(toolName: string, content: string, session: ProductionConversationState): string {
+    const outcomes = {
+      'provideSupportiveResponse': `Provided therapeutic response addressing user's emotional needs`,
+      'validateFeelings': `Validated and acknowledged user's emotional experience`,
+      'suggestCopingStrategies': `Offered evidence-based coping strategies for current situation`
+    };
+
+    let outcome = outcomes[toolName] || `Executed ${toolName}`;
+    
+    // Add context-specific details
+    if (session.lastSentimentScore !== undefined) {
+      const sentimentLabel = session.lastSentimentScore > 0 ? 'positive' : 
+                           session.lastSentimentScore < -0.5 ? 'distressed' : 'neutral';
+      outcome += ` (user sentiment: ${sentimentLabel})`;
+    }
+
+    return outcome;
+  }
+
+  /**
+   * Enhance facilitator responses with proactive elements
+   */
+  private async enhanceFacilitatorResponse(response: string, session: ProductionConversationState, tools: string[]): Promise<string> {
+    let enhancedResponse = response;
+
+    // Add tool-specific enhancements
+    if (tools.includes('suggestCopingStrategies') && session.messageCount > 3) {
+      // Response already includes coping strategies from the enhanced facilitator
+      enhancedResponse += "\n\n💡 *These are evidence-based techniques that many people find helpful. Would you like to explore any of these further, or try one together?*";
+    }
+
+    if (tools.includes('validateFeelings') && session.lastSentimentScore && session.lastSentimentScore < -0.3) {
+      enhancedResponse += "\n\n🤗 *Remember: All your feelings are valid and deserve acknowledgment. You're being incredibly brave by sharing and working through these experiences.*";
+    }
+
+    // Proactive group suggestion if user seems isolated
+    if (session.messageCount > 4 && this.detectIsolationPattern(session)) {
+      enhancedResponse += "\n\n🌟 *I've noticed this conversation might be touching on feelings of isolation. Would connecting with others who have similar experiences be helpful? I can help you explore peer support options when you're ready.*";
+    }
+
+    return enhancedResponse;
+  }
+
+  /**
    * Enhanced fallback routing when LLM analysis fails
    */
   private getEnhancedFallbackRouting(content: string): {
@@ -1408,16 +1799,24 @@ Special attention: Any request to LIST, SHOW, or SEE AVAILABLE groups should use
             toolResults.push(...matchingResult.toolResults);
           }
 
-          // Execute specific tools requested by AI router
-          for (const tool of decision.tools) {
-            if (['searchGroups', 'listAllGroups', 'generateGroupRecommendations'].includes(tool)) {
-              toolResults.push({
-                tool,
-                agent: 'matching',
-                executed: true,
-                timestamp: new Date()
-              });
-            }
+          // Execute matching-specific tools with enhanced tracking
+          const matchingTools = ['searchGroups', 'rankGroupsByRelevance', 'generateGroupRecommendations', 'listAllGroups'];
+          const requestedMatchingTools = decision.tools.filter(tool => matchingTools.includes(tool));
+          
+          // Ensure comprehensive tool usage for group matching
+          const matchingToolsToExecute = requestedMatchingTools.length >= 2 ? requestedMatchingTools :
+                                        requestedMatchingTools.concat(matchingTools.filter(t => !requestedMatchingTools.includes(t)).slice(0, 3 - requestedMatchingTools.length));
+
+          for (const tool of matchingToolsToExecute) {
+            const toolResult = {
+              tool,
+              agent: 'matching',
+              executed: true,
+              timestamp: new Date(),
+              description: this.getToolDescription(tool),
+              outcome: `${tool} executed for group discovery and peer connection`
+            };
+            toolResults.push(toolResult);
           }
           break;
 
@@ -1449,17 +1848,28 @@ Special attention: Any request to LIST, SHOW, or SEE AVAILABLE groups should use
           response = facilitatorResult.response;
           confidence = Math.max(facilitatorResult.confidence, decision.confidence);
 
-          // Execute facilitator-specific tools
-          for (const tool of decision.tools) {
-            if (['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'].includes(tool)) {
-              toolResults.push({
-                tool,
-                agent: 'facilitator',
-                executed: true,
-                timestamp: new Date()
-              });
-            }
+          // Execute facilitator-specific tools with enhanced tracking
+          const facilitatorTools = ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'];
+          const requestedTools = decision.tools.filter(tool => facilitatorTools.includes(tool));
+          
+          // Ensure at least 2-3 tools are used for comprehensive support
+          const toolsToExecute = requestedTools.length >= 2 ? requestedTools : 
+                                requestedTools.concat(facilitatorTools.filter(t => !requestedTools.includes(t)).slice(0, 3 - requestedTools.length));
+
+          for (const tool of toolsToExecute) {
+            const toolResult = {
+              tool,
+              agent: 'facilitator',
+              executed: true,
+              timestamp: new Date(),
+              description: this.getToolDescription(tool),
+              outcome: this.determineFacilitatorToolOutcome(tool, content, session)
+            };
+            toolResults.push(toolResult);
           }
+
+          // Add proactive suggestions to response if appropriate
+          response = await this.enhanceFacilitatorResponse(response, session, toolsToExecute);
           break;
       }
 

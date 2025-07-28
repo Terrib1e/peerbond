@@ -9,14 +9,18 @@ import { api } from '@/lib/api';
 import LandingPage from '@/pages/LandingPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import DashboardPage from '@/pages/DashboardPage';
 import GroupsPage from '@/pages/GroupsPage';
 import GroupDetailPage from '@/pages/GroupDetailPage';
+import UserSessionsPage from '@/pages/UserSessionsPage';
 import ProfilePage from '@/pages/ProfilePage';
-import AIToolsPage from '@/pages/AIToolsPage';
 import AdminDashboard from '@/pages/AdminDashboard';
 import TherapistDashboard from '@/pages/TherapistDashboard';
 import Layout from '@/components/Layout';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { PortalRedirect } from '@/components/RoleBasedRedirect';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
@@ -64,35 +68,65 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route
                 path="/login"
-                element={user ? <Navigate to="/app" /> : <LoginPage />}
+                element={user ? <PortalRedirect /> : <LoginPage />}
               />
               <Route
                 path="/register"
-                element={user ? <Navigate to="/app" /> : <RegisterPage />}
+                element={user ? <PortalRedirect /> : <RegisterPage />}
+              />
+              <Route
+                path="/forgot-password"
+                element={user ? <PortalRedirect /> : <ForgotPasswordPage />}
+              />
+              <Route
+                path="/reset-password"
+                element={user ? <PortalRedirect /> : <ResetPasswordPage />}
               />
 
-              {/* Protected routes */}
+              {/* Portal redirect for authenticated users */}
+              <Route
+                path="/portal"
+                element={
+                  <ProtectedRoute>
+                    <PortalRedirect />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* User Portal Routes */}
               <Route
                 path="/app"
-                element={user ? <Layout /> : <Navigate to="/login" />}
+                element={
+                  <ProtectedRoute allowedRoles={['member', 'facilitator']}>
+                    <Layout />
+                  </ProtectedRoute>
+                }
               >
                 <Route index element={<DashboardPage />} />
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="groups/:groupId" element={<GroupDetailPage />} />
-                <Route path="ai-tools" element={<AIToolsPage />} />
+                <Route path="sessions" element={<UserSessionsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
-              {/* Admin routes */}
+              {/* Admin Portal Routes */}
               <Route
                 path="/admin"
-                element={user ? <AdminDashboard /> : <Navigate to="/login" />}
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
               />
 
-              {/* Therapist routes */}
+              {/* Therapist Portal Routes */}
               <Route
                 path="/therapist"
-                element={user ? <TherapistDashboard /> : <Navigate to="/login" />}
+                element={
+                  <ProtectedRoute allowedRoles={['therapist', 'admin']}>
+                    <TherapistDashboard />
+                  </ProtectedRoute>
+                }
               />
 
               {/* Catch all */}

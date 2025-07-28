@@ -96,6 +96,138 @@ router.get('/audit-logs', validateRequest([
   });
 }));
 
+// Get users with admin filtering
+router.get('/users', validateRequest([
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  query('search').optional().trim().isLength({ min: 1 }).withMessage('Search cannot be empty'),
+  query('role').optional().isIn(['admin', 'therapist', 'facilitator', 'member']).withMessage('Invalid role'),
+  query('status').optional().isBoolean().withMessage('Status must be boolean'),
+  query('experienceLevel').optional().isIn(['beginner', 'intermediate', 'advanced']).withMessage('Invalid experience level'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  const search = req.query.search as string;
+  const role = req.query.role as string;
+  const status = req.query.status ? req.query.status === 'true' : undefined;
+  const experienceLevel = req.query.experienceLevel as string;
+
+  const filters: any = {};
+  if (search) {
+    filters.search = search;
+  }
+  if (role) {
+    filters.role = role;
+  }
+  if (status !== undefined) {
+    filters.status = status;
+  }
+  if (experienceLevel) {
+    filters.experienceLevel = experienceLevel;
+  }
+
+  const result = await dbService.getUsers(page, limit, filters);
+
+  res.json({
+    success: true,
+    data: result,
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Delete a user
+router.delete('/users/:id', validateRequest([
+  param('id').isLength({ min: 1 }).withMessage('User ID is required'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const userId = req.params.id;
+  const adminId = req.user!.id;
+
+  try {
+    // Prevent admin from deleting themselves
+    if (userId === adminId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete your own account',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if user exists
+    const user = await dbService.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Delete the user
+    await dbService.deleteUser(userId);
+
+    // Log the deletion
+    await dbService.createAuditLog({
+      userId: adminId,
+      action: 'user_deleted',
+      resource: 'user',
+      resourceId: userId,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent') || 'unknown',
+      metadata: { deletedUser: { id: userId, email: user.email, role: user.role } }
+    });
+
+    logger.info(`User ${userId} deleted by admin ${adminId}`);
+
+    res.json({
+      success: true,
+      data: { message: 'User deleted successfully' },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Failed to delete user:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete user',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Get groups with admin filtering
+router.get('/groups', validateRequest([
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  query('search').optional().trim().isLength({ min: 1 }).withMessage('Search cannot be empty'),
+  query('type').optional().isIn(['recovery', 'wellness', 'general']).withMessage('Invalid group type'),
+  query('status').optional().isBoolean().withMessage('Status must be boolean'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  const search = req.query.search as string;
+  const type = req.query.type as string;
+  const status = req.query.status ? req.query.status === 'true' : undefined;
+
+  const filters: any = {};
+  if (search) {
+    filters.search = search;
+  }
+  if (type) {
+    filters.type = type;
+  }
+  if (status !== undefined) {
+    filters.status = status;
+  }
+
+  const result = await dbService.getGroups(page, limit, filters);
+
+  res.json({
+    success: true,
+    data: result,
+    timestamp: new Date().toISOString()
+  });
+}));
+
 // Get user statistics
 router.get('/stats/users', validateRequest([
   query('period').optional().isIn(['day', 'week', 'month', 'quarter', 'year']).withMessage('Invalid period'),
@@ -162,7 +294,7 @@ router.get('/stats/messages', validateRequest([
 // Bulk operations
 router.post('/bulk/users/activate', validateRequest([
   body('userIds').isArray({ min: 1 }).withMessage('User IDs array is required'),
-  body('userIds.*').isUUID().withMessage('Invalid user ID format'),
+  body('userIds.*').isLength({ min: 1 }).withMessage('Each user ID must be a non-empty string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { userIds } = req.body;
   const adminId = req.user!.id;
@@ -203,7 +335,7 @@ router.post('/bulk/users/activate', validateRequest([
 
 router.post('/bulk/users/deactivate', validateRequest([
   body('userIds').isArray({ min: 1 }).withMessage('User IDs array is required'),
-  body('userIds.*').isUUID().withMessage('Invalid user ID format'),
+  body('userIds.*').isLength({ min: 1 }).withMessage('Each user ID must be a non-empty string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { userIds } = req.body;
   const adminId = req.user!.id;
@@ -397,6 +529,393 @@ router.patch('/config', validateRequest([
   res.json({
     success: true,
     message: 'Configuration updated successfully',
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Group Assignment Routes
+
+// Get all group assignments
+router.get('/group-assignments', validateRequest([
+  query('userId').optional().isUUID().withMessage('Invalid user ID'),
+  query('groupId').optional().isUUID().withMessage('Invalid group ID'),
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { userId, groupId, page = 1, limit = 50 } = req.query;
+  
+  const assignments = await dbService.getGroupAssignments({
+    userId: userId as string,
+    groupId: groupId as string,
+    page: parseInt(page as string),
+    limit: parseInt(limit as string)
+  });
+
+  res.json({
+    success: true,
+    data: { assignments },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Assign group to user
+router.post('/group-assignments', validateRequest([
+  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('groupId').isUUID().withMessage('Valid group ID is required'),
+  body('notes').optional().isString().withMessage('Notes must be a string'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { userId, groupId, notes } = req.body;
+  const assignedBy = req.user!.id;
+
+  // Check if assignment already exists
+  const existingAssignment = await dbService.getGroupAssignment(userId, groupId);
+  if (existingAssignment) {
+    return res.status(400).json({
+      success: false,
+      error: 'User is already assigned to this group',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const assignment = await dbService.createGroupAssignment({
+    userId,
+    groupId,
+    assignedBy,
+    notes
+  });
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId: assignedBy,
+    action: 'group_assignment_create',
+    resource: 'group_assignment',
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: { userId, groupId, notes }
+  });
+
+  logger.info(`Group assignment created: User ${userId} assigned to group ${groupId} by ${assignedBy}`);
+
+  res.status(201).json({
+    success: true,
+    data: { assignment },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Remove group assignment
+router.delete('/group-assignments/:userId/:groupId', validateRequest([
+  param('userId').isUUID().withMessage('Invalid user ID'),
+  param('groupId').isUUID().withMessage('Invalid group ID'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { userId, groupId } = req.params;
+  const adminId = req.user!.id;
+
+  const assignment = await dbService.getGroupAssignment(userId, groupId);
+  if (!assignment) {
+    return res.status(404).json({
+      success: false,
+      error: 'Group assignment not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  await dbService.deleteGroupAssignment(userId, groupId);
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId: adminId,
+    action: 'group_assignment_delete',
+    resource: 'group_assignment',
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: { userId, groupId }
+  });
+
+  logger.info(`Group assignment deleted: User ${userId} unassigned from group ${groupId} by ${adminId}`);
+
+  res.json({
+    success: true,
+    message: 'Group assignment removed successfully',
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Get groups assigned to a specific user
+router.get('/users/:userId/assigned-groups', validateRequest([
+  param('userId').isUUID().withMessage('Invalid user ID'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { userId } = req.params;
+
+  const assignedGroups = await dbService.getUserAssignedGroups(userId);
+
+  res.json({
+    success: true,
+    data: { assignedGroups },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Bulk assign groups to multiple users
+router.post('/group-assignments/bulk', validateRequest([
+  body('userIds').isArray({ min: 1 }).withMessage('User IDs array is required'),
+  body('userIds.*').isLength({ min: 1 }).withMessage('Each user ID must be a non-empty string'),
+  body('groupIds').isArray({ min: 1 }).withMessage('Group IDs array is required'),
+  body('groupIds.*').isLength({ min: 1 }).withMessage('Each group ID must be a non-empty string'),
+  body('notes').optional().isString().withMessage('Notes must be a string'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { userIds, groupIds, notes } = req.body;
+  const assignedBy = req.user!.id;
+
+  const assignments = [];
+  const errors = [];
+
+  for (const userId of userIds) {
+    for (const groupId of groupIds) {
+      try {
+        // Check if assignment already exists
+        const existingAssignment = await dbService.getGroupAssignment(userId, groupId);
+        if (!existingAssignment) {
+          const assignment = await dbService.createGroupAssignment({
+            userId,
+            groupId,
+            assignedBy,
+            notes
+          });
+          assignments.push(assignment);
+        }
+      } catch (error) {
+        errors.push({ userId, groupId, error: (error as Error).message });
+      }
+    }
+  }
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId: assignedBy,
+    action: 'bulk_group_assignment',
+    resource: 'group_assignment',
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: { 
+      userIds, 
+      groupIds, 
+      notes,
+      successCount: assignments.length,
+      errorCount: errors.length
+    }
+  });
+
+  logger.info(`Bulk group assignment: ${assignments.length} assignments created, ${errors.length} errors by ${assignedBy}`);
+
+  res.json({
+    success: true,
+    data: {
+      assignments,
+      errors,
+      successCount: assignments.length,
+      errorCount: errors.length
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Therapist-Client Assignment Routes
+
+// Get all therapist-client assignments
+router.get('/therapist-assignments', validateRequest([
+  query('therapistId').optional().isLength({ min: 1 }).withMessage('Invalid therapist ID'),
+  query('clientId').optional().isLength({ min: 1 }).withMessage('Invalid client ID'),
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { therapistId, clientId, page = 1, limit = 50 } = req.query;
+  
+  const assignments = await dbService.getTherapistClientAssignments({
+    therapistId: therapistId as string,
+    clientId: clientId as string,
+    page: parseInt(page as string),
+    limit: parseInt(limit as string)
+  });
+
+  res.json({
+    success: true,
+    data: { assignments },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Assign client to therapist
+router.post('/therapist-assignments', validateRequest([
+  body('therapistId').isLength({ min: 1 }).withMessage('Valid therapist ID is required'),
+  body('clientId').isLength({ min: 1 }).withMessage('Valid client ID is required'),
+  body('notes').optional().isString().withMessage('Notes must be a string'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { therapistId, clientId, notes } = req.body;
+  const createdBy = req.user!.id;
+
+  // Verify therapist has therapist role
+  const therapist = await dbService.getUserById(therapistId);
+  if (!therapist || therapist.role !== 'therapist') {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid therapist ID or user is not a therapist',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Check if assignment already exists
+  const existingAssignment = await dbService.getTherapistClientAssignment(therapistId, clientId);
+  if (existingAssignment && existingAssignment.isActive) {
+    return res.status(400).json({
+      success: false,
+      error: 'Client is already assigned to this therapist',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const assignment = await dbService.createTherapistClientAssignment({
+    therapistId,
+    clientId,
+    notes,
+    createdBy
+  });
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId: createdBy,
+    action: 'therapist_client_assignment_create',
+    resource: 'therapist_client_assignment',
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: { therapistId, clientId, notes }
+  });
+
+  logger.info(`Therapist-client assignment created: Client ${clientId} assigned to therapist ${therapistId} by ${createdBy}`);
+
+  res.status(201).json({
+    success: true,
+    data: { assignment },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Remove therapist-client assignment
+router.delete('/therapist-assignments/:therapistId/:clientId', validateRequest([
+  param('therapistId').isLength({ min: 1 }).withMessage('Invalid therapist ID'),
+  param('clientId').isLength({ min: 1 }).withMessage('Invalid client ID'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { therapistId, clientId } = req.params;
+  const adminId = req.user!.id;
+
+  const assignment = await dbService.getTherapistClientAssignment(therapistId, clientId);
+  if (!assignment) {
+    return res.status(404).json({
+      success: false,
+      error: 'Therapist-client assignment not found',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  await dbService.deleteTherapistClientAssignment(therapistId, clientId);
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId: adminId,
+    action: 'therapist_client_assignment_delete',
+    resource: 'therapist_client_assignment',
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: { therapistId, clientId }
+  });
+
+  logger.info(`Therapist-client assignment deleted: Client ${clientId} unassigned from therapist ${therapistId} by ${adminId}`);
+
+  res.json({
+    success: true,
+    message: 'Therapist-client assignment removed successfully',
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Get all therapists with their client count
+router.get('/therapists', asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const therapists = await dbService.getTherapistsWithClientCount();
+
+  res.json({
+    success: true,
+    data: { therapists },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Bulk assign clients to therapist
+router.post('/therapist-assignments/bulk', validateRequest([
+  body('therapistId').isLength({ min: 1 }).withMessage('Valid therapist ID is required'),
+  body('clientIds').isArray({ min: 1 }).withMessage('Client IDs array is required'),
+  body('clientIds.*').isLength({ min: 1 }).withMessage('Each client ID must be a non-empty string'),
+  body('notes').optional().isString().withMessage('Notes must be a string'),
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { therapistId, clientIds, notes } = req.body;
+  const createdBy = req.user!.id;
+
+  // Verify therapist
+  const therapist = await dbService.getUserById(therapistId);
+  if (!therapist || therapist.role !== 'therapist') {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid therapist ID or user is not a therapist',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const assignments = [];
+  const errors = [];
+
+  for (const clientId of clientIds) {
+    try {
+      // Check if assignment already exists
+      const existingAssignment = await dbService.getTherapistClientAssignment(therapistId, clientId);
+      if (!existingAssignment || !existingAssignment.isActive) {
+        const assignment = await dbService.createTherapistClientAssignment({
+          therapistId,
+          clientId,
+          notes,
+          createdBy
+        });
+        assignments.push(assignment);
+      }
+    } catch (error) {
+      errors.push({ clientId, error: (error as Error).message });
+    }
+  }
+
+  // Log audit event
+  await dbService.createAuditLog({
+    userId: createdBy,
+    action: 'bulk_therapist_client_assignment',
+    resource: 'therapist_client_assignment',
+    ipAddress: req.ip,
+    userAgent: req.get('User-Agent') || 'unknown',
+    metadata: { 
+      therapistId, 
+      clientIds, 
+      notes,
+      successCount: assignments.length,
+      errorCount: errors.length
+    }
+  });
+
+  logger.info(`Bulk therapist-client assignment: ${assignments.length} assignments created, ${errors.length} errors by ${createdBy}`);
+
+  res.json({
+    success: true,
+    data: {
+      assignments,
+      errors,
+      successCount: assignments.length,
+      errorCount: errors.length
+    },
     timestamp: new Date().toISOString()
   });
 }));

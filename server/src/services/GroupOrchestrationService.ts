@@ -8,6 +8,7 @@ import { DatabaseService } from './database';
 import { logger } from '../utils/logger';
 import ToolExecutor, { ToolAuditLog } from '../tools/executor';
 import { ToolContext } from '../tools/schemas';
+import { toolDatabaseIntegration } from './toolDatabaseIntegration';
 
 export interface GroupContext {
   groupId: string;
@@ -68,6 +69,22 @@ export class GroupOrchestrationService extends ProductionOrchestratorService {
     super();
     this.dbService = new DatabaseService();
     this.toolExecutor = new ToolExecutor();
+    
+    // Initialize database-integrated tools
+    this.initializeDatabaseTools();
+  }
+
+  /**
+   * Initialize database-integrated tools on startup
+   */
+  private async initializeDatabaseTools(): Promise<void> {
+    try {
+      logger.info('🔧 GroupOrchestrationService: Initializing database-integrated tools...');
+      await toolDatabaseIntegration.initialize();
+      logger.info('✅ GroupOrchestrationService: Database-integrated tools initialized');
+    } catch (error) {
+      logger.error('❌ GroupOrchestrationService: Failed to initialize database tools:', error);
+    }
   }
 
   /**
@@ -305,7 +322,7 @@ Provide:
   }
 
   /**
-   * Override base processMessage to include meta-query detection
+   * Override base processMessage to include meta-query detection and multi-agent processing
    */
   async processMessage(params: {
     userId: string;
@@ -315,7 +332,7 @@ Provide:
   }): Promise<AgentResponse> {
     const { userId, sessionId, content, messageType } = params;
 
-    console.log('[GroupOrchestration] Processing message with meta-query detection:', {
+    console.log('[GroupOrchestration] Processing message with enhanced multi-agent processing:', {
       content: content.slice(0, 100),
       messageType,
       sessionId: sessionId.slice(0, 20) + '...'
@@ -331,18 +348,120 @@ Provide:
       return metaResponse;
     }
 
-    // Use enhanced tool-based processing instead of parent class
-    console.log('[GroupOrchestration] No meta-query detected, using enhanced tool-based processing');
+    // Enhanced multi-agent processing - always use multiple agents
+    console.log('[GroupOrchestration] Starting multi-agent pipeline processing');
+    
+    const agentsUsed: string[] = [];
+    const toolResults: any[] = [];
+    let finalResponse = '';
+    let highestConfidence = 0;
+    let needsCrisisIntervention = false;
 
-    // Route through AI router first for intent analysis
-    const routingResult = await this.callAgentWithTools(
-      'ai-router',
-      content,
-      sessionId,
-      userId
-    );
+    try {
+      // Step 1: AI Router for intent analysis
+      console.log('[GroupOrchestration] Step 1: AI Router analyzing intent');
+      const routerResult = await this.callAgentWithTools('ai-router', content, sessionId, userId);
+      agentsUsed.push('ai-router');
+      if (routerResult.toolResults) {
+        toolResults.push(...routerResult.toolResults);
+      }
 
-    return routingResult;
+      // Step 2: Sentiment analysis (always run for emotional monitoring)
+      console.log('[GroupOrchestration] Step 2: Sentiment Agent analyzing emotional content');
+      const sentimentResult = await this.callAgentWithTools('sentiment', content, sessionId, userId);
+      agentsUsed.push('sentiment');
+      if (sentimentResult.toolResults) {
+        toolResults.push(...sentimentResult.toolResults);
+      }
+
+      // Step 3: Crisis detection (always run for safety)
+      console.log('[GroupOrchestration] Step 3: Crisis Agent checking for safety concerns');
+      const crisisResult = await this.callAgentWithTools('crisis', content, sessionId, userId);
+      agentsUsed.push('crisis');
+      if (crisisResult.needsCrisisIntervention) {
+        needsCrisisIntervention = true;
+        finalResponse = crisisResult.response;
+        highestConfidence = crisisResult.confidence;
+      }
+      if (crisisResult.toolResults) {
+        toolResults.push(...crisisResult.toolResults);
+      }
+
+      // Step 4: Facilitator for therapeutic response (if no crisis)
+      if (!needsCrisisIntervention) {
+        console.log('[GroupOrchestration] Step 4: Facilitator Agent providing therapeutic support');
+        const facilitatorResult = await this.callAgentWithTools('facilitator', content, sessionId, userId);
+        agentsUsed.push('facilitator');
+        finalResponse = facilitatorResult.response;
+        highestConfidence = facilitatorResult.confidence;
+        if (facilitatorResult.toolResults) {
+          toolResults.push(...facilitatorResult.toolResults);
+        }
+      }
+
+      // Step 5: Additional specialized agents based on content
+      const contentLower = content.toLowerCase();
+      
+      // Insight agent for progress-related queries
+      if (contentLower.includes('progress') || contentLower.includes('how am i') || contentLower.includes('journey')) {
+        console.log('[GroupOrchestration] Step 5a: Insight Agent analyzing progress');
+        const insightResult = await this.callAgentWithTools('insight', content, sessionId, userId);
+        agentsUsed.push('insight');
+        if (insightResult.toolResults) {
+          toolResults.push(...insightResult.toolResults);
+        }
+      }
+
+      // Matching agent for group/community queries
+      if (contentLower.includes('group') || contentLower.includes('community') || contentLower.includes('others like me')) {
+        console.log('[GroupOrchestration] Step 5b: Matching Agent finding relevant groups');
+        const matchingResult = await this.callAgentWithTools('matching', content, sessionId, userId);
+        agentsUsed.push('matching');
+        if (matchingResult.toolResults) {
+          toolResults.push(...matchingResult.toolResults);
+        }
+      }
+
+      console.log('[GroupOrchestration] Multi-agent processing completed:', {
+        agentsUsed,
+        agentCount: agentsUsed.length,
+        finalResponse: finalResponse.slice(0, 100) + '...',
+        confidence: highestConfidence,
+        needsCrisisIntervention,
+        toolResultsCount: toolResults.length
+      });
+
+      return {
+        success: true,
+        response: finalResponse,
+        confidence: highestConfidence,
+        agentUsed: agentsUsed,
+        toolResults,
+        needsCrisisIntervention,
+        suggestGroupMatching: agentsUsed.includes('matching'),
+        metadata: {
+          processingType: 'multi-agent-pipeline',
+          agentCount: agentsUsed.length,
+          hasToolResults: toolResults.length > 0,
+          processingTime: new Date().toISOString()
+        }
+      };
+
+    } catch (error) {
+      console.error('[GroupOrchestration] Error in multi-agent processing:', error);
+      
+      // Fallback to single agent
+      const fallbackResult = await this.callAgentWithTools('facilitator', content, sessionId, userId);
+      return {
+        ...fallbackResult,
+        agentUsed: ['facilitator', 'fallback'],
+        metadata: {
+          ...fallbackResult.metadata,
+          processingType: 'fallback-single-agent',
+          fallbackReason: error.message
+        }
+      };
+    }
   }
 
   /**

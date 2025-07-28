@@ -109,7 +109,7 @@ export default function AIToolsPanel({ groupId: _groupId }: AIToolsPanelProps) {
       setLoading(true);
       console.log('Loading tool schemas for user:', user.email);
       
-      const response = await api.makeRequest<{
+      const response = await api.get<{
         success: boolean;
         data: {
           totalAgents: number;
@@ -235,19 +235,16 @@ export default function AIToolsPanel({ groupId: _groupId }: AIToolsPanelProps) {
       };
 
       const params = testParameters[toolName as keyof typeof testParameters] || { 
-        message: "Test message for " + toolName 
+        text: "Test message for " + toolName 
       };
 
-      const response = await api.makeRequest<{
+      const response = await api.post<{
         success: boolean;
         data: any;
       }>('/tools/test', {
-        method: 'POST',
-        body: JSON.stringify({
-          toolName,
-          agent,
-          parameters: params
-        })
+        toolName,
+        agent,
+        parameters: params
       });
 
       setTestResults(response.data);

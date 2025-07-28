@@ -5,7 +5,7 @@ import { ArrowLeft, Users, Calendar, MessageCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { Group } from '@/types';
-import AIOrchestrationChatInterface from '@/components/chat/AIOrchestrationChatInterface';
+import StreamlinedChatInterface from '@/components/chat/StreamlinedChatInterface';
 
 function GroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -187,8 +187,8 @@ function GroupDetailPage() {
         )}
 
         {activeTab === 'chat' && user && (
-          <div className="h-[600px] border border-gray-200 rounded-lg overflow-hidden">
-            <AIOrchestrationChatInterface
+          <div className="h-[600px] border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+            <StreamlinedChatInterface
               groupId={groupId!}
               currentUser={user}
               group={group}

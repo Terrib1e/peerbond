@@ -173,12 +173,12 @@ export class ApiService {
       console.log('❌ makeRequest: response not ok, trying to parse error...');
       const error = await response.json().catch(() => ({ error: 'Network error' }));
       console.log('❌ makeRequest: error =', error);
-      
+
       // Log validation details if available
       if (error.details && Array.isArray(error.details)) {
         console.log('❌ makeRequest: validation details =', error.details);
       }
-      
+
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
 
@@ -193,6 +193,36 @@ export class ApiService {
       console.error('❌ makeRequest: raw response text:', responseText);
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
     }
+  }
+
+  // HTTP method helpers
+  async get<T>(endpoint: string): Promise<T> {
+    return this.makeRequest<T>(endpoint, { method: 'GET' });
+  }
+
+  async post<T>(endpoint: string, data?: any): Promise<T> {
+    return this.makeRequest<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined
+    });
+  }
+
+  async put<T>(endpoint: string, data?: any): Promise<T> {
+    return this.makeRequest<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined
+    });
+  }
+
+  async patch<T>(endpoint: string, data?: any): Promise<T> {
+    return this.makeRequest<T>(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.makeRequest<T>(endpoint, { method: 'DELETE' });
   }
 
   // Authentication methods
@@ -243,6 +273,31 @@ export class ApiService {
     }
   }
 
+  // Password reset methods
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const response = await this.makeRequest<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response;
+  }
+
+  async resetPassword(token: string, password: string): Promise<{ message: string }> {
+    const response = await this.makeRequest<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+    return response;
+  }
+
+  async verifyResetToken(token: string): Promise<{ email: string }> {
+    const response = await this.makeRequest<{ data: { email: string } }>('/auth/verify-reset-token', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+    return response.data;
+  }
+
   // User methods
   async updateProfile(updates: Partial<User>): Promise<User> {
     const response = await this.makeRequest<{ user: User }>('/users/profile', {
@@ -278,6 +333,16 @@ export class ApiService {
     await this.makeRequest(`/groups/${groupId}/join`, {
       method: 'POST',
     });
+  }
+
+  async getUserAvailableGroups(): Promise<Group[]> {
+    const response = await this.makeRequest<{ data: { groups: Group[] } }>('/groups/available');
+    return response.data.groups;
+  }
+
+  async getUserAssignedGroups(): Promise<Group[]> {
+    const response = await this.makeRequest<{ data: { assignedGroups: Group[] } }>('/groups/assigned');
+    return response.data.assignedGroups;
   }
 
   async leaveGroup(groupId: string): Promise<void> {
@@ -331,8 +396,13 @@ export class ApiService {
   }
 
   async getAllUsers(): Promise<User[]> {
-    const response = await this.makeRequest<{ data: { users: User[] } }>('/users');
+    const response = await this.makeRequest<{ data: { users: User[] } }>('/admin/users');
     return response.data.users;
+  }
+
+  async getAllGroups(): Promise<Group[]> {
+    const response = await this.makeRequest<{ data: { groups: Group[] } }>('/admin/groups');
+    return response.data.groups;
   }
 
   async deleteUser(userId: string): Promise<void> {
@@ -556,7 +626,7 @@ export class ApiService {
   }> {
     try {
       console.log('🔧 BasicChat: Sending message:', content);
-      
+
       const response = await fetch(`${this.baseURL}/api/basic-chat/message`, {
         method: 'POST',
         headers: {
@@ -564,19 +634,19 @@ export class ApiService {
         },
         body: JSON.stringify({ content })
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log('🔧 BasicChat: Got response:', data);
-      
+
       return {
         response: data.data.response,
         timestamp: data.data.timestamp
       };
-      
+
     } catch (error) {
       console.error('❌ BasicChat error:', error);
       throw error;

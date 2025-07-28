@@ -129,6 +129,12 @@ router.post('/message',
 
       // Log metrics for monitoring
       console.log(`[ProductionOrchestration] Message processed in ${duration}ms with confidence ${result.confidence}`);
+      console.log(`[ProductionOrchestration] AGENTS USED:`, {
+        agentUsed: result.agentUsed,
+        agentUsedType: typeof result.agentUsed,
+        agentUsedLength: Array.isArray(result.agentUsed) ? result.agentUsed.length : 'not array',
+        agentUsedStringified: JSON.stringify(result.agentUsed)
+      });
 
       res.json({
         success: result.success,

@@ -106,7 +106,15 @@ function LoginPage() {
             </button>
           </div>
 
-          <div className="text-center">
+          <div className="text-center space-y-2">
+            <div>
+              <Link 
+                to="/forgot-password" 
+                className="text-sm text-primary-600 hover:text-primary-500"
+              >
+                Forgot your password?
+              </Link>
+            </div>
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
               <Link to="/register" className="text-primary-600 hover:text-primary-500">

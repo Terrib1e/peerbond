@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Users, MessageCircle, Search, X, Trash2 } from 'lucide-react';
+import { Plus, Users, MessageCircle, Search, X, Trash2, Star, Shield } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
@@ -9,6 +9,7 @@ import { Group, CreateGroupRequest } from '@/types';
 function GroupsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [filterAssignment, setFilterAssignment] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { user } = useAuthStore();
   const [newGroup, setNewGroup] = useState<CreateGroupRequest>({
@@ -23,10 +24,10 @@ function GroupsPage() {
   const queryClient = useQueryClient();
 
   const { data: groups = [], isLoading, error } = useQuery<Group[]>({
-    queryKey: ['groups'],
+    queryKey: ['user-available-groups'],
     queryFn: async () => {
-      const result = await api.getGroups();
-      console.log('Fetched groups:', result);
+      const result = await api.getUserAvailableGroups();
+      console.log('Fetched available groups:', result);
       return result;
     },
   });
@@ -34,7 +35,7 @@ function GroupsPage() {
   const createGroupMutation = useMutation({
     mutationFn: (groupData: CreateGroupRequest) => api.createGroup(groupData),
     onSuccess: (_data) => {
-      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['user-available-groups'] });
       setShowCreateModal(false);
       setNewGroup({
         name: '',
@@ -54,7 +55,7 @@ function GroupsPage() {
   const deleteGroupMutation = useMutation({
     mutationFn: (groupId: string) => api.deleteGroup(groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['user-available-groups'] });
     },
     onError: (error) => {
       console.error('Failed to delete group:', error);
@@ -65,7 +66,7 @@ function GroupsPage() {
   const joinGroupMutation = useMutation({
     mutationFn: (groupId: string) => api.joinGroup(groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['user-available-groups'] });
     },
     onError: (error) => {
       console.error('Failed to join group:', error);
@@ -76,7 +77,7 @@ function GroupsPage() {
   const leaveGroupMutation = useMutation({
     mutationFn: (groupId: string) => api.leaveGroup(groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['user-available-groups'] });
     },
     onError: (error) => {
       console.error('Failed to leave group:', error);
@@ -88,7 +89,10 @@ function GroupsPage() {
     const matchesSearch = group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (group.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || group.type === filterType;
-    return matchesSearch && matchesType;
+    const matchesAssignment = filterAssignment === 'all' || 
+      (filterAssignment === 'assigned' && group.isAssigned) ||
+      (filterAssignment === 'public' && !group.isAssigned);
+    return matchesSearch && matchesType && matchesAssignment;
   });
 
   if (isLoading) {
@@ -185,6 +189,16 @@ function GroupsPage() {
           <option value="wellness">Wellness</option>
           <option value="general">General</option>
         </select>
+        <select
+          title="Filter Assignment"
+          value={filterAssignment}
+          onChange={(e) => setFilterAssignment(e.target.value)}
+          className="input sm:w-48"
+        >
+          <option value="all">All Groups</option>
+          <option value="assigned">Assigned Groups</option>
+          <option value="public">Public Groups</option>
+        </select>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -198,12 +212,30 @@ function GroupsPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-xl font-semibold text-gray-900">{group.name}</h3>
+                  {group.isAssigned && (
+                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                      <Star size={12} />
+                      Assigned
+                    </div>
+                  )}
+                  {group.isPrivate && (
+                    <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                      <Shield size={12} />
+                      Private
+                    </div>
+                  )}
                 </div>
                 <p className="text-gray-600 mb-3">{group.description}</p>
+                {group.isAssigned && group.assignedBy && (
+                  <p className="text-xs text-blue-600 mb-2">
+                    Assigned by {group.assignedBy.firstName} {group.assignedBy.lastName} ({group.assignedBy.role})
+                    {group.assignmentNotes && ` - ${group.assignmentNotes}`}
+                  </p>
+                )}
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   <div className="flex items-center gap-1">
                     <Users size={16} />
-                    {group.members.length}/{group.maxMembers}
+                    {group.memberCount || 0}/{group.maxMembers}
                   </div>
                   <div className="flex items-center gap-1">
                     <MessageCircle size={16} />
@@ -211,9 +243,16 @@ function GroupsPage() {
                   </div>
                 </div>
               </div>
-              <span className={`px-2 py-1 text-xs rounded-full ${getTypeColor(group.type)}`}>
-                {group.type}
-              </span>
+              <div className="flex flex-col gap-2">
+                <span className={`px-2 py-1 text-xs rounded-full ${getTypeColor(group.type)}`}>
+                  {group.type}
+                </span>
+                {group.memberCount >= group.maxMembers && (
+                  <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">
+                    Full
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -231,7 +270,7 @@ function GroupsPage() {
                 >
                   <Trash2 size={16} />
                 </button>
-                {user && group.members.includes(user.id) ? (
+                {group.isMember ? (
                   <button
                     onClick={(e) => {
                       e.preventDefault();
@@ -241,7 +280,7 @@ function GroupsPage() {
                   >
                     Leave Group
                   </button>
-                ) : (
+                ) : group.canJoin ? (
                   <button
                     onClick={(e) => {
                       e.preventDefault();
@@ -251,6 +290,10 @@ function GroupsPage() {
                   >
                     Join Group
                   </button>
+                ) : (
+                  <span className="text-gray-500 text-sm">
+                    {group.memberCount >= group.maxMembers ? 'Group Full' : 'Cannot Join'}
+                  </span>
                 )}
                 <Link
                   to={`/app/groups/${group.id}`}

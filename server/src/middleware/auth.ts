@@ -50,7 +50,7 @@ export const authenticateToken = async (
     }
 
     const decoded = jwt.verify(token, jwtSecret) as JWTPayload;
-    
+
     // Get user from database
     const user = await dbService.getUserById(decoded.userId);
     if (!user) {
@@ -85,7 +85,7 @@ export const authenticateToken = async (
     next();
   } catch (error) {
     logger.error('Authentication error:', error);
-    
+
     if (error instanceof jwt.TokenExpiredError) {
       return res.status(401).json({
         success: false,
@@ -145,7 +145,7 @@ export const optionalAuth = async (
 
     const decoded = jwt.verify(token, jwtSecret) as JWTPayload;
     const user = await dbService.getUserById(decoded.userId);
-    
+
     if (user && user.isActive) {
       req.user = {
         id: user.id,
@@ -161,4 +161,28 @@ export const optionalAuth = async (
     // If optional auth fails, continue without user
     next();
   }
+
+  // requireRole
+};
+
+export const requireRole = (allowedRoles: string[]) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: `Access denied. Required roles: ${allowedRoles.join(', ')}`,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    next();
+  };
 };

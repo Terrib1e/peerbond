@@ -33,7 +33,7 @@ const groupIdValidation = [
 ];
 
 // Get all groups
-router.get('/', validateRequest([
+router.get('/', authenticateToken, validateRequest([
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
   query('search').optional().trim().isLength({ min: 1 }).withMessage('Search query cannot be empty'),
@@ -75,8 +75,38 @@ router.get('/', validateRequest([
   });
 }));
 
+// Get groups available to current user (assigned + public)
+router.get('/available', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const userId = req.user!.id;
+
+  const availableGroups = await dbService.getUserAvailableGroups(userId);
+
+  res.json({
+    success: true,
+    data: {
+      groups: availableGroups
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Get groups assigned to current user
+router.get('/assigned', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const userId = req.user!.id;
+
+  const assignedGroups = await dbService.getUserAssignedGroups(userId);
+
+  res.json({
+    success: true,
+    data: {
+      assignedGroups
+    },
+    timestamp: new Date().toISOString()
+  });
+}));
+
 // Get group by ID
-router.get('/:id', validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.get('/:id', authenticateToken, validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
   const userId = req.user!.id;
   const isAdmin = req.user!.role === 'admin';
@@ -109,7 +139,7 @@ router.get('/:id', validateRequest(groupIdValidation), asyncHandler(async (req: 
 }));
 
 // Create group
-router.post('/', validateRequest(createGroupValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.post('/', authenticateToken, validateRequest(createGroupValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const userId = req.user!.id;
   const isAdmin = req.user!.role === 'admin';
 
@@ -148,7 +178,7 @@ router.post('/', validateRequest(createGroupValidation), asyncHandler(async (req
 }));
 
 // Update group
-router.patch('/:id', validateRequest([...groupIdValidation, ...updateGroupValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.patch('/:id', authenticateToken, validateRequest([...groupIdValidation, ...updateGroupValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
   const userId = req.user!.id;
   const isAdmin = req.user!.role === 'admin';
@@ -243,7 +273,7 @@ router.delete('/:id', requireAdmin, validateRequest(groupIdValidation), asyncHan
 }));
 
 // Join group
-router.post('/:id/join', validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.post('/:id/join', authenticateToken, validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
   const userId = req.user!.id;
 
@@ -307,7 +337,7 @@ router.post('/:id/join', validateRequest(groupIdValidation), asyncHandler(async 
 }));
 
 // Leave group
-router.post('/:id/leave', validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.post('/:id/leave', authenticateToken, validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
   const userId = req.user!.id;
 
@@ -364,7 +394,7 @@ router.post('/:id/leave', validateRequest(groupIdValidation), asyncHandler(async
 }));
 
 // Add facilitator (admin or group creator only)
-router.post('/:id/facilitators', validateRequest([
+router.post('/:id/facilitators', authenticateToken, validateRequest([
   ...groupIdValidation,
   body('userId').isUUID().withMessage('Invalid user ID format'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
@@ -435,7 +465,7 @@ router.post('/:id/facilitators', validateRequest([
 }));
 
 // Remove facilitator (admin or group creator only)
-router.delete('/:id/facilitators/:userId', validateRequest([
+router.delete('/:id/facilitators/:userId', authenticateToken, validateRequest([
   ...groupIdValidation,
   param('userId').isUUID().withMessage('Invalid user ID format'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
@@ -505,5 +535,6 @@ router.delete('/:id/facilitators/:userId', validateRequest([
     timestamp: new Date().toISOString()
   });
 }));
+
 
 export default router;

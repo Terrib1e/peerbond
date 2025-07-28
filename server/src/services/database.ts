@@ -244,6 +244,7 @@ export class DatabaseService {
       search?: string;
       status?: boolean;
       experienceLevel?: string;
+      role?: string;
     } = {}
   ): Promise<{ users: any[]; total: number }> {
     const where: any = {};
@@ -262,6 +263,10 @@ export class DatabaseService {
 
     if (filters.experienceLevel) {
       where.experienceLevel = filters.experienceLevel;
+    }
+
+    if (filters.role) {
+      where.role = filters.role;
     }
 
     const [users, total] = await Promise.all([
@@ -342,19 +347,15 @@ export class DatabaseService {
         type: groupData.type,
         maxMembers: groupData.maxMembers || 6,
         isPrivate: groupData.isPrivate || false,
-        isActive: true
-        // createdBy: groupData.createdBy // Temporarily commented out
+        isActive: true,
+        createdBy: groupData.createdBy,
+        facilitatorId: groupData.facilitators?.[0] // Set the first facilitator as the main facilitator
       }
     });
 
-    // Add creator as member if provided
+    // Add creator as facilitator member if provided
     if (groupData.createdBy) {
-      await this.addGroupMember(group.id, groupData.createdBy, 'member');
-    }
-
-    // Add creator as facilitator if provided and in facilitators list
-    if (groupData.createdBy && groupData.facilitators?.includes(groupData.createdBy)) {
-      await this.addGroupFacilitator(group.id, groupData.createdBy);
+      await this.addGroupMember(group.id, groupData.createdBy, 'facilitator');
     }
 
     // Add additional members if provided
@@ -817,27 +818,43 @@ export class DatabaseService {
     return { logs: [], total: 0 };
   }
 
-  // Audit log methods (placeholder for now)
+  // Audit log methods
   async createAuditLog(auditData: {
     userId: string;
     action: string;
-    resource: string;
+    resource?: string;
     resourceId?: string;
     details?: any;
     metadata?: any;
     ipAddress?: string;
     userAgent?: string;
   }): Promise<any> {
-    // For now, just log to console in development
-    if (process.env.NODE_ENV === 'development') {
-      logger.info('Audit Log:', auditData);
+    try {
+      // Try to create audit log in database if table exists
+      return await this.prisma.auditLog.create({
+        data: {
+          userId: auditData.userId,
+          action: auditData.action,
+          entityType: auditData.resource,
+          entityId: auditData.resourceId,
+          details: typeof auditData.metadata === 'object' ? JSON.stringify(auditData.metadata) : auditData.metadata,
+          ipAddress: auditData.ipAddress,
+          userAgent: auditData.userAgent,
+          timestamp: new Date()
+        }
+      });
+    } catch (error) {
+      // Fall back to console logging if audit table doesn't exist
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('Audit Log (fallback):', auditData);
+      }
+      // Return a mock audit log entry
+      return {
+        id: uuidv4(),
+        ...auditData,
+        createdAt: new Date()
+      };
     }
-    // Return a mock audit log entry
-    return {
-      id: uuidv4(),
-      ...auditData,
-      createdAt: new Date()
-    };
   }
 
   async getAuditLogs(
@@ -974,7 +991,528 @@ export class DatabaseService {
       }
     });
 
-    return groupMemberships.map(membership => membership.user);
+    return groupMemberships;
   }
 
+  // Group Assignment Methods
+
+  async getGroupAssignments(filters: {
+    userId?: string;
+    groupId?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<any[]> {
+    const { userId, groupId, page = 1, limit = 50 } = filters;
+
+    const where: any = {
+      isActive: true
+    };
+
+    if (userId) where.userId = userId;
+    if (groupId) where.groupId = groupId;
+
+    const assignments = await this.prisma.groupAssignment.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            experienceLevel: true,
+            role: true,
+            isActive: true
+          }
+        },
+        group: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            type: true,
+            maxMembers: true,
+            isPrivate: true,
+            isActive: true
+          }
+        },
+        assigner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true
+          }
+        }
+      },
+      orderBy: {
+        assignedAt: 'desc'
+      },
+      skip: (page - 1) * limit,
+      take: limit
+    });
+
+    return assignments;
+  }
+
+  async getGroupAssignment(userId: string, groupId: string): Promise<any | null> {
+    return await this.prisma.groupAssignment.findUnique({
+      where: {
+        userId_groupId: {
+          userId,
+          groupId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        group: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            type: true
+          }
+        },
+        assigner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true
+          }
+        }
+      }
+    });
+  }
+
+  async createGroupAssignment(data: {
+    userId: string;
+    groupId: string;
+    assignedBy: string;
+    notes?: string;
+  }): Promise<any> {
+    const assignment = await this.prisma.groupAssignment.create({
+      data: {
+        userId: data.userId,
+        groupId: data.groupId,
+        assignedBy: data.assignedBy,
+        notes: data.notes,
+        isActive: true
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        group: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            type: true
+          }
+        },
+        assigner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true
+          }
+        }
+      }
+    });
+
+    logger.info(`Group assignment created: User ${data.userId} assigned to group ${data.groupId} by ${data.assignedBy}`);
+    return assignment;
+  }
+
+  async deleteGroupAssignment(userId: string, groupId: string): Promise<void> {
+    await this.prisma.groupAssignment.delete({
+      where: {
+        userId_groupId: {
+          userId,
+          groupId
+        }
+      }
+    });
+
+    logger.info(`Group assignment deleted: User ${userId} unassigned from group ${groupId}`);
+  }
+
+  async getUserAssignedGroups(userId: string): Promise<any[]> {
+    const assignments = await this.prisma.groupAssignment.findMany({
+      where: {
+        userId,
+        isActive: true
+      },
+      include: {
+        group: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            type: true,
+            maxMembers: true,
+            isPrivate: true,
+            isActive: true,
+            lastActivity: true,
+            createdAt: true,
+            members: {
+              select: {
+                userId: true
+              }
+            },
+            _count: {
+              select: {
+                members: true
+              }
+            }
+          }
+        },
+        assigner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true
+          }
+        }
+      },
+      orderBy: {
+        assignedAt: 'desc'
+      }
+    });
+
+    return assignments.map(assignment => ({
+      ...assignment.group,
+      assignedAt: assignment.assignedAt,
+      assignedBy: assignment.assigner,
+      assignmentNotes: assignment.notes,
+      memberCount: assignment.group.members.length
+    }));
+  }
+
+  async getUserAvailableGroups(userId: string): Promise<any[]> {
+    // Get groups that are either:
+    // 1. Assigned to the user, OR
+    // 2. Public groups that the user can freely join
+    
+    const assignedGroups = await this.getUserAssignedGroups(userId);
+    const assignedGroupIds = assignedGroups.map(g => g.id);
+
+    // Get public groups that aren't assigned to the user
+    const publicGroups = await this.prisma.group.findMany({
+      where: {
+        isActive: true,
+        isPrivate: false,
+        id: {
+          notIn: assignedGroupIds
+        }
+      },
+      include: {
+        members: {
+          select: {
+            userId: true
+          }
+        },
+        _count: {
+          select: {
+            members: true
+          }
+        }
+      }
+    });
+
+    // Combine assigned and public groups
+    const availableGroups = [
+      ...assignedGroups.map(g => ({
+        ...g,
+        isAssigned: true,
+        isMember: g.members?.some((m: any) => m.userId === userId) || false,
+        memberCount: g._count?.members || g.members?.length || 0,
+        canJoin: !g.members?.some((m: any) => m.userId === userId) && 
+                 (g._count?.members || g.members?.length || 0) < g.maxMembers
+      })),
+      ...publicGroups.map(g => ({
+        ...g,
+        memberCount: g._count.members,
+        isAssigned: false,
+        isMember: g.members.some(m => m.userId === userId),
+        canJoin: !g.members.some(m => m.userId === userId) && g._count.members < g.maxMembers,
+        members: g.members.map(m => m.userId) // Convert to array of userIds for frontend
+      }))
+    ];
+
+    return availableGroups;
+  }
+
+  // Mood Entry Methods
+  async createMoodEntry(data: {
+    userId: string;
+    score: number;
+    emotions?: string;
+    triggers?: string;
+    notes?: string;
+  }): Promise<any> {
+    return await this.prisma.moodEntry.create({
+      data: {
+        userId: data.userId,
+        score: data.score,
+        emotions: data.emotions,
+        triggers: data.triggers,
+        notes: data.notes
+      }
+    });
+  }
+
+  // Therapist Profile Methods
+  async getTherapistProfile(userId: string): Promise<any> {
+    return await this.prisma.therapistProfile.findUnique({
+      where: { userId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+  }
+
+  async createTherapistProfile(data: {
+    userId: string;
+    licenseNumber: string;
+    specializations: string;
+    bio: string;
+    isVerified?: boolean;
+  }): Promise<any> {
+    return await this.prisma.therapistProfile.create({
+      data: {
+        userId: data.userId,
+        licenseNumber: data.licenseNumber,
+        specializations: data.specializations,
+        bio: data.bio,
+        isVerified: data.isVerified || false
+      }
+    });
+  }
+
+  // Therapist-Client Assignment Methods
+  async getTherapistClientAssignments(filters: {
+    therapistId?: string;
+    clientId?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<any> {
+    const { therapistId, clientId, page = 1, limit = 50 } = filters;
+    const skip = (page - 1) * limit;
+
+    const where: any = { isActive: true };
+    if (therapistId) where.therapistId = therapistId;
+    if (clientId) where.clientId = clientId;
+
+    const [assignments, total] = await Promise.all([
+      this.prisma.therapistClientAssignment.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          therapist: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              role: true
+            }
+          },
+          client: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatar: true,
+              lastActive: true
+            }
+          }
+        },
+        orderBy: { assignedAt: 'desc' }
+      }),
+      this.prisma.therapistClientAssignment.count({ where })
+    ]);
+
+    return {
+      assignments,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  async getTherapistClientAssignment(therapistId: string, clientId: string): Promise<any> {
+    return await this.prisma.therapistClientAssignment.findUnique({
+      where: {
+        therapistId_clientId: {
+          therapistId,
+          clientId
+        }
+      }
+    });
+  }
+
+  async createTherapistClientAssignment(data: {
+    therapistId: string;
+    clientId: string;
+    notes?: string;
+    createdBy?: string;
+  }): Promise<any> {
+    return await this.prisma.therapistClientAssignment.create({
+      data: {
+        therapistId: data.therapistId,
+        clientId: data.clientId,
+        notes: data.notes,
+        createdBy: data.createdBy,
+        isActive: true
+      },
+      include: {
+        therapist: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+  }
+
+  async deleteTherapistClientAssignment(therapistId: string, clientId: string): Promise<void> {
+    await this.prisma.therapistClientAssignment.update({
+      where: {
+        therapistId_clientId: {
+          therapistId,
+          clientId
+        }
+      },
+      data: {
+        isActive: false
+      }
+    });
+  }
+
+  async getTherapistsWithClientCount(): Promise<any[]> {
+    const therapists = await this.prisma.user.findMany({
+      where: {
+        role: 'therapist',
+        isActive: true
+      },
+      include: {
+        therapistProfile: true,
+        therapistClients: {
+          where: { isActive: true },
+          select: { id: true }
+        }
+      }
+    });
+
+    return therapists.map(therapist => ({
+      id: therapist.id,
+      firstName: therapist.firstName,
+      lastName: therapist.lastName,
+      email: therapist.email,
+      clientCount: therapist.therapistClients.length,
+      isVerified: therapist.therapistProfile?.isVerified || false,
+      specializations: therapist.therapistProfile?.specializations
+    }));
+  }
+
+  async getTherapistClients(therapistId: string): Promise<any[]> {
+    const assignments = await this.prisma.therapistClientAssignment.findMany({
+      where: {
+        therapistId,
+        isActive: true
+      },
+      include: {
+        client: {
+          include: {
+            groupMemberships: {
+              where: {
+                group: { isActive: true }
+              },
+              include: {
+                group: {
+                  select: {
+                    id: true,
+                    name: true,
+                    type: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { assignedAt: 'desc' }
+    });
+
+    return assignments.map(assignment => ({
+      ...assignment.client,
+      assignedAt: assignment.assignedAt,
+      notes: assignment.notes,
+      groups: assignment.client.groupMemberships.map(gm => gm.group)
+    }));
+  }
+
+  async updateTherapistProfile(userId: string, data: any): Promise<any> {
+    return await this.prisma.therapistProfile.update({
+      where: { userId },
+      data
+    });
+  }
+
+  // Public methods for counting records
+  async getUserCount(filters?: any): Promise<number> {
+    return this.prisma.user.count(filters);
+  }
+
+  async getGroupCount(filters?: any): Promise<number> {
+    return this.prisma.group.count(filters);
+  }
+
+  async getMessageCount(filters?: any): Promise<number> {
+    return this.prisma.message.count(filters);
+  }
+
+  // Public method for accessing prisma directly for complex queries
+  get client(): PrismaClient {
+    return this.prisma;
+  }
 }

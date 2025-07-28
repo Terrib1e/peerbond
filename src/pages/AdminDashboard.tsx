@@ -1,21 +1,27 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users,
   MessageSquare,
   BarChart3,
-  Settings,
   Shield,
   Plus,
   Edit,
   Trash2,
-  Search,
-  Filter,
   Download,
   CheckCircle,
   Clock,
   TrendingUp,
-  Activity
+  Activity,
+  Server,
+  FileText,
+  Brain,
+  Bot,
+  Zap,
+  Heart,
+  TestTube,
+  AlertTriangle,
+  LogOut
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { User, Group } from '@/types';
@@ -24,6 +30,17 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/Dialog';
 import { toast } from 'react-hot-toast';
+import UserManagement from '@/components/admin/UserManagement';
+import AnalyticsDashboard from '@/components/admin/AnalyticsDashboard';
+import SystemManagement from '@/components/admin/SystemManagement';
+import AuditLogs from '@/components/admin/AuditLogs';
+import AIChatInterface from '@/components/chat/AIChatInterface';
+import AIToolsPanel from '@/components/ai/AIToolsPanel';
+import AgentTester from '@/components/ai/AgentTester';
+import { OrchestrationSystem } from '@/lib/api';
+import { motion } from 'framer-motion';
+import { cn } from '@/utils/cn';
+import { useAuthStore } from '@/store/authStore';
 
 interface AdminStats {
   totalUsers: number;
@@ -37,12 +54,44 @@ interface AdminStats {
 }
 
 export default function AdminDashboard() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'groups' | 'analytics' | 'settings'>('overview');
-  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+  const [searchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'groups' | 'analytics' | 'ai' | 'system' | 'audit'>('overview');
+  const [_showCreateUserDialog] = useState(false);
   const [showCreateGroupDialog, setShowCreateGroupDialog] = useState(false);
+  const [aiDemoTab, setAiDemoTab] = useState<'chat' | 'tools' | 'status' | 'tester'>('status');
+  const [systemStatus, setSystemStatus] = useState<{
+    [key in OrchestrationSystem]: 'checking' | 'healthy' | 'error';
+  }>({
+    simple: 'checking',
+    production: 'checking',
+    main: 'checking',
+    working: 'checking'
+  });
+  const { user } = useAuthStore();
 
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    checkSystemHealth();
+  }, []);
+
+  const checkSystemHealth = async () => {
+    // Check all orchestration systems
+    const systems: OrchestrationSystem[] = ['simple', 'production', 'main'];
+
+    for (const system of systems) {
+      try {
+        await api.checkOrchestrationHealth(system);
+        setSystemStatus(prev => ({ ...prev, [system]: 'healthy' }));
+      } catch (error) {
+        console.warn(`Health check failed for ${system}:`, error);
+        setSystemStatus(prev => ({ ...prev, [system]: 'error' }));
+      }
+    }
+
+    // Mark working as healthy since it's our fallback
+    setSystemStatus(prev => ({ ...prev, working: 'healthy' }));
+  };
 
   // Data fetching
   const { data: statsData } = useQuery<AdminStats>({
@@ -63,7 +112,7 @@ export default function AdminDashboard() {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  const { data: usersData = [] } = useQuery<User[]>({
+  const { data: _usersData = [] } = useQuery<User[]>({
     queryKey: ['admin-users'],
     queryFn: () => api.getAllUsers(),
   });
@@ -74,17 +123,17 @@ export default function AdminDashboard() {
   });
 
   // Mutations
-  const deleteUserMutation = useMutation({
-    mutationFn: (userId: string) => api.deleteUser(userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      toast.success('User deleted successfully');
-    },
-    onError: () => {
-      toast.error('Failed to delete user');
-    },
-  });
+  // const deleteUserMutation = useMutation({
+  //   mutationFn: (userId: string) => api.deleteUser(userId),
+  //   onSuccess: () => {
+  //     queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+  //     queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+  //     toast.success('User deleted successfully');
+  //   },
+  //   onError: () => {
+  //     toast.error('Failed to delete user');
+  //   },
+  // });
 
   const deleteGroupMutation = useMutation({
     mutationFn: (groupId: string) => api.deleteGroup(groupId),
@@ -98,18 +147,18 @@ export default function AdminDashboard() {
     },
   });
 
-  const createUserMutation = useMutation({
-    mutationFn: (userData: any) => api.register(userData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      setShowCreateUserDialog(false);
-      toast.success('User created successfully');
-    },
-    onError: () => {
-      toast.error('Failed to create user');
-    },
-  });
+  // const createUserMutation = useMutation({
+  //   mutationFn: (userData: any) => api.register(userData),
+  //   onSuccess: () => {
+  //     queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+  //     queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+  //     setShowCreateUserDialog(false);
+  //     toast.success('User created successfully');
+  //   },
+  //   onError: () => {
+  //     toast.error('Failed to create user');
+  //   },
+  // });
 
   const createGroupMutation = useMutation({
     mutationFn: (groupData: any) => api.createGroup(groupData),
@@ -124,22 +173,22 @@ export default function AdminDashboard() {
     },
   });
 
-  const filteredUsers = usersData.filter(user =>
-    user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // const filteredUsers = usersData.filter(user =>
+  //   user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  // );
 
   const filteredGroups = groupsData.filter(group =>
     group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (group.description && group.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleDeleteUser = (userId: string) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      deleteUserMutation.mutate(userId);
-    }
-  };
+  // const handleDeleteUser = (userId: string) => {
+  //   if (confirm('Are you sure you want to delete this user?')) {
+  //     deleteUserMutation.mutate(userId);
+  //   }
+  // };
 
   const handleDeleteGroup = (groupId: string) => {
     if (confirm('Are you sure you want to delete this group?')) {
@@ -152,7 +201,9 @@ export default function AdminDashboard() {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'groups', label: 'Groups', icon: MessageSquare },
     { id: 'analytics', label: 'Analytics', icon: Activity },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'ai', label: 'AI Management', icon: Brain },
+    { id: 'system', label: 'System', icon: Server },
+    { id: 'audit', label: 'Audit Logs', icon: FileText },
   ];
 
   return (
@@ -173,13 +224,33 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-3">
+              <select
+                title="Switch Portal"
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={(e) => {
+                  if (e.target.value === 'user') window.location.href = '/app';
+                  else if (e.target.value === 'therapist') window.location.href = '/therapist';
+                }}
+              >
+                <option value="admin">Admin Portal</option>
+                <option value="therapist">Therapist Portal</option>
+                <option value="user">User Portal</option>
+              </select>
               <Button variant="outline" size="sm" className="border-gray-300 hover:border-gray-400 transition-colors">
                 <Download className="w-4 h-4 mr-2" />
                 Export Data
               </Button>
-              <Button variant="outline" size="sm" className="border-gray-300 hover:border-gray-400 transition-colors">
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 transition-colors"
+                onClick={() => {
+                  const { logout } = useAuthStore.getState();
+                  logout();
+                }}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
               </Button>
             </div>
           </div>
@@ -350,133 +421,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'users' && (
-          <div className="space-y-6">
-            {/* Users Header */}
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
-                <p className="text-gray-600">Manage user accounts and permissions</p>
-              </div>
-              <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add User
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New User</DialogTitle>
-                  </DialogHeader>
-                  <CreateUserForm onSubmit={createUserMutation.mutate} />
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            {/* Search and Filter */}
-            <div className="flex space-x-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Button variant="outline">
-                <Filter className="w-4 h-4 mr-2" />
-                Filter
-              </Button>
-            </div>
-
-            {/* Users Table */}
-            <Card>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          User
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Groups
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Last Active
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredUsers.map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10">
-                                <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                                  <span className="text-primary-600 font-medium text-sm">
-                                    {user.firstName[0]}{user.lastName[0]}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {user.firstName} {user.lastName}
-                                </div>
-                                <div className="text-sm text-gray-500">{user.email}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              user.isPremium
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {user.isPremium ? 'Premium' : 'Free'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {Math.floor(Math.random() * 3) + 1} groups
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {user.lastActive ? user.lastActive.toLocaleDateString() : 'Never'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => console.log('Edit user:', user.id)}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteUser(user.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {activeTab === 'users' && <UserManagement />}
 
         {activeTab === 'groups' && (
           <div className="space-y-6">
@@ -582,52 +527,198 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'analytics' && (
+        {activeTab === 'analytics' && <AnalyticsDashboard />}
+
+        {activeTab === 'ai' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Analytics</h2>
-              <p className="text-gray-600">Platform performance and user engagement metrics</p>
+              <h2 className="text-2xl font-bold text-gray-900">AI Management</h2>
+              <p className="text-gray-600">Configure and monitor AI agents and models</p>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Coming Soon</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-500">
-                  Advanced analytics dashboard with charts and insights will be available soon.
-                </p>
-              </CardContent>
-            </Card>
+            {/* Navigation */}
+            <div className="flex gap-2 mb-6">
+              <Button
+                variant={aiDemoTab === 'status' ? 'default' : 'outline'}
+                onClick={() => setAiDemoTab('status')}
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                System Status
+              </Button>
+              <Button
+                variant={aiDemoTab === 'chat' ? 'default' : 'outline'}
+                onClick={() => setAiDemoTab('chat')}
+              >
+                <Bot className="w-4 h-4 mr-2" />
+                AI Chat
+              </Button>
+              <Button
+                variant={aiDemoTab === 'tools' ? 'default' : 'outline'}
+                onClick={() => setAiDemoTab('tools')}
+              >
+                <Brain className="w-4 h-4 mr-2" />
+                AI Tools
+              </Button>
+              <Button
+                variant={aiDemoTab === 'tester' ? 'default' : 'outline'}
+                onClick={() => setAiDemoTab('tester')}
+              >
+                <TestTube className="w-4 h-4 mr-2" />
+                Agent Tester
+              </Button>
+            </div>
+
+            {aiDemoTab === 'status' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {Object.entries({
+                  simple: {
+                    name: 'Simple AI',
+                    icon: Zap,
+                    description: 'Quick responses for immediate support',
+                    features: ['Fast responses', 'Basic conversation', 'Lightweight processing'],
+                    color: 'text-blue-500',
+                    bgColor: 'bg-blue-50',
+                    borderColor: 'border-blue-200'
+                  },
+                  production: {
+                    name: 'Full AI Agents',
+                    icon: Brain,
+                    description: 'Complete multi-agent therapeutic system',
+                    features: ['Crisis detection', 'Group matching', 'Therapeutic facilitation', 'Progress insights'],
+                    color: 'text-purple-500',
+                    bgColor: 'bg-purple-50',
+                    borderColor: 'border-purple-200'
+                  },
+                  main: {
+                    name: 'Advanced Orchestration System',
+                    icon: Brain,
+                    description: 'Tool-based AI agents with formal validation & audit logging',
+                    features: ['Formal tool schemas', 'Crisis detection', 'Audit compliance', 'Agent specialization'],
+                    color: 'text-green-500',
+                    bgColor: 'bg-green-50',
+                    borderColor: 'border-green-200'
+                  }
+                }).map(([key, config]) => {
+                  const Icon = config.icon;
+                  const status = systemStatus[key as OrchestrationSystem];
+
+                  return (
+                    <motion.div
+                      key={key}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 * Object.entries({}).indexOf([key, config]) }}
+                    >
+                      <Card className={cn(
+                        'p-6 h-full transition-all duration-200',
+                        config.bgColor,
+                        config.borderColor,
+                        status === 'healthy' ? 'ring-2 ring-green-200' : '',
+                        status === 'error' ? 'ring-2 ring-red-200' : ''
+                      )}>
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <Icon className={cn('w-6 h-6', config.color)} />
+                            <h3 className="font-semibold">{config.name}</h3>
+                          </div>
+                          <div className="flex items-center">
+                            {status === 'checking' && <Clock className="w-4 h-4 text-yellow-500 animate-spin" />}
+                            {status === 'healthy' && <CheckCircle className="w-4 h-4 text-green-500" />}
+                            {status === 'error' && <AlertTriangle className="w-4 h-4 text-red-500" />}
+                          </div>
+                        </div>
+
+                        <p className="text-gray-600 text-sm mb-4">{config.description}</p>
+
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm">Features:</h4>
+                          <ul className="text-sm text-gray-600 space-y-1">
+                            {config.features.map((feature, index) => (
+                              <li key={index} className="flex items-center gap-2">
+                                <div className={cn('w-1.5 h-1.5 rounded-full',
+                                  status === 'healthy' ? 'bg-green-500' :
+                                  status === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+                                )} />
+                                {feature}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-500">Status:</span>
+                            <span className={cn(
+                              'font-medium capitalize',
+                              status === 'healthy' ? 'text-green-600' :
+                              status === 'error' ? 'text-red-600' : 'text-yellow-600'
+                            )}>
+                              {status === 'checking' ? 'Checking...' : status}
+                            </span>
+                          </div>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+
+            {aiDemoTab === 'chat' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  {user && <AIChatInterface currentUser={user} className="h-[600px]" />}
+                </div>
+                <div className="space-y-4">
+                  <Card className="p-4">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      <Brain className="w-4 h-4 text-purple-500" />
+                      AI Capabilities
+                    </h3>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p>🤖 <strong>FacilitatorAgent:</strong> Therapeutic conversation guidance</p>
+                      <p>💭 <strong>SentimentAgent:</strong> Mood analysis and crisis detection</p>
+                      <p>🔗 <strong>MatchingAgent:</strong> Group and peer recommendations</p>
+                      <p>📊 <strong>InsightAgent:</strong> Progress tracking and insights</p>
+                    </div>
+                  </Card>
+
+                  <Card className="p-4">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      <Heart className="w-4 h-4 text-red-500" />
+                      Safety Features
+                    </h3>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p>🚨 Automatic crisis detection</p>
+                      <p>🛡️ HIPAA-compliant processing</p>
+                      <p>👥 Therapist escalation protocols</p>
+                      <p>📝 Session analytics and insights</p>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            )}
+
+            {aiDemoTab === 'tools' && (
+              <AIToolsPanel groupId="admin-ai-tools" />
+            )}
+
+            {aiDemoTab === 'tester' && (
+              <AgentTester />
+            )}
           </div>
         )}
 
-        {activeTab === 'settings' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
-              <p className="text-gray-600">Platform configuration and preferences</p>
-            </div>
+        {activeTab === 'system' && <SystemManagement />}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>System Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-500">
-                  System configuration panel will be available soon.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {activeTab === 'audit' && <AuditLogs />}
       </div>
     </div>
   );
 }
 
 // Create User Form Component
-function CreateUserForm({ onSubmit }: { onSubmit: (data: any) => void }) {
+/* function CreateUserForm({ onSubmit }: { onSubmit: (data: any) => void }) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -707,7 +798,7 @@ function CreateUserForm({ onSubmit }: { onSubmit: (data: any) => void }) {
       </Button>
     </form>
   );
-}
+} */
 
 // Create Group Form Component
 function CreateGroupForm({ onSubmit }: { onSubmit: (data: any) => void }) {

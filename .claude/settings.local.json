@@ -21,7 +21,13 @@
       "Bash(rm:*)",
       "Bash(npx tsc:*)",
       "Bash(find:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx:*)",
+      "Bash(claude doctor)",
+      "Bash(npm:*)",
+      "Bash(git --version)",
+      "Bash(taskkill:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }

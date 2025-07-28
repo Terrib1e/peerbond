@@ -26,6 +26,10 @@ model User {
   role             String   @default("member")
   isActive         Boolean  @default(true)
 
+  // Password reset fields
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
   // Relationships
   groupMemberships GroupMember[]
   messages         Message[]
@@ -33,6 +37,10 @@ model User {
   subscription     Subscription?
   therapistProfile TherapistProfile?
   sessions         Session[]
+  groupAssignments GroupAssignment[]
+  assignedGroups   GroupAssignment[] @relation("UserAssignments")
+  therapistClients TherapistClientAssignment[] @relation("TherapistClients")
+  clientTherapists TherapistClientAssignment[] @relation("ClientTherapists")
 
   // Audit fields
   createdAt        DateTime @default(now())
@@ -57,6 +65,7 @@ model Group {
   messages      Message[]
   actionItems   ActionItem[]
   insights      Insight[]
+  assignments   GroupAssignment[]
 
   // Audit fields
   createdAt     DateTime    @default(now())
@@ -354,6 +363,41 @@ model GroupRestriction {
   createdAt       DateTime @default(now())
 
   @@map("group_restrictions")
+}
+
+model GroupAssignment {
+  id          String   @id @default(cuid())
+  userId      String
+  groupId     String
+  assignedBy  String   // therapist or admin who assigned the group
+  assignedAt  DateTime @default(now())
+  isActive    Boolean  @default(true)
+  notes       String?  // optional notes about why this group was assigned
+
+  // Relationships
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  assigner    User     @relation("UserAssignments", fields: [assignedBy], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@map("group_assignments")
+}
+
+model TherapistClientAssignment {
+  id            String   @id @default(cuid())
+  therapistId   String
+  clientId      String
+  assignedAt    DateTime @default(now())
+  isActive      Boolean  @default(true)
+  notes         String?  // optional notes about the assignment
+  createdBy     String?  // who created this assignment (admin, self-assigned, etc.)
+
+  // Relationships
+  therapist     User     @relation("TherapistClients", fields: [therapistId], references: [id], onDelete: Cascade)
+  client        User     @relation("ClientTherapists", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([therapistId, clientId])
+  @@map("therapist_client_assignments")
 }
 
 model TherapistAlert {

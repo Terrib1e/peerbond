@@ -39,6 +39,19 @@ export interface Group {
   tags?: string[];
   createdAt: Date;
   lastActivity: Date;
+  // Assignment-related fields (added when fetching user's available groups)
+  isAssigned?: boolean;
+  canJoin?: boolean;
+  isMember?: boolean;
+  assignedAt?: Date;
+  assignedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
+  assignmentNotes?: string;
+  memberCount?: number;
 }
 
 // Populated version with full user objects (used by frontend components)

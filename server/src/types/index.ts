@@ -261,6 +261,7 @@ export interface RegisterRequest {
   lastName: string;
   email: string;
   password: string;
+  role?: 'member' | 'therapist' | 'admin';
   recoveryGoals?: string[];
   wellnessGoals?: string[];
   experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
