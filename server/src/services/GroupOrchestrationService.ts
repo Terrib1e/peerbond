@@ -348,8 +348,8 @@ Provide:
       return metaResponse;
     }
 
-    // Enhanced multi-agent processing - always use multiple agents
-    console.log('[GroupOrchestration] Starting multi-agent pipeline processing');
+    // Intelligent multi-agent processing - use the right agents for the job
+    console.log('[GroupOrchestration] Starting intelligent multi-agent processing');
     
     const agentsUsed: string[] = [];
     const toolResults: any[] = [];
@@ -358,67 +358,68 @@ Provide:
     let needsCrisisIntervention = false;
 
     try {
-      // Step 1: AI Router for intent analysis
-      console.log('[GroupOrchestration] Step 1: AI Router analyzing intent');
-      const routerResult = await this.callAgentWithTools('ai-router', content, sessionId, userId);
-      agentsUsed.push('ai-router');
-      if (routerResult.toolResults) {
-        toolResults.push(...routerResult.toolResults);
-      }
+      const contentLower = content.toLowerCase();
 
-      // Step 2: Sentiment analysis (always run for emotional monitoring)
-      console.log('[GroupOrchestration] Step 2: Sentiment Agent analyzing emotional content');
-      const sentimentResult = await this.callAgentWithTools('sentiment', content, sessionId, userId);
-      agentsUsed.push('sentiment');
-      if (sentimentResult.toolResults) {
-        toolResults.push(...sentimentResult.toolResults);
-      }
+      // Step 1: Always run sentiment and crisis detection for safety
+      console.log('[GroupOrchestration] Step 1: Running safety checks (sentiment + crisis)');
+      
+      const [sentimentResult, crisisResult] = await Promise.all([
+        this.callAgentWithTools('sentiment', content, sessionId, userId).catch(err => {
+          console.warn('[GroupOrchestration] Sentiment agent failed:', err);
+          return { response: '', confidence: 0, agentUsed: [], toolResults: [] };
+        }),
+        this.callAgentWithTools('crisis', content, sessionId, userId).catch(err => {
+          console.warn('[GroupOrchestration] Crisis agent failed:', err);
+          return { response: '', confidence: 0, agentUsed: [], toolResults: [], needsCrisisIntervention: false };
+        })
+      ]);
 
-      // Step 3: Crisis detection (always run for safety)
-      console.log('[GroupOrchestration] Step 3: Crisis Agent checking for safety concerns');
-      const crisisResult = await this.callAgentWithTools('crisis', content, sessionId, userId);
-      agentsUsed.push('crisis');
+      agentsUsed.push('sentiment', 'crisis');
+      if (sentimentResult.toolResults) toolResults.push(...sentimentResult.toolResults);
+      if (crisisResult.toolResults) toolResults.push(...crisisResult.toolResults);
+
+      // Check for crisis intervention
       if (crisisResult.needsCrisisIntervention) {
+        console.log('[GroupOrchestration] Crisis detected - using crisis response');
         needsCrisisIntervention = true;
         finalResponse = crisisResult.response;
         highestConfidence = crisisResult.confidence;
-      }
-      if (crisisResult.toolResults) {
-        toolResults.push(...crisisResult.toolResults);
-      }
-
-      // Step 4: Facilitator for therapeutic response (if no crisis)
-      if (!needsCrisisIntervention) {
-        console.log('[GroupOrchestration] Step 4: Facilitator Agent providing therapeutic support');
-        const facilitatorResult = await this.callAgentWithTools('facilitator', content, sessionId, userId);
-        agentsUsed.push('facilitator');
-        finalResponse = facilitatorResult.response;
-        highestConfidence = facilitatorResult.confidence;
-        if (facilitatorResult.toolResults) {
-          toolResults.push(...facilitatorResult.toolResults);
+      } else {
+        // Step 2: Determine primary agent based on content
+        let primaryAgent = 'facilitator'; // default
+        
+        if (contentLower.includes('progress') || contentLower.includes('how am i') || contentLower.includes('journey') || contentLower.includes('doing')) {
+          primaryAgent = 'insight';
+        } else if (contentLower.includes('group') || contentLower.includes('community') || contentLower.includes('others like me') || contentLower.includes('find')) {
+          primaryAgent = 'matching';
         }
-      }
 
-      // Step 5: Additional specialized agents based on content
-      const contentLower = content.toLowerCase();
-      
-      // Insight agent for progress-related queries
-      if (contentLower.includes('progress') || contentLower.includes('how am i') || contentLower.includes('journey')) {
-        console.log('[GroupOrchestration] Step 5a: Insight Agent analyzing progress');
-        const insightResult = await this.callAgentWithTools('insight', content, sessionId, userId);
-        agentsUsed.push('insight');
-        if (insightResult.toolResults) {
-          toolResults.push(...insightResult.toolResults);
-        }
-      }
+        console.log(`[GroupOrchestration] Step 2: Using ${primaryAgent} as primary agent`);
+        
+        // Get primary response
+        const primaryResult = await this.callAgentWithTools(primaryAgent, content, sessionId, userId);
+        agentsUsed.push(primaryAgent);
+        if (primaryResult.toolResults) toolResults.push(...primaryResult.toolResults);
+        
+        finalResponse = primaryResult.response;
+        highestConfidence = primaryResult.confidence;
 
-      // Matching agent for group/community queries
-      if (contentLower.includes('group') || contentLower.includes('community') || contentLower.includes('others like me')) {
-        console.log('[GroupOrchestration] Step 5b: Matching Agent finding relevant groups');
-        const matchingResult = await this.callAgentWithTools('matching', content, sessionId, userId);
-        agentsUsed.push('matching');
-        if (matchingResult.toolResults) {
-          toolResults.push(...matchingResult.toolResults);
+        // Step 3: Add facilitator if we used a specialized agent
+        if (primaryAgent !== 'facilitator') {
+          console.log('[GroupOrchestration] Step 3: Adding facilitator support');
+          const facilitatorResult = await this.callAgentWithTools('facilitator', content, sessionId, userId).catch(err => {
+            console.warn('[GroupOrchestration] Facilitator agent failed:', err);
+            return { response: '', confidence: 0, agentUsed: [], toolResults: [] };
+          });
+          
+          agentsUsed.push('facilitator');
+          if (facilitatorResult.toolResults) toolResults.push(...facilitatorResult.toolResults);
+          
+          // Combine responses intelligently
+          if (facilitatorResult.response && facilitatorResult.response.length > 50) {
+            finalResponse = this.combineAgentResponses(primaryResult.response, facilitatorResult.response, primaryAgent);
+            highestConfidence = Math.max(primaryResult.confidence, facilitatorResult.confidence);
+          }
         }
       }
 
@@ -878,6 +879,27 @@ I'm here to support your group's healing journey with intelligent, compassionate
             }, context);
           }
           break;
+
+        case 'insight':
+          // Analyze user progress and generate insights
+          toolResult = await this.executeToolSafely('analyzeUserProgress', {
+            userMessage: message,
+            conversationHistory: [],
+            timeframe: '30days',
+            focusAreas: ['emotional_wellbeing', 'coping_strategies', 'social_connection']
+          }, context);
+          break;
+
+        case 'matching':
+          // Search for relevant groups and generate recommendations
+          toolResult = await this.executeToolSafely('searchGroups', {
+            userMessage: message,
+            userInterests: [],
+            supportNeeds: ['peer_support', 'group_therapy'],
+            location: 'online',
+            groupType: 'recovery'
+          }, context);
+          break;
       }
 
       // If we have tool results, format them into a response
@@ -930,6 +952,65 @@ I'm here to support your group's healing journey with intelligent, compassionate
   }
 
   /**
+   * Extract emotional context from sentiment analysis results
+   */
+  private extractEmotionalContext(sentimentResult: any): {
+    mood: string;
+    intensity: string;
+    keywords: string[];
+  } {
+    // Default context
+    let context = {
+      mood: 'neutral',
+      intensity: 'moderate',
+      keywords: []
+    };
+
+    try {
+      if (sentimentResult.toolResults && sentimentResult.toolResults.length > 0) {
+        const toolData = sentimentResult.toolResults[0];
+        context.mood = toolData.overallSentiment || 'neutral';
+        context.intensity = toolData.intensity || 'moderate';
+        context.keywords = toolData.emotionalKeywords || [];
+      }
+    } catch (error) {
+      console.warn('[GroupOrchestration] Failed to extract emotional context:', error);
+    }
+
+    return context;
+  }
+
+  /**
+   * Intelligently combine responses from multiple agents
+   */
+  private combineAgentResponses(primaryResponse: string, facilitatorResponse: string, primaryAgent: string): string {
+    console.log('[GroupOrchestration] Combining responses from', primaryAgent, 'and facilitator');
+    
+    // If primary response is very short, use facilitator response
+    if (primaryResponse.length < 50) {
+      return facilitatorResponse;
+    }
+    
+    // If facilitator response is very short or generic, use primary
+    if (facilitatorResponse.length < 50 || facilitatorResponse.includes('Thank you for sharing')) {
+      return primaryResponse;
+    }
+
+    // For insight agent, combine with therapeutic support
+    if (primaryAgent === 'insight') {
+      return `${primaryResponse}\n\n${facilitatorResponse}`;
+    }
+    
+    // For matching agent, add therapeutic framing
+    if (primaryAgent === 'matching') {
+      return `${facilitatorResponse}\n\n${primaryResponse}`;
+    }
+    
+    // Default: use primary response with facilitator support
+    return primaryResponse;
+  }
+
+  /**
    * Format tool results into natural language response
    */
   private formatToolResponse(agentId: string, toolResult: any): string {
@@ -944,6 +1025,22 @@ I'm here to support your group's healing journey with intelligent, compassionate
 
       case 'crisis':
         return toolResult.immediateResponse || 'I\'m concerned about what you\'re sharing. Let me connect you with some immediate support resources.';
+
+      case 'insight':
+        const progressSummary = toolResult.progressSummary || 'your growth journey';
+        const keyInsights = toolResult.keyInsights || [];
+        const insightsText = keyInsights.length > 0 ? keyInsights.join('. ') : 'steady progress in your healing journey';
+        return `Looking at ${progressSummary}, I can see ${insightsText}. How does this resonate with your own sense of progress?`;
+
+      case 'matching':
+        const recommendedGroups = toolResult.recommendedGroups || [];
+        const groupCount = recommendedGroups.length;
+        if (groupCount > 0) {
+          const groupNames = recommendedGroups.slice(0, 2).map((g: any) => g.name || 'a supportive community').join(' and ');
+          return `I found ${groupCount} groups that might be perfect for you, including ${groupNames}. These communities focus on peer support and shared experiences. Would you like me to help you connect with them?`;
+        } else {
+          return 'I can help you find supportive peer groups that match your interests and needs. What kind of community are you looking for?';
+        }
 
       default:
         return toolResult.response || 'Thank you for sharing that with me.';

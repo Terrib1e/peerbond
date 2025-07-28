@@ -40,7 +40,7 @@ class AgentService {
    */
   async getAvailableAgentsAndTools(): Promise<AgentsAndToolsResponse> {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('peerbond_token');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
@@ -77,7 +77,7 @@ class AgentService {
     toolName?: string
   ): Promise<AgentCallResponse> {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('peerbond_token');
       
       if (!token) {
         throw new Error('Authentication required. Please sign in to PeerBond first.');

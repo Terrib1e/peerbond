@@ -18,6 +18,7 @@ import UserSessionsPage from '@/pages/UserSessionsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import AdminDashboard from '@/pages/AdminDashboard';
 import TherapistDashboard from '@/pages/TherapistDashboard';
+import MayaPage from '@/pages/MayaPage';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { PortalRedirect } from '@/components/RoleBasedRedirect';
@@ -128,6 +129,17 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              {/* Maya AI Routes - accessible to all authenticated users */}
+              <Route
+                path="/maya"
+                element={
+                  <ProtectedRoute allowedRoles={['member', 'facilitator', 'therapist', 'admin']}>
+                    <MayaPage />
+                  </ProtectedRoute>
+                }
+              />
+
 
               {/* Catch all */}
               <Route path="*" element={<Navigate to="/" />} />

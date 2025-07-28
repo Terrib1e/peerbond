@@ -17,6 +17,7 @@ import ProgressTracking from '@/components/therapist/ProgressTracking';
 import CrisisMonitoring from '@/components/therapist/CrisisMonitoring';
 import CreateGroupDialog from '@/components/therapist/CreateGroupDialog';
 import GroupMemberManagement from '@/components/therapist/GroupMemberManagement';
+import MayaAccessCard from '@/components/MayaAccessCard';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -214,7 +215,13 @@ function TherapistDashboard() {
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Maya Clinical Assistant Card */}
+              <MayaAccessCard 
+                userRole="therapist" 
+                variant="full" 
+                className="md:col-span-1"
+              />
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">

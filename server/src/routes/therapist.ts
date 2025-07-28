@@ -126,15 +126,7 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
         members: {
           select: {
             userId: true,
-            role: true,
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true
-              }
-            }
+            role: true
           }
         },
         _count: {
@@ -155,13 +147,11 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
       description: group.description,
       type: group.type,
       participants: group._count.members,
-      memberCount: group._count.members,
       messageCount: group._count.messages,
       isActive: group.isActive,
       createdAt: group.createdAt,
       maxMembers: group.maxMembers,
-      isPrivate: group.isPrivate,
-      members: group.members
+      isPrivate: group.isPrivate
     }));
 
     res.json({
@@ -1132,227 +1122,6 @@ router.get('/crisis-alerts', therapistAuth, asyncHandler(async (req: Authenticat
     res.status(500).json({
       success: false,
       error: 'Failed to get crisis alerts',
-      timestamp: new Date().toISOString()
-    });
-  }
-}));
-
-// Get group members
-router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  try {
-    const { groupId } = req.params;
-    const therapistId = req.user!.id;
-
-    logger.info(`🔍 Therapist ${therapistId} requesting members for group ${groupId}`);
-
-    // Verify therapist has access to this group
-    const group = await dbService.client.group.findFirst({
-      where: {
-        id: groupId,
-        isActive: true,
-        OR: [
-          { createdBy: therapistId },
-          { facilitatorId: therapistId },
-          {
-            members: {
-              some: {
-                userId: therapistId,
-                role: 'facilitator'
-              }
-            }
-          }
-        ]
-      }
-    });
-
-    if (!group) {
-      return res.status(404).json({
-        success: false,
-        error: 'Group not found or access denied',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    const members = await dbService.getGroupMembers(groupId);
-
-    res.json({
-      success: true,
-      data: { members, total: members.length },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    logger.error('Failed to get group members:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get group members',
-      timestamp: new Date().toISOString()
-    });
-  }
-}));
-
-// Add member to group
-router.post('/groups/:groupId/members', therapistAuth, validateRequest([
-  body('userId').isLength({ min: 1 }).withMessage('Valid user ID is required'),
-  body('role').optional().isIn(['member', 'facilitator']).withMessage('Role must be member or facilitator')
-]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  try {
-    const { groupId } = req.params;
-    const { userId, role = 'member' } = req.body;
-    const therapistId = req.user!.id;
-
-    logger.info(`➕ Therapist ${therapistId} adding user ${userId} to group ${groupId} as ${role}`);
-
-    // Verify therapist has access to this group
-    const group = await dbService.client.group.findFirst({
-      where: {
-        id: groupId,
-        isActive: true,
-        OR: [
-          { createdBy: therapistId },
-          { facilitatorId: therapistId },
-          {
-            members: {
-              some: {
-                userId: therapistId,
-                role: 'facilitator'
-              }
-            }
-          }
-        ]
-      }
-    });
-
-    if (!group) {
-      return res.status(404).json({
-        success: false,
-        error: 'Group not found or access denied',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if user exists
-    const user = await dbService.client.user.findUnique({
-      where: { id: userId }
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Add member to group
-    await dbService.addGroupMember(groupId, userId, role);
-
-    // Log the action
-    await dbService.createAuditLog({
-      userId: therapistId,
-      action: 'group_member_added',
-      resource: 'group',
-      resourceId: groupId,
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
-      metadata: { addedUserId: userId, role }
-    });
-
-    res.json({
-      success: true,
-      message: 'Member added to group successfully',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    logger.error('Failed to add group member:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to add group member',
-      timestamp: new Date().toISOString()
-    });
-  }
-}));
-
-// Remove member from group
-router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  try {
-    const { groupId, userId } = req.params;
-    const therapistId = req.user!.id;
-
-    logger.info(`➖ Therapist ${therapistId} removing user ${userId} from group ${groupId}`);
-
-    // Verify therapist has access to this group
-    const group = await dbService.client.group.findFirst({
-      where: {
-        id: groupId,
-        isActive: true,
-        OR: [
-          { createdBy: therapistId },
-          { facilitatorId: therapistId },
-          {
-            members: {
-              some: {
-                userId: therapistId,
-                role: 'facilitator'
-              }
-            }
-          }
-        ]
-      }
-    });
-
-    if (!group) {
-      return res.status(404).json({
-        success: false,
-        error: 'Group not found or access denied',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Check if member exists in group
-    const member = await dbService.client.groupMember.findUnique({
-      where: {
-        userId_groupId: {
-          userId,
-          groupId
-        }
-      }
-    });
-
-    if (!member) {
-      return res.status(404).json({
-        success: false,
-        error: 'Member not found in group',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Remove member from group
-    await dbService.removeGroupMember(groupId, userId);
-
-    // Log the action
-    await dbService.createAuditLog({
-      userId: therapistId,
-      action: 'group_member_removed',
-      resource: 'group',
-      resourceId: groupId,
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
-      metadata: { removedUserId: userId }
-    });
-
-    res.json({
-      success: true,
-      message: 'Member removed from group successfully',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    logger.error('Failed to remove group member:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to remove group member',
       timestamp: new Date().toISOString()
     });
   }

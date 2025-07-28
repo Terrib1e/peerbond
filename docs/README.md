@@ -209,6 +209,49 @@ npm run dev
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## 📚 Documentation
+
+### Maya AI System Documentation
+Comprehensive documentation for PeerBond's AI-powered therapeutic companion system:
+
+- **[📋 Documentation Index](./MAYA_DOCUMENTATION_INDEX.md)** - Complete guide to all Maya documentation
+- **[🤖 Maya AI System](./MAYA_AI_SYSTEM.md)** - System overview and architecture
+- **[🧩 Maya Components](./MAYA_COMPONENTS.md)** - Technical component documentation  
+- **[🛠️ Administrative Tools](./MAYA_ADMINISTRATIVE_TOOLS.md)** - Clinical and administrative functionality
+- **[🔌 API Integration](./MAYA_API_INTEGRATION.md)** - Backend integration and APIs
+
+### Additional Documentation
+- **[🏗️ Architecture](./architecture.md)** - System architecture and design patterns
+- **[🚀 Deployment](./deployment.md)** - Production deployment and scaling
+- **[📊 Monitoring](./monitoring.md)** - System monitoring and observability
+- **[🧪 AI Testing](./AI_TESTING.md)** - AI system testing and validation
+- **[⚙️ Development](./DEVELOPMENT.md)** - Development setup and guidelines
+
+### Maya AI Features
+
+#### 🎯 Role-Based Interfaces
+- **User Interface**: Basic therapeutic support for platform members
+- **Therapist Interface**: Professional clinical tools with administrative capabilities
+- **Admin Interface**: System management and platform oversight
+
+#### 🔧 Administrative Tools
+- **User Onboarding**: Streamlined intake process with goal setting and group matching
+- **Group Creation**: Therapeutic group setup with clinical guidelines
+- **Session Planning**: Comprehensive session preparation and documentation
+- **Crisis Assessment**: AI-powered risk evaluation and escalation protocols
+
+#### 🤖 AI Agent System
+- **Facilitator Agent**: Primary therapeutic conversations and support
+- **Sentiment Agent**: Emotional state analysis and mood tracking
+- **Insight Agent**: Progress pattern analysis and treatment insights
+- **Orchestration Service**: Intelligent agent coordination and routing
+
+#### 🛡️ Security & Compliance
+- **HIPAA Compliance**: Protected health information safeguards
+- **Role-Based Access**: Granular permission system
+- **Audit Logging**: Comprehensive activity tracking
+- **Crisis Protocols**: Automated escalation for safety concerns
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
