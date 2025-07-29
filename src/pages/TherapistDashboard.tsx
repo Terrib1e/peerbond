@@ -6,10 +6,10 @@ import {
   Calendar,
   Target,
   Shield,
-  LogOut,
   Plus,
   TrendingUp,
-  Activity
+  Activity,
+  Trash2
 } from 'lucide-react';
 import ClientManagement from '@/components/therapist/ClientManagement';
 import SessionManagement from '@/components/therapist/SessionManagement';
@@ -18,7 +18,8 @@ import CrisisMonitoring from '@/components/therapist/CrisisMonitoring';
 import CreateGroupDialog from '@/components/therapist/CreateGroupDialog';
 import GroupMemberManagement from '@/components/therapist/GroupMemberManagement';
 import MayaAccessCard from '@/components/MayaAccessCard';
-import { useAuthStore } from '@/store/authStore';
+import PortalLayout from '@/components/ui/PortalLayout';
+import StatsCard from '@/components/ui/StatsCard';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { api } from '@/lib/api';
@@ -27,7 +28,6 @@ function TherapistDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'sessions' | 'progress' | 'crisis' | 'groups'>('overview');
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false);
   const [selectedGroupForManagement, setSelectedGroupForManagement] = useState<{id: string, name: string} | null>(null);
-  const { logout } = useAuthStore();
   const queryClient = useQueryClient();
 
   // Fetch real therapist data
@@ -85,6 +85,28 @@ function TherapistDashboard() {
     }
   });
 
+  // Group deletion mutation
+  const deleteGroupMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      const response = await api.delete(`/therapist/groups/${groupId}`);
+      return response as any;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['therapist-groups-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['therapist-stats'] });
+    },
+    onError: (error) => {
+      console.error('Failed to delete group:', error);
+      alert('Failed to delete group. Please try again.');
+    }
+  });
+
+  const handleDeleteGroup = (groupId: string, groupName: string) => {
+    if (confirm(`Are you sure you want to delete "${groupName}"? This action cannot be undone and will remove all group data including messages.`)) {
+      deleteGroupMutation.mutate(groupId);
+    }
+  };
+
   const stats = statsData?.data || {
     totalClients: 0,
     activeGroups: 0,
@@ -98,121 +120,56 @@ function TherapistDashboard() {
 
   const isLoading = statsLoading || clientsLoading || groupsLoading || alertsLoading;
 
+  const navigationItems = [
+    { key: 'overview', label: 'Overview', icon: Activity, onClick: () => setActiveTab('overview') },
+    { key: 'clients', label: 'Clients', icon: Users, onClick: () => setActiveTab('clients') },
+    { key: 'groups', label: 'Groups', icon: Users, onClick: () => setActiveTab('groups') },
+    { key: 'sessions', label: 'Sessions', icon: Calendar, onClick: () => setActiveTab('sessions') },
+    { key: 'progress', label: 'Progress', icon: Target, onClick: () => setActiveTab('progress') },
+    { key: 'crisis', label: 'Crisis Monitoring', icon: Shield, onClick: () => setActiveTab('crisis') },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Therapist Portal</h1>
-              <p className="text-gray-600 mt-2">Manage your clients and therapeutic groups</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="border-red-300 text-red-600 hover:bg-red-50"
-                onClick={() => logout()}
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
-            </div>
+    <PortalLayout
+      portalType="therapist"
+      title="Therapist Portal"
+      subtitle="Manage your clients and therapeutic groups"
+      navigationItems={navigationItems}
+    >
+
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <StatsCard
+              title="Total Clients"
+              value={isLoading ? '...' : stats.totalClients}
+              icon={Users}
+              portalType="therapist"
+              isLoading={isLoading}
+            />
+            <StatsCard
+              title="Active Groups"
+              value={isLoading ? '...' : stats.activeGroups}
+              icon={Users}
+              portalType="therapist"
+              isLoading={isLoading}
+            />
+            <StatsCard
+              title="Critical Alerts"
+              value={isLoading ? '...' : stats.criticalAlerts}
+              icon={AlertCircle}
+              portalType="therapist"
+              isLoading={isLoading}
+            />
+            <StatsCard
+              title="Avg Engagement"
+              value={isLoading ? '...' : `${Math.round(stats.avgEngagement)}%`}
+              icon={TrendingUp}
+              portalType="therapist"
+              isLoading={isLoading}
+            />
           </div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex border-b border-gray-200 mb-6">
-          {[
-            { key: 'overview', label: 'Overview', icon: Activity },
-            { key: 'clients', label: 'Clients', icon: Users },
-            { key: 'groups', label: 'Groups', icon: Users },
-            { key: 'sessions', label: 'Sessions', icon: Calendar },
-            { key: 'progress', label: 'Progress', icon: Target },
-            { key: 'crisis', label: 'Crisis Monitoring', icon: Shield },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
-                className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors ${
-                  activeTab === tab.key
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Icon size={20} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Content */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Total Clients</p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {isLoading ? '...' : stats.totalClients}
-                      </p>
-                    </div>
-                    <Users className="text-blue-600" size={24} />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Active Groups</p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {isLoading ? '...' : stats.activeGroups}
-                      </p>
-                    </div>
-                    <Users className="text-green-600" size={24} />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Critical Alerts</p>
-                      <p className="text-2xl font-bold text-red-600">
-                        {isLoading ? '...' : stats.criticalAlerts}
-                      </p>
-                    </div>
-                    <AlertCircle className="text-red-600" size={24} />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Avg Engagement</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {isLoading ? '...' : Math.round(stats.avgEngagement)}%
-                      </p>
-                    </div>
-                    <TrendingUp className="text-blue-600" size={24} />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
 
             {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -315,7 +272,7 @@ function TherapistDashboard() {
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-xl font-semibold text-gray-900">{group.name}</h3>
                         <div className="flex items-center gap-4">
-                          <span className="text-sm text-gray-500">{group.memberCount || 0} members</span>
+                          <span className="text-sm text-gray-500">{group.participants || 0} members</span>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -323,6 +280,16 @@ function TherapistDashboard() {
                               onClick={() => setSelectedGroupForManagement({ id: group.id, name: group.name })}
                             >
                               Manage Members
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteGroup(group.id, group.name)}
+                              disabled={deleteGroupMutation.isPending}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+                            >
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Delete
                             </Button>
                           </div>
                         </div>
@@ -379,7 +346,6 @@ function TherapistDashboard() {
             )}
           </div>
         )}
-      </div>
 
       {/* Create Group Dialog */}
       <CreateGroupDialog
@@ -398,7 +364,7 @@ function TherapistDashboard() {
           onClose={() => setSelectedGroupForManagement(null)}
         />
       )}
-    </div>
+    </PortalLayout>
   );
 }
 

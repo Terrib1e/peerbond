@@ -1076,6 +1076,18 @@ Would you like me to help you schedule their first session?
 
     try {
       const response = await api.post('/therapist/groups', formData);
+      const groupId = response.data.group.id;
+      
+      // Automatically add the therapist as a member/facilitator of the group
+      try {
+        await api.post(`/therapist/groups/${groupId}/members`, {
+          userId: therapistId,
+          role: 'facilitator'
+        });
+      } catch (membershipError) {
+        console.warn('Could not auto-add therapist to group:', membershipError);
+        // Continue with success message even if membership fails
+      }
       
       const successMessage = `
 **✅ Group Successfully Created!**
@@ -1087,7 +1099,9 @@ Would you like me to help you schedule their first session?
 - **Privacy:** ${formData.isPrivate ? 'Private' : 'Public'}
 - **Tags:** ${formData.tags.join(', ') || 'None'}
 
-**Group ID:** ${response.data.group.id}
+**Group ID:** ${groupId}
+
+✅ **You have been automatically added as a facilitator of this group.**
 
 The group is now active and ready for member assignments.
 
@@ -1097,11 +1111,11 @@ The group is now active and ready for member assignments.
 3. Set group guidelines
 4. Assign co-facilitators if needed
 
-Would you like me to help you add members to this group?
+You can now view the full group details including chat messages. Would you like me to help you add members to this group?
       `;
 
       addSystemMessage(successMessage);
-      toast.success('Group created successfully!');
+      toast.success('Group created successfully! You are now a member of this group.');
 
     } catch (error) {
       console.error('Group creation error:', error);

@@ -158,31 +158,68 @@ function GroupDetailPage() {
 
         {activeTab === 'members' && (
           <div className="card p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Group Members</h3>
-            <div className="space-y-3">
-              {group.members.map((memberId, index) => (
-                <div key={memberId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                      <span className="text-primary-600 font-medium text-sm">
-                        {user && memberId === user.id ? user.firstName[0] : 'M'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {user && memberId === user.id ? `${user.firstName} ${user.lastName}` : `Member ${index + 1}`}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {user && memberId === user.id ? user.email : 'member@example.com'}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    {user && memberId === user.id && user.role === 'admin' ? 'Admin' : 'Member'}
-                  </span>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Group Members</h3>
+              {user?.role === 'therapist' && (
+                <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                  Therapist View
+                </span>
+              )}
             </div>
+            <div className="space-y-3">
+              {group.members.map((memberId, index) => {
+                const isCurrentUser = user && memberId === user.id;
+                const displayRole = isCurrentUser ? 
+                  (user.role === 'therapist' ? 'Therapist/Facilitator' : 
+                   user.role === 'admin' ? 'Administrator' : 'Member') : 
+                  'Member';
+                
+                return (
+                  <div key={memberId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        isCurrentUser && user.role === 'therapist' 
+                          ? 'bg-blue-100 text-blue-600' 
+                          : 'bg-primary-100 text-primary-600'
+                      }`}>
+                        <span className="font-medium text-sm">
+                          {isCurrentUser ? user.firstName[0] : 'M'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {isCurrentUser ? `${user.firstName} ${user.lastName}` : `Member ${index + 1}`}
+                          {isCurrentUser && user.role === 'therapist' && (
+                            <span className="ml-2 text-xs text-blue-600">(You)</span>
+                          )}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {isCurrentUser ? user.email : 'member@example.com'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      displayRole.includes('Therapist') 
+                        ? 'bg-blue-100 text-blue-800'
+                        : displayRole.includes('Admin')
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {displayRole}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {user?.role === 'therapist' && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <strong>Note:</strong> As a therapist, you can view all group activities and chat messages 
+                  for clinical oversight and support purposes.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Users, MessageCircle, TrendingUp, Calendar, Clock } from 'lucide-react';
+import StatsCard from '@/components/ui/StatsCard';
+import PageHeader from '@/components/ui/PageHeader';
 
 function DashboardPage() {
   const { user } = useAuthStore();
@@ -50,55 +52,37 @@ function DashboardPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {user?.firstName}!
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Here's your support community overview
-        </p>
-      </div>
+      <PageHeader
+        title={`Welcome back, ${user?.firstName}!`}
+        subtitle="Here's your support community overview"
+        portalType="member"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Active Groups</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.activeGroups}</p>
-            </div>
-            <Users className="text-primary-600" size={24} />
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Messages This Week</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalMessages}</p>
-            </div>
-            <MessageCircle className="text-primary-600" size={24} />
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Weekly Progress</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.weeklyProgress}%</p>
-            </div>
-            <TrendingUp className="text-success-600" size={24} />
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Upcoming Sessions</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.upcomingSessions}</p>
-            </div>
-            <Calendar className="text-primary-600" size={24} />
-          </div>
-        </div>
+        <StatsCard
+          title="Active Groups"
+          value={stats.activeGroups}
+          icon={Users}
+          portalType="member"
+        />
+        <StatsCard
+          title="Messages This Week"
+          value={stats.totalMessages}
+          icon={MessageCircle}
+          portalType="member"
+        />
+        <StatsCard
+          title="Weekly Progress"
+          value={`${stats.weeklyProgress}%`}
+          icon={TrendingUp}
+          portalType="member"
+        />
+        <StatsCard
+          title="Upcoming Sessions"
+          value={stats.upcomingSessions}
+          icon={Calendar}
+          portalType="member"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

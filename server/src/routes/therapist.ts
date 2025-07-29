@@ -95,6 +95,75 @@ router.get('/stats', therapistAuth, asyncHandler(async (req: AuthenticatedReques
   }
 }));
 
+// Get specific group members
+router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  try {
+    const { groupId } = req.params;
+    const therapistId = req.user!.id;
+
+    logger.info(`🔍 Therapist ${therapistId} requesting members for group ${groupId}`);
+
+    // Get the group with members, ensuring therapist has access
+    const group = await dbService.client.group.findFirst({
+      where: {
+        id: groupId,
+        isActive: true,
+        OR: [
+          { createdBy: therapistId }, // Groups created by this therapist
+          { facilitatorId: therapistId }, // Groups where this therapist is facilitator
+          {
+            members: {
+              some: {
+                userId: therapistId,
+                role: 'facilitator'
+              }
+            }
+          } // Groups where therapist is a member with facilitator role
+        ]
+      },
+      include: {
+        members: {
+          select: {
+            userId: true,
+            role: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        error: 'Group not found or access denied',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    logger.info(`📋 Found ${group.members.length} members for group ${groupId}`);
+
+    res.json({
+      success: true,
+      data: { members: group.members },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to get group members:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get group members',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
 // Get therapist's groups
 router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
@@ -126,7 +195,15 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
         members: {
           select: {
             userId: true,
-            role: true
+            role: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
           }
         },
         _count: {
@@ -151,7 +228,8 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
       isActive: group.isActive,
       createdAt: group.createdAt,
       maxMembers: group.maxMembers,
-      isPrivate: group.isPrivate
+      isPrivate: group.isPrivate,
+      members: group.members
     }));
 
     res.json({
@@ -164,6 +242,175 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
     res.status(500).json({
       success: false,
       error: 'Failed to get groups',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Add member to group
+router.post('/groups/:groupId/members', therapistAuth, validateRequest([
+  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('role').isIn(['member', 'facilitator']).withMessage('Valid role is required')
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  try {
+    const { groupId } = req.params;
+    const { userId, role } = req.body;
+    const therapistId = req.user!.id;
+
+    logger.info(`👥 Therapist ${therapistId} adding user ${userId} as ${role} to group ${groupId}`);
+
+    // Verify therapist has access to this group
+    const group = await dbService.client.group.findFirst({
+      where: {
+        id: groupId,
+        isActive: true,
+        OR: [
+          { createdBy: therapistId },
+          { facilitatorId: therapistId },
+          {
+            members: {
+              some: {
+                userId: therapistId,
+                role: 'facilitator'
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        error: 'Group not found or access denied',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if user is already a member
+    const existingMember = await dbService.client.groupMember.findFirst({
+      where: {
+        groupId,
+        userId
+      }
+    });
+
+    if (existingMember) {
+      return res.status(400).json({
+        success: false,
+        error: 'User is already a member of this group',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Add the member
+    const newMember = await dbService.client.groupMember.create({
+      data: {
+        groupId,
+        userId,
+        role,
+        joinedAt: new Date()
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    logger.info(`✅ User ${userId} added as ${role} to group ${groupId} by therapist ${therapistId}`);
+
+    res.status(201).json({
+      success: true,
+      data: { member: newMember },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to add group member:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add group member',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Remove member from group
+router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  try {
+    const { groupId, userId } = req.params;
+    const therapistId = req.user!.id;
+
+    logger.info(`👥 Therapist ${therapistId} removing user ${userId} from group ${groupId}`);
+
+    // Verify therapist has access to this group
+    const group = await dbService.client.group.findFirst({
+      where: {
+        id: groupId,
+        isActive: true,
+        OR: [
+          { createdBy: therapistId },
+          { facilitatorId: therapistId },
+          {
+            members: {
+              some: {
+                userId: therapistId,
+                role: 'facilitator'
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        error: 'Group not found or access denied',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if user is a member
+    const member = await dbService.client.groupMember.findFirst({
+      where: {
+        groupId,
+        userId
+      }
+    });
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'User is not a member of this group',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Remove the member
+    await dbService.client.groupMember.delete({
+      where: {
+        id: member.id
+      }
+    });
+
+    logger.info(`✅ User ${userId} removed from group ${groupId} by therapist ${therapistId}`);
+
+    res.json({
+      success: true,
+      message: 'Member removed successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to remove group member:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove group member',
       timestamp: new Date().toISOString()
     });
   }
@@ -220,6 +467,86 @@ router.post('/groups', therapistAuth, validateRequest([
     res.status(500).json({
       success: false,
       error: 'Failed to create group',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Delete a group
+router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  try {
+    const { groupId } = req.params;
+    const therapistId = req.user!.id;
+
+    logger.info(`🗑️ Therapist ${therapistId} attempting to delete group ${groupId}`);
+
+    // Verify therapist has permission to delete this group (only the creator can delete)
+    const group = await dbService.client.group.findFirst({
+      where: {
+        id: groupId,
+        isActive: true,
+        createdBy: therapistId // Only the creator can delete
+      },
+      include: {
+        members: {
+          select: {
+            userId: true
+          }
+        },
+        _count: {
+          select: {
+            members: true,
+            messages: true
+          }
+        }
+      }
+    });
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        error: 'Group not found or you do not have permission to delete this group',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Soft delete the group (mark as inactive)
+    await dbService.client.group.update({
+      where: { id: groupId },
+      data: { 
+        isActive: false,
+        updatedAt: new Date()
+      }
+    });
+
+    // Log the group deletion
+    await dbService.createAuditLog({
+      userId: therapistId,
+      action: 'group_deleted',
+      resource: 'group',
+      resourceId: groupId,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent') || 'unknown',
+      metadata: { 
+        groupName: group.name,
+        memberCount: group._count.members,
+        messageCount: group._count.messages
+      }
+    });
+
+    logger.info(`✅ Group ${groupId} (${group.name}) deleted by therapist ${therapistId}`);
+
+    res.json({
+      success: true,
+      message: 'Group deleted successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Failed to delete group:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete group',
       timestamp: new Date().toISOString()
     });
   }

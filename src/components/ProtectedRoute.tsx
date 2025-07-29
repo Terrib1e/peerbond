@@ -36,6 +36,7 @@ export default function ProtectedRoute({
   // Check if user has required role
   if (user && !allowedRoles.includes(user.role)) {
     // Redirect to appropriate portal based on user role
+    // Note: Therapists can access both /therapist and /app routes
     const roleRedirects: Record<string, string> = {
       'admin': '/admin',
       'therapist': '/therapist',
