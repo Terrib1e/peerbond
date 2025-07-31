@@ -51,7 +51,7 @@ node test-agent-tools.js
 
 **Test 1: Group Finding**
 ```bash
-curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
+curl -X POST http://localhost:5000/api/orchestration/agent/call \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{
@@ -65,7 +65,7 @@ curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
 
 **Test 2: Crisis Detection**
 ```bash
-curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
+curl -X POST http://localhost:5000/api/orchestration/agent/call \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{
@@ -79,7 +79,7 @@ curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
 
 **Test 3: Intelligent Orchestration**
 ```bash
-curl -X POST http://localhost:5000/api/production-orchestration/message \
+curl -X POST http://localhost:5000/api/orchestration/message \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{

@@ -3,8 +3,7 @@
  * Extends the production orchestrator with group-specific functionality
  */
 
-import { ProductionOrchestratorService, AgentResponse } from '../orchestration/production-ready-fixed';
-import { EnhancedOrchestrator } from '../orchestration/EnhancedOrchestrator';
+import { ProductionOrchestratorService, AgentResponse } from '../orchestration/orchestrator';
 import { DatabaseService } from './database';
 import { logger } from '../utils/logger';
 import ToolExecutor, { ToolAuditLog } from '../tools/executor';
@@ -63,7 +62,6 @@ export interface GroupDynamics {
 export class GroupOrchestrationService extends ProductionOrchestratorService {
   private dbService: DatabaseService;
   private toolExecutor: ToolExecutor;
-  private enhancedOrchestrator: EnhancedOrchestrator;
   private groupContextCache: Map<string, GroupContext> = new Map();
   private groupSessionsMap: Map<string, string> = new Map(); // groupId -> sessionId
 
@@ -71,7 +69,6 @@ export class GroupOrchestrationService extends ProductionOrchestratorService {
     super();
     this.dbService = new DatabaseService();
     this.toolExecutor = new ToolExecutor();
-    this.enhancedOrchestrator = new EnhancedOrchestrator();
 
     // Initialize database-integrated tools
     this.initializeDatabaseTools();
@@ -341,12 +338,7 @@ Provide:
       agent: string;
     }>;
   } {
-    // Use enhanced orchestrator if tool system is enabled
-    if (process.env.USE_TOOL_SYSTEM === 'true') {
-      return this.enhancedOrchestrator.getAvailableAgentsAndTools();
-    }
-
-    // Fall back to parent implementation
+    // Always use parent implementation (ProductionOrchestratorService)
     return super.getAvailableAgentsAndTools();
   }
 
@@ -367,20 +359,7 @@ Provide:
     confidence: number;
     metadata?: any;
   }> {
-    // Use enhanced orchestrator if tool system is enabled
-    if (process.env.USE_TOOL_SYSTEM === 'true') {
-      const groupId = this.getGroupIdFromSession(sessionId);
-      return this.enhancedOrchestrator.callAgentDirectly(
-        agentId,
-        message,
-        sessionId,
-        memberId,
-        groupId,
-        toolName
-      );
-    }
-
-    // Fall back to parent implementation
+    // Always use parent implementation (ProductionOrchestratorService)
     return super.callAgentDirectly(agentId, message, sessionId, memberId, toolName);
   }
 
@@ -394,34 +373,7 @@ Provide:
     return undefined;
   }
 
-  /**
-   * Process message using enhanced orchestrator with tool integration
-   */
-  private async processWithEnhancedOrchestrator(params: {
-    memberId: string;
-    sessionId: string;
-    groupId?: string;
-    content: string;
-    messageType: 'member' | 'system';
-  }): Promise<AgentResponse> {
-    const result = await this.enhancedOrchestrator.processMessage({
-      memberId: params.memberId,
-      sessionId: params.sessionId,
-      groupId: params.groupId,
-      content: params.content,
-      messageType: params.messageType
-    });
 
-    return {
-      success: result.success,
-      response: result.response,
-      confidence: result.confidence,
-      agentUsed: result.agentsUsed,
-      needsCrisisIntervention: result.needsCrisisIntervention,
-      suggestGroupMatching: result.suggestGroupMatching,
-      metadata: result.metadata
-    };
-  }
 
   /**
    * Override base processMessage to include meta-query detection and multi-agent processing
@@ -440,18 +392,7 @@ Provide:
       sessionId: sessionId.slice(0, 20) + '...'
     });
 
-    // Use enhanced orchestrator if tool system is enabled
-    if (process.env.USE_TOOL_SYSTEM === 'true') {
-      console.log('[GroupOrchestration] Using enhanced orchestrator with tool system');
-      const groupId = this.getGroupIdFromSession(sessionId);
-      return this.processWithEnhancedOrchestrator({
-        memberId,
-        sessionId,
-        groupId,
-        content,
-        messageType
-      });
-    }
+
 
     // Check for meta-queries first
     const metaResponse = await this.handleMetaQueries(content, sessionId, memberId);

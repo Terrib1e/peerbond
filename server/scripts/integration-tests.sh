@@ -102,7 +102,7 @@ test_health_check() {
 # Test 2: Production Orchestration Health
 test_production_orchestration_health() {
     local response=$(curl -s -w "%{http_code}" -o /tmp/prod_health.json \
-        "$API_BASE_URL/api/production-orchestration/health")
+        "$API_BASE_URL/api/orchestration/health")
 
     if [[ "$response" == "200" ]]; then
         local status=$(jq -r '.data.status' /tmp/prod_health.json 2>/dev/null || echo "unknown")
@@ -117,7 +117,7 @@ test_production_orchestration_health() {
 # Test 3: Metrics Endpoint
 test_metrics_endpoint() {
     local response=$(curl -s -w "%{http_code}" -o /tmp/metrics.txt \
-        "$API_BASE_URL/api/production-orchestration/metrics")
+        "$API_BASE_URL/api/orchestration/metrics")
 
     if [[ "$response" == "200" ]]; then
         # Check for key metrics
@@ -138,7 +138,7 @@ test_session_creation() {
         -H "Content-Type: application/json" \
         -H "X-Correlation-ID: test-integration-$(date +%s)" \
         -d '{"memberProfile": {"goals": ["integration-test"]}}' \
-        "$API_BASE_URL/api/production-orchestration/session/start")
+        "$API_BASE_URL/api/orchestration/session/start")
 
     if [[ "$response" == "200" ]]; then
         local success=$(jq -r '.success' /tmp/session.json 2>/dev/null || echo "false")
@@ -167,7 +167,7 @@ test_message_processing() {
         -H "Content-Type: application/json" \
         -H "X-Correlation-ID: test-message-$(date +%s)" \
         -d "{\"sessionId\": \"$session_id\", \"content\": \"I'm feeling anxious about the integration tests.\"}" \
-        "$API_BASE_URL/api/production-orchestration/message")
+        "$API_BASE_URL/api/orchestration/message")
 
     if [[ "$response" == "200" ]]; then
         local success=$(jq -r '.success' /tmp/message.json 2>/dev/null || echo "false")
@@ -196,7 +196,7 @@ test_crisis_detection() {
         -H "Content-Type: application/json" \
         -H "X-Correlation-ID: test-crisis-$(date +%s)" \
         -d "{\"sessionId\": \"$session_id\", \"content\": \"I can't take this anymore. I want to hurt myself.\"}" \
-        "$API_BASE_URL/api/production-orchestration/message")
+        "$API_BASE_URL/api/orchestration/message")
 
     if [[ "$response" == "200" ]]; then
         local crisis_intervention=$(jq -r '.data.needsCrisisIntervention' /tmp/crisis.json 2>/dev/null || echo "false")
@@ -222,7 +222,7 @@ test_session_analytics() {
     local response=$(curl -s -w "%{http_code}" -o /tmp/analytics.json \
         -H "Authorization: Bearer $JWT_TOKEN" \
         -H "X-Correlation-ID: test-analytics-$(date +%s)" \
-        "$API_BASE_URL/api/production-orchestration/session/$session_id/analytics")
+        "$API_BASE_URL/api/orchestration/session/$session_id/analytics")
 
     if [[ "$response" == "200" ]]; then
         local success=$(jq -r '.success' /tmp/analytics.json 2>/dev/null || echo "false")
@@ -246,7 +246,7 @@ test_rate_limiting() {
             -H "Authorization: Bearer $JWT_TOKEN" \
             -H "Content-Type: application/json" \
             -d '{}' \
-            "$API_BASE_URL/api/production-orchestration/session/start")
+            "$API_BASE_URL/api/orchestration/session/start")
 
         if [[ "$response" == "429" ]]; then
             ((failed_requests++))
@@ -276,7 +276,7 @@ test_session_cleanup() {
         -H "Authorization: Bearer $JWT_TOKEN" \
         -H "X-Correlation-ID: test-cleanup-$(date +%s)" \
         -X POST \
-        "$API_BASE_URL/api/production-orchestration/session/$session_id/end")
+        "$API_BASE_URL/api/orchestration/session/$session_id/end")
 
     if [[ "$response" == "200" ]]; then
         local success=$(jq -r '.data.success' /tmp/cleanup.json 2>/dev/null || echo "false")
@@ -327,7 +327,7 @@ test_error_handling() {
     # Test with invalid session ID
     local response=$(curl -s -w "%{http_code}" -o /tmp/error.json \
         -H "Authorization: Bearer $JWT_TOKEN" \
-        "$API_BASE_URL/api/production-orchestration/session/invalid-session-id/analytics")
+        "$API_BASE_URL/api/orchestration/session/invalid-session-id/analytics")
 
     if [[ "$response" == "404" ]]; then
         local success=$(jq -r '.success' /tmp/error.json 2>/dev/null || echo "true")
@@ -346,7 +346,7 @@ test_performance() {
 
     # Simple performance test - health check should be fast
     local response=$(curl -s -w "%{http_code}" -o /dev/null \
-        "$API_BASE_URL/api/production-orchestration/health")
+        "$API_BASE_URL/api/orchestration/health")
 
     local end_time=$(date +%s%N)
     local duration_ms=$(( (end_time - start_time) / 1000000 ))
@@ -373,7 +373,7 @@ test_load_handling() {
     for i in $(seq 1 $concurrent_requests); do
         (
             response=$(curl -s -w "%{http_code}" -o /dev/null \
-                "$API_BASE_URL/api/production-orchestration/health")
+                "$API_BASE_URL/api/orchestration/health")
             if [[ "$response" == "200" ]]; then
                 echo "success"
             else

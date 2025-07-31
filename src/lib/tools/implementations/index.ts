@@ -5,6 +5,11 @@ export { EscalateCrisisTool } from './escalateCrisis';
 export { ListAllGroupsTool } from './listAllGroups';
 export { JoinGroupTool } from './joinGroup';
 
+// Export new facilitator tools
+export { provideSupportiveResponse } from './provideSupportiveResponse';
+export { validateFeelings } from './validateFeelings';
+export { suggestCopingStrategies } from './suggestCopingStrategies';
+
 // Export all tools as an array for easy registration
 import { SuggestGroupTool } from './suggestGroup';
 import { PostMessageTool } from './postMessage';
@@ -21,3 +26,15 @@ export const ALL_TOOLS = [
   new ListAllGroupsTool(),
   new JoinGroupTool()
 ];
+
+// Import the facilitator tool functions
+import { provideSupportiveResponse } from './provideSupportiveResponse';
+import { validateFeelings } from './validateFeelings';
+import { suggestCopingStrategies } from './suggestCopingStrategies';
+
+// Facilitator tool functions (not classes)
+export const FACILITATOR_TOOLS = {
+  provideSupportiveResponse,
+  validateFeelings,
+  suggestCopingStrategies
+};

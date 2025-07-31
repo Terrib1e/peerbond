@@ -151,7 +151,7 @@ CRISIS_TEXT_NUMBER=741741
 
 ### Direct Agent Calls
 ```bash
-POST /api/production-orchestration/agent/call
+POST /api/orchestration/agent/call
 {
   "agentId": "matching",
   "message": "I need help finding a support group",
@@ -161,7 +161,7 @@ POST /api/production-orchestration/agent/call
 
 ### Intelligent Orchestration
 ```bash
-POST /api/production-orchestration/message
+POST /api/orchestration/message
 {
   "content": "I'm feeling anxious and need support",
   "sessionId": "session_123"
@@ -170,7 +170,7 @@ POST /api/production-orchestration/message
 
 ### List Available Agents
 ```bash
-GET /api/production-orchestration/agents
+GET /api/orchestration/agents
 ```
 
 ## 🔍 Monitoring & Debugging
@@ -184,7 +184,7 @@ GET /api/tools/audit/{sessionId}
 ### Agent Performance
 ```bash
 # System health check
-GET /api/production-orchestration/health
+GET /api/orchestration/health
 ```
 
 ### Available Tools

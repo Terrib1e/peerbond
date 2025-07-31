@@ -495,7 +495,9 @@ function MessageBubble({ message, currentMember, onAddReaction }: MessageBubbleP
         {!isOwnMessage && (
           <div className="flex items-center space-x-2 mb-1">
             {isAI ? (
-              <Bot className="w-4 h-4 text-primary-600" />
+              <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center border border-primary-200">
+                <span className="text-xs font-bold text-primary-600">M</span>
+              </div>
             ) : (
               <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
                 <span className="text-xs font-medium text-gray-600">
@@ -504,7 +506,12 @@ function MessageBubble({ message, currentMember, onAddReaction }: MessageBubbleP
               </div>
             )}
             <span className="text-sm font-medium text-gray-900">
-              {isAI ? 'AI Facilitator' : (message.member?.firstName || 'Unknown User')}
+              {isAI 
+                ? (message.member?.firstName === 'Maya' 
+                    ? `${message.member.firstName} ${message.member.lastName || '(AI Facilitator)'}` 
+                    : 'Maya (AI Facilitator)')
+                : (message.member?.firstName || 'Unknown User')
+              }
             </span>
             <span className="text-xs text-gray-500">
               {message.timestamp && !isNaN(message.timestamp.getTime())

@@ -1,12 +1,12 @@
 import express from 'express';
-import { GroupOrchestrationService } from '../services/GroupOrchestrationService';
+import { ProductionOrchestratorService } from '../orchestration/orchestrator';
 import { authenticateToken } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
 import { body, param } from 'express-validator';
 import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
-const orchestratorService = new GroupOrchestrationService();
+const orchestratorService = new ProductionOrchestratorService();
 
 // Diagnostic endpoints removed - issue resolved!
 
@@ -30,7 +30,7 @@ const messageLimiter = rateLimit({
 // All diagnostic endpoints removed - orchestration is now working perfectly!
 
 /**
- * POST /api/production-orchestration/session/start
+ * POST /api/orchestration/session/start
  * Start a new conversation session
  */
 router.post('/session/start',
@@ -87,7 +87,7 @@ router.post('/session/start',
 );
 
 /**
- * POST /api/production-orchestration/message
+ * POST /api/orchestration/message
  * Process a message through the orchestration system
  */
 router.post('/message',
@@ -174,7 +174,7 @@ router.post('/message',
 );
 
 /**
- * GET /api/production-orchestration/session/:sessionId/analytics
+ * GET /api/orchestration/session/:sessionId/analytics
  * Get session analytics and metrics
  */
 router.get('/session/:sessionId/analytics',
@@ -227,7 +227,7 @@ router.get('/session/:sessionId/analytics',
 );
 
 /**
- * POST /api/production-orchestration/session/:sessionId/end
+ * POST /api/orchestration/session/:sessionId/end
  * End a conversation session
  */
 router.post('/session/:sessionId/end',
@@ -280,7 +280,7 @@ router.post('/session/:sessionId/end',
 );
 
 /**
- * GET /api/production-orchestration/health
+ * GET /api/orchestration/health
  * System health check with detailed metrics
  */
 router.get('/health',
@@ -340,7 +340,7 @@ router.get('/health',
 );
 
 /**
- * GET /api/production-orchestration/agents
+ * GET /api/orchestration/agents
  * List all available agents and their tools
  */
 router.get('/agents',
@@ -379,7 +379,7 @@ router.get('/agents',
 );
 
 /**
- * POST /api/production-orchestration/agent/call
+ * POST /api/orchestration/agent/call
  * Call a specific agent directly with a message
  */
 router.post('/agent/call',
@@ -460,7 +460,7 @@ router.post('/agent/call',
 );
 
 /**
- * GET /api/production-orchestration/metrics
+ * GET /api/orchestration/metrics
  * Prometheus-compatible metrics endpoint
  */
 router.get('/metrics',
@@ -489,7 +489,7 @@ peerbond_memory_usage_bytes{type="external"} ${memoryUsage.external}
 
 # HELP peerbond_cpu_usage_microseconds CPU usage in microseconds
 # TYPE peerbond_cpu_usage_microseconds counter
-peerbond_cpu_usage_microseconds{type="member"} ${cpuUsage.member}
+peerbond_cpu_usage_microseconds{type="user"} ${cpuUsage.user}
 peerbond_cpu_usage_microseconds{type="system"} ${cpuUsage.system}
 
 # HELP peerbond_orchestration_status System health status (0=unhealthy, 1=degraded, 2=healthy)

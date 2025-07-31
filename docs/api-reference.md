@@ -86,7 +86,7 @@ Register new member account.
 
 ### Health & Monitoring
 
-#### GET /api/production-orchestration/health
+#### GET /api/orchestration/health
 
 Comprehensive system health check with metrics.
 
@@ -125,7 +125,7 @@ Comprehensive system health check with metrics.
 }
 ```
 
-#### GET /api/production-orchestration/metrics
+#### GET /api/orchestration/metrics
 
 Prometheus-compatible metrics endpoint.
 
@@ -147,7 +147,7 @@ peerbond_memory_usage_bytes{type="heapTotal"} 41943040
 
 ### Session Management
 
-#### POST /api/production-orchestration/session/start
+#### POST /api/orchestration/session/start
 
 Create a new conversation session.
 
@@ -181,7 +181,7 @@ Create a new conversation session.
 }
 ```
 
-#### POST /api/production-orchestration/message
+#### POST /api/orchestration/message
 
 Process a message through the AI orchestration system.
 
@@ -219,7 +219,7 @@ Process a message through the AI orchestration system.
 }
 ```
 
-#### GET /api/production-orchestration/session/{sessionId}/analytics
+#### GET /api/orchestration/session/{sessionId}/analytics
 
 Get session analytics and metrics.
 
@@ -242,7 +242,7 @@ Get session analytics and metrics.
 }
 ```
 
-#### POST /api/production-orchestration/session/{sessionId}/end
+#### POST /api/orchestration/session/{sessionId}/end
 
 End a conversation session and generate summary.
 
@@ -563,13 +563,13 @@ response = client.orchestration.send_message(
 
 ```bash
 # Start session
-curl -X POST https://api.peerbond.com/api/production-orchestration/session/start \
+curl -X POST https://api.peerbond.com/api/orchestration/session/start \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"memberProfile": {"goals": ["anxiety-management"]}}'
 
 # Send message
-curl -X POST https://api.peerbond.com/api/production-orchestration/message \
+curl -X POST https://api.peerbond.com/api/orchestration/message \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

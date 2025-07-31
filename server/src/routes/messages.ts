@@ -10,9 +10,15 @@ import { logger } from '../utils/logger';
 // Import WebSocket service to broadcast Maya's responses
 import { WebSocketService } from '../services/websocket';
 
+// Import the new ProductionOrchestrator for enhanced Maya responses
+import { ProductionOrchestratorService as ProductionOrchestrator } from '../orchestration/orchestrator';
+
 const router = Router();
 const dbService = new DatabaseService();
 const geminiService = new GeminiService();
+
+// Initialize ProductionOrchestrator for enhanced Maya responses
+const productionOrchestrator = new ProductionOrchestrator();
 
 // Validation rules
 const sendMessageValidation = [
@@ -122,8 +128,7 @@ router.post('/:groupId', validateRequest([...groupIdValidation, ...sendMessageVa
     groupId,
     memberId,
     content: req.body.content,
-    type: req.body.type || 'text',
-    metadata: req.body.metadata || {},
+    type: req.body.type || 'text'
   };
 
   const message = await dbService.createMessage(messageData);
@@ -543,18 +548,39 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
       reactions: {} as Record<string, string[]>
     };
 
-    // Generate AI facilitator response
-    const aiResponse = await geminiService.generateFacilitatorResponse(
-      contextMessage,
-      recentMessages,
-      group,
-      activeMembers
+    // Generate enhanced AI response using ProductionOrchestrator
+    // Start session for this therapist-triggered interaction
+    const sessionResult = await productionOrchestrator.startSession(
+      contextMessage.memberId,
+      group.id,
+      {
+        context: 'therapist_trigger',
+        recentMessages,
+        activeMembers,
+        groupType: group.type,
+        triggeredBy: req.member!.role
+      }
     );
 
-    if (!aiResponse) {
+    if (!sessionResult.success) {
       return res.status(500).json({
         success: false,
-        error: 'Failed to generate Maya response',
+        error: 'Failed to create orchestration session',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const orchestrationResult = await productionOrchestrator.processMessage({
+      memberId: contextMessage.memberId,
+      sessionId: sessionResult.sessionId,
+      content: contextMessage.content,
+      messageType: 'system'
+    });
+
+    if (!orchestrationResult || !orchestrationResult.response) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate Maya response via ProductionOrchestrator',
         timestamp: new Date().toISOString()
       });
     }
@@ -563,11 +589,11 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
     const aiMessage = await dbService.createMessage({
       groupId: group.id,
       memberId: 'ai-facilitator',
-      content: aiResponse.message,
+      content: orchestrationResult.response,
       type: 'ai_facilitator'
     });
 
-    // Log audit event
+    // Log audit event with orchestration details
     await dbService.createAuditLog({
       memberId,
       action: 'manual_maya_trigger',
@@ -577,7 +603,11 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
       memberAgent: req.get('User-Agent') || 'unknown',
       metadata: {
         groupId,
-        triggeredBy: req.member!.role
+        triggeredBy: req.member!.role,
+        agentsUsed: orchestrationResult.agentUsed,
+        toolResults: orchestrationResult.toolResults,
+        confidence: orchestrationResult.confidence,
+        needsCrisisIntervention: orchestrationResult.needsCrisisIntervention
       }
     });
 
@@ -591,9 +621,11 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
           ...aiMessage,
           member: {
             id: 'ai-facilitator',
-            firstName: 'AI',
-            lastName: 'Facilitator',
-            profilePicture: null
+            firstName: 'Maya',
+            lastName: '(AI Facilitator)',
+            profilePicture: null,
+            email: 'maya@peerbond.ai',
+            role: 'ai_facilitator'
           }
         });
       }
@@ -650,30 +682,65 @@ async function triggerAIFacilitatorResponse(memberMessage: any, group: any) {
 
     logger.info(`✅ AI will respond to message: "${memberMessage.content}"`);
 
-    // Generate AI facilitator response using Gemini
-    const aiResponse = await geminiService.generateFacilitatorResponse(
-      memberMessage,
-      recentMessages,
-      group,
-      activeMembers
+    // Generate enhanced AI response using ProductionOrchestrator
+    // Start session for this group interaction
+    const sessionResult = await productionOrchestrator.startSession(
+      memberMessage.memberId,
+      group.id,
+      {
+        context: 'group_chat',
+        recentMessages,
+        activeMembers,
+        groupType: group.type
+      }
     );
 
-    if (!aiResponse) {
-      logger.error(`❌ Failed to generate AI response`);
+    if (!sessionResult.success) {
+      logger.error(`❌ Failed to create orchestration session`);
       return;
     }
 
-    logger.info(`✅ AI response generated: "${aiResponse.message}"`);
+    const orchestrationResult = await productionOrchestrator.processMessage({
+      memberId: memberMessage.memberId,
+      sessionId: sessionResult.sessionId,
+      content: memberMessage.content,
+      messageType: 'member'
+    });
+
+    if (!orchestrationResult || !orchestrationResult.response) {
+      logger.error(`❌ Failed to generate AI response via ProductionOrchestrator`);
+      return;
+    }
+
+    logger.info(`✅ Enhanced AI response generated: "${orchestrationResult.response}"`);
 
     // Create AI message in database
     const aiMessage = await dbService.createMessage({
       groupId: group.id,
       memberId: 'ai-facilitator',
-      content: aiResponse.message,
+      content: orchestrationResult.response,
       type: 'ai_facilitator'
     });
 
     logger.info(`💾 AI message saved to database with ID: ${aiMessage.id}`);
+
+    // Log audit event with orchestration details
+    await dbService.createAuditLog({
+      memberId: 'ai-facilitator',
+      action: 'ai_facilitator_response',
+      resource: 'message',
+      resourceId: aiMessage.id,
+      ipAddress: 'system',
+      memberAgent: 'maya-orchestrator',
+      metadata: {
+        groupId: group.id,
+        triggerMessage: memberMessage.content,
+        agentsUsed: orchestrationResult.agentUsed,
+        toolResults: orchestrationResult.toolResults,
+        confidence: orchestrationResult.confidence,
+        needsCrisisIntervention: orchestrationResult.needsCrisisIntervention
+      }
+    });
 
     // Broadcast WebSocket event to notify all group members (match WebSocket version format)
     setTimeout(() => {
@@ -683,9 +750,11 @@ async function triggerAIFacilitatorResponse(memberMessage: any, group: any) {
           ...aiMessage,
           member: {
             id: 'ai-facilitator',
-            firstName: 'AI',
-            lastName: 'Facilitator',
-            profilePicture: null
+            firstName: 'Maya',
+            lastName: '(AI Facilitator)',
+            profilePicture: null,
+            email: 'maya@peerbond.ai',
+            role: 'ai_facilitator'
           }
         });
 

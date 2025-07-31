@@ -3,7 +3,7 @@ import { Server as HTTPServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { DatabaseService } from './database';
 import { GeminiService } from './geminiService';
-import { ProductionOrchestratorService } from '../orchestration/production-ready-fixed';
+import { ProductionOrchestratorService } from '../orchestration/orchestrator';
 import { GroupOrchestrationService } from './GroupOrchestrationService';
 import { logger } from '../utils/logger';
 import { WebSocketMessage, Member, Message, Group } from '../types';

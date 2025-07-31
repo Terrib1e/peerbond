@@ -471,15 +471,15 @@ export class ApiService {
   private getOrchestrationPath(system: OrchestrationSystem): string {
     switch (system) {
       case 'simple':
-        return '/production-orchestration';
+        return '/orchestration';
       case 'production':
-        return '/production-orchestration';
+        return '/orchestration';
       case 'main':
-        return '/production-orchestration';
+        return '/orchestration';
       case 'working':
-        return '/production-orchestration';
+        return '/orchestration';
       default:
-        return '/production-orchestration'; // All use production orchestration
+        return '/orchestration'; // All use production orchestration
     }
   }
 

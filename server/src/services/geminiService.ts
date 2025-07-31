@@ -11,17 +11,20 @@ export interface GeminiFacilitatorResponse {
 }
 
 export class GeminiService {
-  private genAI: GoogleGenerativeAI;
+  private genAI: GoogleGenerativeAI | null;
   private model: any;
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Check for both GEMINI_API_KEY and GOOGLE_API_KEY for backwards compatibility
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (!apiKey) {
-      console.warn('Warning: GEMINI_API_KEY not provided. AI features will be disabled.');
+      console.warn('Warning: GEMINI_API_KEY or GOOGLE_API_KEY not provided. AI features will be disabled.');
+      console.warn('Please set either GEMINI_API_KEY or GOOGLE_API_KEY in your .env file');
       this.genAI = null;
       this.model = null;
       return;
     }
+    console.log('✅ Gemini API initialized successfully');
 
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({
@@ -76,18 +79,18 @@ RESPONSE CRITERIA (you should ONLY respond if the message involves):
 5. **Milestone Celebration** - Significant achievement worth acknowledging
 
 YOUR RESPONSE STYLE:
-- **Concise** (1-2 sentences maximum)
+- **Concise but helpful** (2-3 sentences that provide actual support)
 - **Purposeful** - every word serves a therapeutic function
 - **Professional yet warm** - like a skilled therapist
-- **Question-focused** - encourage self-reflection and peer support
-- **Trauma-informed** - validate without overwhelming
+- **Solution-oriented** - provide actionable guidance when appropriate
+- **Trauma-informed** - validate and offer practical help
 
-PREFERRED RESPONSES:
-- "What's coming up for you as you share this?"
-- "I'm hearing [emotion] - how is the group holding space for you right now?"
-- "Thank you for that courage. What support do you need?"
-- "[Name], how are you experiencing this conversation?"
-- "What wisdom would you offer someone in a similar situation?"
+PREFERRED RESPONSE PATTERNS:
+- Validate their experience + offer a specific coping strategy
+- Acknowledge their courage + provide perspective or insight
+- Reflect their emotion + suggest a helpful technique or approach
+- Recognize their struggle + offer encouragement with practical next steps
+- Celebrate their progress + reinforce their strengths
 
 Remember: Silence is therapeutic. Let the group process and support each other. Only speak when your voice adds essential therapeutic value.
 
@@ -312,6 +315,22 @@ Your response:`;
     } catch (error) {
       logger.error('Error generating check-in prompt:', error);
       return "How is everyone feeling today? Remember, sharing what you're comfortable with is perfectly fine.";
+    }
+  }
+
+  async generateResponse(prompt: string): Promise<string> {
+    try {
+      // Check if AI service is available
+      if (!this.genAI || !this.model) {
+        console.log('Gemini AI service not available, using fallback response');
+        return 'I understand you\'re looking for support. While I\'m not able to provide a detailed response right now, please know that your feelings are valid and support is available.';
+      }
+
+      const result = await this.model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (error) {
+      logger.error('Error generating response:', error);
+      return 'I understand you\'re looking for support. While I\'m not able to provide a detailed response right now, please know that your feelings are valid and support is available.';
     }
   }
 

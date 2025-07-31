@@ -29,7 +29,9 @@
       "Bash(taskkill:*)",
       "Bash(timeout:*)",
       "Bash(grep:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(copy test-admin-therapist-assignment.js test-admin-therapist-assignment.cjs)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

@@ -7,6 +7,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService } from '../services/database';
 import { GeminiService } from '../services/geminiService';
 
+// Import real tool implementations
+import { provideSupportiveResponse } from '../tools/implementations/provideSupportiveResponse';
+import { validateFeelings } from '../tools/implementations/validateFeelings';
+import { suggestCopingStrategies } from '../tools/implementations/suggestCopingStrategies';
+
 // Production-safe interfaces
 export interface ProductionConversationState {
   sessionId: string;
@@ -235,7 +240,7 @@ export class ProductionOrchestratorService {
 
       return {
         success: false,
-        response: "I'm here to support you. How are you feeling right now?",
+        response: "I'm here to support you. Here's something that can help right now: try the 5-4-3-2-1 grounding technique - notice 5 things you can see, 4 things you can touch, 3 things you can hear, 2 things you can smell, and 1 thing you can taste. This can help bring you back to the present moment. You're not alone, and what you're feeling is valid.",
         confidence: 0.1,
         agentUsed: ['fallback'],
         metadata: { error: error.message }
@@ -701,18 +706,6 @@ export class ProductionOrchestratorService {
       // 1. AI Router Agent - Determines which agents and tools to use
       let routingDecision;
 
-      // TEMPORARY DEBUGGING: Force a specific routing decision to test agent execution
-      console.log('[DEBUG] Temporarily forcing routing decision to test multi-agent execution');
-      agentsUsed.push('ai-router-debug');
-      routingDecision = {
-        primaryAgent: 'facilitator',
-        tools: ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'],
-        reasoning: 'DEBUG: Forced routing to facilitator with multiple tools for testing',
-        confidence: 0.9
-      };
-
-      // COMMENTED OUT FOR DEBUGGING - UNCOMMENT AFTER TESTING
-      /*
       try {
         routingDecision = await this.aiRouterAgent(content, session);
         agentsUsed.push('ai-router');
@@ -727,7 +720,6 @@ export class ProductionOrchestratorService {
           confidence: 0.4
         };
       }
-      */
 
       // 2. Always run sentiment analysis for safety
       let sentimentResult;
@@ -1060,7 +1052,18 @@ Respond as Maya would - authentically therapeutic, warm, and focused on the memb
       response = "I'm genuinely glad to hear there are some brighter moments for you! Those feelings of improvement are so important to acknowledge. What's been helping you feel better? I'd love to hear more about what's working.";
       confidence = 0.9;
     } else {
-      response = "I'm here with you, and I'm listening. Whatever you're experiencing right now is valid and important. Could you tell me a bit more about what's on your heart today?";
+      // More varied general responses to avoid repetition
+      const generalResponses = [
+        "I'm here with you, and I'm listening. Whatever you're experiencing right now is valid and important. Could you tell me a bit more about what's on your heart today?",
+        "Thank you for opening up to me. Your feelings matter, and I want to understand what you're going through. What's been on your mind?",
+        "I appreciate you sharing with me. Sometimes it helps just to talk things through. What would be most helpful for you right now?",
+        "I'm really glad you're here and talking about this. It takes courage to share what's on your mind. How can I best support you today?",
+        "I hear you, and I want you to know that you're not alone in this. What aspect of your experience would you like to explore together?"
+      ];
+      
+      // Use session message count to vary responses
+      const responseIndex = session.messageCount % generalResponses.length;
+      response = generalResponses[responseIndex];
       confidence = 0.6;
     }
 
@@ -1575,12 +1578,26 @@ RESPOND WITH ONLY THIS JSON:
    * Direct Gemini API call for intent analysis
    */
   private async callGeminiDirectly(prompt: string): Promise<any> {
-    // Use the geminiService's model directly
-    if (this.geminiService && (this.geminiService as any).model) {
-      const model = (this.geminiService as any).model;
-      return await model.generateContent(prompt);
+    // Check if Gemini service is properly initialized
+    if (!this.geminiService) {
+      console.warn('[ProductionOrchestrator] Gemini service not initialized');
+      throw new Error('Gemini service not initialized');
     }
-    throw new Error('Gemini service not available');
+
+    // Check if the model exists (API key was provided)
+    const model = (this.geminiService as any).model;
+    if (!model) {
+      console.warn('[ProductionOrchestrator] Gemini model not available - likely missing API key');
+      console.warn('[ProductionOrchestrator] Please set GEMINI_API_KEY or GOOGLE_API_KEY in your .env file');
+      throw new Error('Gemini API key not configured');
+    }
+
+    try {
+      return await model.generateContent(prompt);
+    } catch (error) {
+      console.error('[ProductionOrchestrator] Gemini API call failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -1967,7 +1984,7 @@ RESPOND WITH ONLY THIS JSON:
           response = facilitatorResult.response;
           confidence = Math.max(facilitatorResult.confidence, decision.confidence);
 
-          // Execute facilitator-specific tools with enhanced tracking
+          // Execute facilitator-specific tools with REAL implementations
           const facilitatorTools = ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'];
           const requestedTools = decision.tools.filter(tool => facilitatorTools.includes(tool));
 
@@ -1975,20 +1992,89 @@ RESPOND WITH ONLY THIS JSON:
           const toolsToExecute = requestedTools.length >= 2 ? requestedTools :
                                 requestedTools.concat(facilitatorTools.filter(t => !requestedTools.includes(t)).slice(0, 3 - requestedTools.length));
 
-          for (const tool of toolsToExecute) {
-            const toolResult = {
-              tool,
-              agent: 'facilitator',
-              executed: true,
-              timestamp: new Date(),
-              description: this.getToolDescription(tool),
-              outcome: this.determineFacilitatorToolOutcome(tool, content, session)
-            };
-            toolResults.push(toolResult);
+          console.log(`[FacilitatorAgent] Executing ${toolsToExecute.length} real tools: ${toolsToExecute.join(', ')}`);
+
+          // Execute each tool with real implementations
+          let combinedToolResponse = '';
+          for (const toolName of toolsToExecute) {
+            try {
+              const toolContext = {
+                memberId: session.memberId,
+                sessionId: session.sessionId,
+                agentId: 'facilitator',
+                timestamp: new Date(),
+                metadata: { groupId: session.groupId }
+              };
+
+              let toolResult;
+              switch (toolName) {
+                case 'provideSupportiveResponse':
+                  toolResult = await provideSupportiveResponse({
+                    memberMessage: content,
+                    emotionalState: session.crisisLevel === 'none' ? 'neutral' : 'distressed'
+                  }, toolContext);
+                  if (toolResult.success && toolResult.data?.response) {
+                    combinedToolResponse += toolResult.data.response + '\n\n';
+                  }
+                  break;
+
+                case 'validateFeelings':
+                  toolResult = await validateFeelings({
+                    memberMessage: content,
+                    intensity: session.crisisLevel === 'none' ? 'moderate' : 'high'
+                  }, toolContext);
+                  if (toolResult.success && toolResult.data?.validationResponse) {
+                    combinedToolResponse += toolResult.data.validationResponse + '\n\n';
+                  }
+                  break;
+
+                case 'suggestCopingStrategies':
+                  toolResult = await suggestCopingStrategies({
+                    memberMessage: content,
+                    timeAvailable: 'immediate'
+                  }, toolContext);
+                  if (toolResult.success && toolResult.data?.strategies) {
+                    combinedToolResponse += toolResult.data.strategies + '\n\n';
+                  }
+                  break;
+
+                default:
+                  console.warn(`[FacilitatorAgent] Unknown tool: ${toolName}`);
+                  toolResult = { success: false, error: 'Unknown tool' };
+              }
+
+              // Log the actual tool execution
+              toolResults.push({
+                tool: toolName,
+                agent: 'facilitator',
+                executed: toolResult.success,
+                timestamp: new Date(),
+                confidence: toolResult.confidence || 0.5,
+                data: toolResult.data,
+                error: toolResult.error
+              });
+
+              console.log(`[FacilitatorAgent] Tool ${toolName} executed: ${toolResult.success ? 'SUCCESS' : 'FAILED'}`);
+
+            } catch (toolError) {
+              console.error(`[FacilitatorAgent] Error executing tool ${toolName}:`, toolError);
+              toolResults.push({
+                tool: toolName,
+                agent: 'facilitator',
+                executed: false,
+                timestamp: new Date(),
+                error: toolError instanceof Error ? toolError.message : 'Unknown error'
+              });
+            }
           }
 
-          // Add proactive suggestions to response if appropriate
-          response = await this.enhanceFacilitatorResponse(response, session, toolsToExecute);
+          // Use tool responses if available, otherwise use the original facilitator response
+          if (combinedToolResponse.trim()) {
+            response = combinedToolResponse.trim();
+            console.log(`[FacilitatorAgent] Using combined tool response (${response.length} chars)`);
+          } else {
+            console.log(`[FacilitatorAgent] Using fallback facilitator response`);
+          }
           break;
       }
 

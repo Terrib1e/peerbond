@@ -61,16 +61,12 @@ router.post('/register', validateRequest(registerValidation), asyncHandler(async
     });
   }
 
-  // Hash password
-  const saltRounds = 12;
-  const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-  // Create member
+  // Create member (password will be hashed by createMember)
   const newUser = await dbService.createMember({
     firstName,
     lastName,
     email,
-    password: hashedPassword,
+    password: password, // Pass plain password - createMember will hash it
     role: role || 'member',
     recoveryGoals: recoveryGoals || [],
     wellnessGoals: wellnessGoals || [],

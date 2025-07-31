@@ -16,7 +16,7 @@ npm run dev
 
 ### 3. Health Check
 ```bash
-curl http://localhost:5000/api/production-orchestration/health
+curl http://localhost:5000/api/orchestration/health
 ```
 
 ---
@@ -27,7 +27,7 @@ curl http://localhost:5000/api/production-orchestration/health
 Show how the orchestrator automatically picks the right agent.
 
 ```bash
-curl -X POST http://localhost:5000/api/production-orchestration/message \
+curl -X POST http://localhost:5000/api/orchestration/message \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -d '{
@@ -47,7 +47,7 @@ curl -X POST http://localhost:5000/api/production-orchestration/message \
 Demonstrate safety-first architecture with crisis detection.
 
 ```bash
-curl -X POST http://localhost:5000/api/production-orchestration/message \
+curl -X POST http://localhost:5000/api/orchestration/message \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -d '{
@@ -69,7 +69,7 @@ Show specialized agent expertise with direct calls.
 
 #### Matching Agent
 ```bash
-curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
+curl -X POST http://localhost:5000/api/orchestration/agent/call \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -d '{
@@ -81,7 +81,7 @@ curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
 
 #### Facilitator Agent (Maya)
 ```bash
-curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
+curl -X POST http://localhost:5000/api/orchestration/agent/call \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -d '{
@@ -93,7 +93,7 @@ curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
 
 #### Insight Agent
 ```bash
-curl -X POST http://localhost:5000/api/production-orchestration/agent/call \
+curl -X POST http://localhost:5000/api/orchestration/agent/call \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -d '{
@@ -110,7 +110,7 @@ Show the available agents and tools.
 
 #### List All Agents
 ```bash
-curl -X GET http://localhost:5000/api/production-orchestration/agents \
+curl -X GET http://localhost:5000/api/orchestration/agents \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 
@@ -122,7 +122,7 @@ curl -X GET http://localhost:5000/api/tools/schemas \
 
 #### Health & Performance
 ```bash
-curl -X GET http://localhost:5000/api/production-orchestration/health
+curl -X GET http://localhost:5000/api/orchestration/health
 ```
 
 ---
@@ -160,13 +160,13 @@ Point out the structured response format:
 ### **If API calls fail:**
 ```bash
 # Check server is running
-curl http://localhost:5000/api/production-orchestration/health
+curl http://localhost:5000/api/orchestration/health
 
 # Check environment variables
 grep USE_TOOL_SYSTEM .env
 
 # Verify agents are loaded
-curl http://localhost:5000/api/production-orchestration/agents
+curl http://localhost:5000/api/orchestration/agents
 ```
 
 ### **If authentication fails:**
@@ -197,14 +197,14 @@ For easier demo, import this into Postman:
       "name": "Health Check",
       "request": {
         "method": "GET",
-        "url": "{{base_url}}/api/production-orchestration/health"
+        "url": "{{base_url}}/api/orchestration/health"
       }
     },
     {
       "name": "Intelligent Orchestration",
       "request": {
         "method": "POST",
-        "url": "{{base_url}}/api/production-orchestration/message",
+        "url": "{{base_url}}/api/orchestration/message",
         "header": [
           {"key": "Content-Type", "value": "application/json"},
           {"key": "Authorization", "value": "Bearer {{token}}"}
@@ -218,7 +218,7 @@ For easier demo, import this into Postman:
       "name": "Direct Agent Call - Matching",
       "request": {
         "method": "POST",
-        "url": "{{base_url}}/api/production-orchestration/agent/call",
+        "url": "{{base_url}}/api/orchestration/agent/call",
         "header": [
           {"key": "Content-Type", "value": "application/json"},
           {"key": "Authorization", "value": "Bearer {{token}}"}

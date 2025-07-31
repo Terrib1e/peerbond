@@ -771,7 +771,7 @@ const synthetics = {
 
   // Session creation test
   sessionCreation: {
-    url: 'https://api.peerbond.com/api/production-orchestration/session/start',
+    url: 'https://api.peerbond.com/api/orchestration/session/start',
     method: 'POST',
     headers: { 'Authorization': 'Bearer {{auth_token}}' },
     body: { memberProfile: { goals: ['synthetic-test'] } },
@@ -785,7 +785,7 @@ const synthetics = {
 
   // Message processing test
   messageProcessing: {
-    url: 'https://api.peerbond.com/api/production-orchestration/message',
+    url: 'https://api.peerbond.com/api/orchestration/message',
     method: 'POST',
     headers: { 'Authorization': 'Bearer {{auth_token}}' },
     body: {

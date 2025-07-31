@@ -1205,57 +1205,128 @@ export class DatabaseService {
   }
 
   async getMemberAvailableGroups(memberId: string): Promise<any[]> {
-    // Get groups that are either:
-    // 1. Assigned to the member, OR
-    // 2. Public groups that the member can freely join
-
-    const assignedGroups = await this.getMemberAssignedGroups(memberId);
-    const assignedGroupIds = assignedGroups.map(g => g.id);
-
-    // Get public groups that aren't assigned to the member
-    const publicGroups = await this.prisma.group.findMany({
+    // Get groups where member is actually a member (via GroupMember table)
+    const memberGroups = await this.prisma.group.findMany({
       where: {
         isActive: true,
-        isPrivate: false,
-        id: {
-          notIn: assignedGroupIds
+        members: {
+          some: {
+            memberId: memberId
+          }
         }
       },
       include: {
         members: {
-          select: {
-            memberId: true
+          include: {
+            member: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatar: true
+              }
+            }
           }
         },
         _count: {
           select: {
-            members: true
+            members: true,
+            messages: true
           }
         }
+      },
+      orderBy: {
+        lastActivity: 'desc'
       }
     });
 
-    // Combine assigned and public groups
-    const availableGroups = [
-      ...assignedGroups.map(g => ({
-        ...g,
-        isAssigned: true,
-        isMember: g.members?.some((m: any) => m.memberId === memberId) || false,
-        memberCount: g._count?.members || g.members?.length || 0,
-        canJoin: !g.members?.some((m: any) => m.memberId === memberId) &&
-                 (g._count?.members || g.members?.length || 0) < g.maxMembers
-      })),
-      ...publicGroups.map(g => ({
-        ...g,
-        memberCount: g._count.members,
-        isAssigned: false,
-        isMember: g.members.some(m => m.memberId === memberId),
-        canJoin: !g.members.some(m => m.memberId === memberId) && g._count.members < g.maxMembers,
-        members: g.members.map(m => m.memberId) // Convert to array of memberIds for frontend
-      }))
-    ];
+    // Also get available public groups they can join (but aren't members of yet)
+    const joinableGroups = await this.prisma.group.findMany({
+      where: {
+        isActive: true,
+        isPrivate: false,
+        members: {
+          none: {
+            memberId: memberId
+          }
+        }
+      },
+      include: {
+        members: {
+          include: {
+            member: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatar: true
+              }
+            }
+          }
+        },
+        _count: {
+          select: {
+            members: true,
+            messages: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
 
-    return availableGroups;
+    // Format the response
+    const memberGroupsFormatted = memberGroups.map(group => ({
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      type: group.type,
+      maxMembers: group.maxMembers,
+      isPrivate: group.isPrivate,
+      isActive: group.isActive,
+      createdAt: group.createdAt,
+      lastActivity: group.lastActivity,
+      memberCount: group._count.members,
+      messageCount: group._count.messages,
+      isMember: true,
+      isAssigned: false, // We're not tracking assignments in this simplified version
+      canJoin: false, // Already a member
+      members: group.members.map(m => ({
+        id: m.member.id,
+        name: `${m.member.firstName} ${m.member.lastName}`,
+        avatar: m.member.avatar,
+        role: m.role,
+        joinedAt: m.joinedAt
+      }))
+    }));
+
+    const joinableGroupsFormatted = joinableGroups.map(group => ({
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      type: group.type,
+      maxMembers: group.maxMembers,
+      isPrivate: group.isPrivate,
+      isActive: group.isActive,
+      createdAt: group.createdAt,
+      lastActivity: group.lastActivity,
+      memberCount: group._count.members,
+      messageCount: group._count.messages,
+      isMember: false,
+      isAssigned: false,
+      canJoin: group._count.members < group.maxMembers,
+      members: group.members.map(m => ({
+        id: m.member.id,
+        name: `${m.member.firstName} ${m.member.lastName}`,
+        avatar: m.member.avatar,
+        role: m.role,
+        joinedAt: m.joinedAt
+      }))
+    }));
+
+    // Return member groups first, then joinable groups
+    return [...memberGroupsFormatted, ...joinableGroupsFormatted];
   }
 
   // Mood Entry Methods

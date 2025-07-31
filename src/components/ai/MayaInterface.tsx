@@ -841,28 +841,30 @@ export default function MayaInterface({ memberId, className, compact = false }: 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="flex-shrink-0 border-t border-b bg-gray-50 overflow-y-auto max-h-48"
+            className="flex-shrink-0 border-t border-b bg-gray-50"
           >
-            <div className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                {QUICK_ACTIONS.map(action => {
-                  const Icon = action.icon;
-                  return (
-                    <button
-                      key={action.id}
-                      onClick={() => handleQuickAction(action.id)}
-                      disabled={isLoading || !mayaAvailable}
-                      className={cn(
-                        'flex items-center gap-2 p-2.5 rounded-lg text-left transition-colors',
-                        'hover:bg-white hover:shadow-sm disabled:opacity-50',
-                        CATEGORY_COLORS[action.category as keyof typeof CATEGORY_COLORS]
-                      )}
-                    >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-xs font-medium">{action.label}</span>
-                    </button>
-                  );
-                })}
+            <div className="max-h-48 overflow-y-auto">
+              <div className="p-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {QUICK_ACTIONS.map(action => {
+                    const Icon = action.icon;
+                    return (
+                      <button
+                        key={action.id}
+                        onClick={() => handleQuickAction(action.id)}
+                        disabled={isLoading || !mayaAvailable}
+                        className={cn(
+                          'flex items-center gap-2 p-2.5 rounded-lg text-left transition-colors',
+                          'hover:bg-white hover:shadow-sm disabled:opacity-50',
+                          CATEGORY_COLORS[action.category as keyof typeof CATEGORY_COLORS]
+                        )}
+                      >
+                        <Icon className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-xs font-medium">{action.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </motion.div>
