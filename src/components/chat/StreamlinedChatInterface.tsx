@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Send, 
-  Bot, 
-  Heart, 
-  Settings, 
-  Clock, 
-  Brain, 
-  Zap, 
+import {
+  Send,
+  Bot,
+  Heart,
+  Clock,
+  Brain,
+  Zap,
   AlertCircle,
   Users,
-  Smile,
-  Plus
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,20 +17,20 @@ import ReactMarkdown from 'react-markdown';
 
 import { api } from '@/lib/api';
 import { wsService } from '@/lib/websocket';
-import { Message, User, Group } from '@/types';
+import { Message, Member, Group } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/utils/cn';
 
 interface StreamlinedChatProps {
   groupId: string;
-  currentUser: User;
+  currentMember: Member;
   group: Group;
   className?: string;
 }
 
 interface ChatMessage extends Message {
-  user?: User;
+  member?: Member;
   isLoading?: boolean;
   error?: string;
   aiContext?: {
@@ -45,7 +42,7 @@ interface ChatMessage extends Message {
 
 export default function StreamlinedChatInterface({
   groupId,
-  currentUser,
+  currentMember,
   group,
   className
 }: StreamlinedChatProps) {
@@ -65,11 +62,11 @@ export default function StreamlinedChatInterface({
       try {
         const msgs = await api.getMessages(groupId);
         if (!msgs || !Array.isArray(msgs)) return [];
-        
+
         return msgs.map(msg => ({
           ...msg,
-          user: currentUser.id === msg.userId ? currentUser : undefined,
-          timestamp: new Date(msg.timestamp || msg.createdAt || Date.now()),
+          member: currentMember.id === msg.memberId ? currentMember : undefined,
+          timestamp: new Date(msg.timestamp || Date.now()),
         }));
       } catch (error) {
         console.error('Failed to fetch messages:', error);
@@ -85,12 +82,12 @@ export default function StreamlinedChatInterface({
       const tempMessage: ChatMessage = {
         id: `temp-${Date.now()}`,
         groupId,
-        userId: currentUser.id,
+        memberId: currentMember.id,
         content,
         timestamp: new Date(),
-        type: 'user',
+        type: 'member',
         reactions: [],
-        user: currentUser,
+        member: currentMember,
         isLoading: true,
       };
 
@@ -105,11 +102,11 @@ export default function StreamlinedChatInterface({
         if (!currentSessionId) {
           setThinkingMessage('Initializing AI session...');
           setAiThinking(true);
-          
+
           // Generate a session ID
           currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           setSessionId(currentSessionId);
-          
+
           // Start the orchestration session
           try {
             await api.startOrchestrationSession('production', { groupId });
@@ -117,16 +114,16 @@ export default function StreamlinedChatInterface({
             console.warn('Failed to start orchestration session, continuing with generated ID:', sessionError);
           }
         }
-        
+
         // Show AI thinking indicator
         setThinkingMessage('Maya is analyzing your message...');
         setAiThinking(true);
-        
+
         // Send through orchestration for AI processing
         const orchestrationResponse = await api.sendOrchestrationMessage({
           content,
           sessionId: currentSessionId,
-          messageType: 'user'
+          messageType: 'member'
         });
 
         // Update thinking message based on agents used
@@ -144,21 +141,21 @@ export default function StreamlinedChatInterface({
           setThinkingMessage(`Processing with: ${agentNames}`);
         }
 
-        // Remove temp message and add both user and AI messages
+        // Remove temp message and add both member and AI messages
         queryClient.setQueryData<ChatMessage[]>(['messages', groupId], (old = []) => {
           const filtered = old.filter(msg => !msg.isLoading && !msg.id.startsWith('temp-'));
 
-          const userMessage: ChatMessage = {
+          const memberMessage: ChatMessage = {
             ...tempMessage,
             isLoading: false,
-            id: `user-${Date.now()}`
+            id: `member-${Date.now()}`
           };
 
           // Add AI response if we got one
           const aiMessage: ChatMessage = {
             id: `ai-${Date.now()}`,
             groupId,
-            userId: 'ai-facilitator',
+            memberId: 'ai-facilitator',
             content: orchestrationResponse.data.response,
             type: 'ai_facilitator',
             timestamp: new Date(),
@@ -170,7 +167,7 @@ export default function StreamlinedChatInterface({
             }
           };
 
-          return [...filtered, userMessage, aiMessage];
+          return [...filtered, memberMessage, aiMessage];
         });
 
         // Clear AI thinking state
@@ -183,12 +180,12 @@ export default function StreamlinedChatInterface({
         // Clear AI thinking state on error
         setAiThinking(false);
         setThinkingMessage('');
-        
+
         // Fallback to regular message if orchestration fails
         queryClient.setQueryData<ChatMessage[]>(['messages', groupId], (old = []) =>
           old.filter(msg => !msg.isLoading && !msg.id.startsWith('temp-'))
         );
-        
+
         // Try sending as regular message
         return await api.sendMessage({ groupId, content, type: 'text' });
       }
@@ -200,7 +197,7 @@ export default function StreamlinedChatInterface({
     },
     onError: (error: Error) => {
       toast.error(`Failed to send message: ${error.message}`);
-    },
+    }
   });
 
   // Initialize AI session on mount
@@ -245,13 +242,13 @@ export default function StreamlinedChatInterface({
           const isDuplicate = old.some(m => m.id === message.id);
           if (isDuplicate) return old;
 
-          const messageWithUser: ChatMessage = {
+          const messageWithMember: ChatMessage = {
             ...message,
-            user: currentUser.id === message.userId ? currentUser : undefined,
-            timestamp: new Date(message.timestamp || message.createdAt || Date.now()),
+            member: currentMember.id === message.memberId ? currentMember : undefined,
+            timestamp: new Date(message.timestamp || Date.now()),
           };
 
-          return [...old, messageWithUser];
+          return [...old, messageWithMember];
         });
       }
     };
@@ -264,7 +261,7 @@ export default function StreamlinedChatInterface({
       wsService.offNewMessage(handleNewMessage);
       wsService.leaveGroup(groupId);
     };
-  }, [groupId, currentUser, queryClient]);
+  }, [groupId, currentMember, queryClient]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -296,17 +293,17 @@ export default function StreamlinedChatInterface({
       'crisis': { name: 'Crisis Support', color: 'bg-red-100 text-red-700', icon: '🚨' },
       'sentiment': { name: 'Emotion Analyzer', color: 'bg-yellow-100 text-yellow-700', icon: '💭' },
       'ai-router': { name: 'AI Router', color: 'bg-indigo-100 text-indigo-700', icon: '🎯' }
-    };
-    
-    return agentInfo[agent] || { 
-      name: agent.charAt(0).toUpperCase() + agent.slice(1), 
-      color: 'bg-gray-100 text-gray-700', 
-      icon: '🤖' 
+    } as const;
+
+    return agentInfo[agent as keyof typeof agentInfo] || {
+      name: agent.charAt(0).toUpperCase() + agent.slice(1),
+      color: 'bg-gray-100 text-gray-700',
+      icon: '🤖'
     };
   };
 
   const renderMessage = (message: ChatMessage) => {
-    const isOwnMessage = message.userId === currentUser.id;
+    const isOwnMessage = message.memberId === currentMember.id;
     const isAI = message.type === 'ai_facilitator';
     const isSystem = message.type === 'system';
 
@@ -341,11 +338,11 @@ export default function StreamlinedChatInterface({
                 <Bot className="w-4 h-4 text-purple-600" />
               ) : (
                 <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">
-                  {message.user?.firstName?.[0] || 'U'}
+                  {message.member?.firstName?.[0] || 'M'}
                 </div>
               )}
               <span className="text-sm font-medium text-gray-900">
-                {isAI ? 'Maya (AI Facilitator)' : (message.user?.firstName || 'User')}
+                {isAI ? 'Maya (AI Facilitator)' : (message.member?.firstName || 'Member')}
               </span>
               <span className="text-xs text-gray-500">
                 {formatDistanceToNow(message.timestamp, { addSuffix: true })}
@@ -404,7 +401,7 @@ export default function StreamlinedChatInterface({
                     </div>
                   </div>
                 )}
-                
+
                 {/* Confidence */}
                 {message.aiContext.confidence && (
                   <div className="flex items-center gap-2 text-xs opacity-75">
@@ -442,7 +439,7 @@ export default function StreamlinedChatInterface({
         <div className="flex items-center gap-3">
           <div className="flex -space-x-2">
             <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-white text-sm font-medium">
-              {currentUser.firstName[0]}
+              {currentMember.firstName[0]}
             </div>
             {group.members.length > 1 && (
               <div className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white flex items-center justify-center text-gray-600 text-xs">
@@ -546,7 +543,7 @@ export default function StreamlinedChatInterface({
         ) : (
           <>
             {messages.map(renderMessage)}
-            
+
             {/* AI Thinking Indicator */}
             {aiThinking && (
               <motion.div
@@ -570,7 +567,7 @@ export default function StreamlinedChatInterface({
                         <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce delay-100" />
                         <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce delay-200" />
                       </div>
-                      
+
                       {/* Thinking message */}
                       <div className="flex-1">
                         <div className="font-medium text-purple-800">{thinkingMessage || 'Thinking...'}</div>
@@ -583,7 +580,7 @@ export default function StreamlinedChatInterface({
                 </div>
               </motion.div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </>
         )}
@@ -605,7 +602,7 @@ export default function StreamlinedChatInterface({
               disabled={sendMessageMutation.isPending || aiThinking}
             />
           </div>
-          
+
           <Button
             type="submit"
             disabled={!messageInput.trim() || sendMessageMutation.isPending || aiThinking}

@@ -50,9 +50,9 @@ sudo sh get-docker.sh
 sudo curl -L "https://github.com/docker/compose/releases/download/v2.23.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
-# Create application user
-sudo useradd -m -s /bin/bash peerbond
-sudo usermod -aG docker peerbond
+# Create application member
+sudo memberadd -m -s /bin/bash peerbond
+sudo membermod -aG docker peerbond
 ```
 
 ### 2. Application Deployment
@@ -161,14 +161,14 @@ sudo crontab -e
 server {
     listen 443 ssl http2;
     server_name api.yourdomain.com;
-    
+
     ssl_certificate /etc/nginx/ssl/cert.pem;
     ssl_certificate_key /etc/nginx/ssl/private.key;
-    
+
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
     ssl_prefer_server_ciphers off;
-    
+
     location / {
         proxy_pass http://peerbond-api:3001;
         proxy_set_header Host $host;
@@ -462,12 +462,12 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Timeouts
         proxy_connect_timeout 30s;
         proxy_send_timeout 30s;
         proxy_read_timeout 30s;
-        
+
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -499,7 +499,7 @@ services:
       POSTGRES_REPLICATION_MODE: master
       POSTGRES_REPLICATION_USER: replica
       POSTGRES_REPLICATION_PASSWORD: replica_password
-    
+
   postgres-replica:
     image: postgres:15-alpine
     environment:
@@ -651,9 +651,9 @@ sudo dpkg-reconfigure -plow unattended-upgrades
 # Use specific versions
 FROM node:18.19.0-alpine
 
-# Run as non-root user
+# Run as non-root member
 RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+RUN addmember -S nodejs -u 1001
 USER nodejs
 
 # Security scan

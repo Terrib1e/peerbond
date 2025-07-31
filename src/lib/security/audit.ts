@@ -48,7 +48,7 @@ export class AuditService {
   }
 
   async logToolExecution(
-    userId: string,
+    memberId: string,
     agentId: string,
     toolName: string,
     args: any,
@@ -56,7 +56,7 @@ export class AuditService {
     duration: number
   ): Promise<void> {
     await this.log({
-      userId,
+      memberId,
       agentId,
       action: `tool:${toolName}`,
       resource: 'tool',
@@ -70,14 +70,14 @@ export class AuditService {
   }
 
   async logAuthorizationAttempt(
-    userId: string,
+    memberId: string,
     resource: string,
     action: string,
     granted: boolean,
     reason?: string
   ): Promise<void> {
     await this.log({
-      userId,
+      memberId,
       agentId: 'system',
       action: `auth:${action}`,
       resource,
@@ -89,13 +89,13 @@ export class AuditService {
   }
 
   async logDataAccess(
-    userId: string,
+    memberId: string,
     dataType: string,
     recordId: string,
     operation: 'read' | 'write' | 'delete'
   ): Promise<void> {
     await this.log({
-      userId,
+      memberId,
       agentId: 'system',
       action: `data:${operation}`,
       resource: `${dataType}:${recordId}`,
@@ -144,7 +144,7 @@ export class AuditService {
       period: { start: startDate, end: endDate },
       summary: {
         totalEvents: logs.length,
-        uniqueUsers: new Set(logs.map(l => l.userId)).size,
+        uniqueUsers: new Set(logs.map(l => l.memberId)).size,
         failedAttempts: logs.filter(l => l.result === 'failure').length,
         dataAccesses: logs.filter(l => l.action.startsWith('data:')).length
       },
@@ -177,7 +177,7 @@ export class AuditService {
 
   private async encryptMetadata(metadata: Record<string, any>): Promise<Record<string, any>> {
     const encrypted: Record<string, any> = {};
-    
+
     for (const [key, value] of Object.entries(metadata)) {
       if (this.isSensitiveField(key)) {
         encrypted[key] = await encryptionService.encryptField(value);
@@ -185,13 +185,13 @@ export class AuditService {
         encrypted[key] = value;
       }
     }
-    
+
     return encrypted;
   }
 
   private async decryptMetadata(metadata: Record<string, any>): Promise<Record<string, any>> {
     const decrypted: Record<string, any> = {};
-    
+
     for (const [key, value] of Object.entries(metadata)) {
       if (this.isSensitiveField(key) && typeof value === 'string' && value.includes('.')) {
         try {
@@ -203,7 +203,7 @@ export class AuditService {
         decrypted[key] = value;
       }
     }
-    
+
     return decrypted;
   }
 
@@ -215,24 +215,24 @@ export class AuditService {
   private sanitizeArgs(args: any): any {
     // Remove or mask sensitive information from logged arguments
     const sanitized = { ...args };
-    
+
     if (sanitized.password) sanitized.password = '[REDACTED]';
     if (sanitized.ssn) sanitized.ssn = '[REDACTED]';
     if (sanitized.creditCard) sanitized.creditCard = '[REDACTED]';
-    
+
     return sanitized;
   }
 
   private detectViolations(logs: AuditLog[], framework: string): any[] {
     const violations = [];
-    
+
     // Example HIPAA violation detection
     if (framework === 'HIPAA') {
       // Check for unauthorized PHI access
-      const phiAccesses = logs.filter(l => 
+      const phiAccesses = logs.filter(l =>
         l.resource.includes('phi') && l.result === 'failure'
       );
-      
+
       if (phiAccesses.length > 0) {
         violations.push({
           type: 'Unauthorized PHI Access Attempts',
@@ -241,20 +241,20 @@ export class AuditService {
         });
       }
     }
-    
+
     return violations;
   }
 
   private generateRecommendations(logs: AuditLog[], _framework: string): string[] {
     const recommendations = [];
-    
+
     // Analyze patterns and generate recommendations
     const failureRate = logs.filter(l => l.result === 'failure').length / logs.length;
-    
+
     if (failureRate > 0.1) {
-      recommendations.push('High failure rate detected. Review access controls and user training.');
+      recommendations.push('High failure rate detected. Review access controls and member training.');
     }
-    
+
     return recommendations;
   }
 

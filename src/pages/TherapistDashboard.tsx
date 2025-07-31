@@ -121,12 +121,12 @@ function TherapistDashboard() {
   const isLoading = statsLoading || clientsLoading || groupsLoading || alertsLoading;
 
   const navigationItems = [
-    { key: 'overview', label: 'Overview', icon: Activity, onClick: () => setActiveTab('overview') },
-    { key: 'clients', label: 'Clients', icon: Users, onClick: () => setActiveTab('clients') },
-    { key: 'groups', label: 'Groups', icon: Users, onClick: () => setActiveTab('groups') },
-    { key: 'sessions', label: 'Sessions', icon: Calendar, onClick: () => setActiveTab('sessions') },
-    { key: 'progress', label: 'Progress', icon: Target, onClick: () => setActiveTab('progress') },
-    { key: 'crisis', label: 'Crisis Monitoring', icon: Shield, onClick: () => setActiveTab('crisis') },
+    { key: 'overview', label: 'Overview', icon: Activity as any, onClick: () => setActiveTab('overview') },
+    { key: 'clients', label: 'Clients', icon: Users as any, onClick: () => setActiveTab('clients') },
+    { key: 'groups', label: 'Groups', icon: Users as any, onClick: () => setActiveTab('groups') },
+    { key: 'sessions', label: 'Sessions', icon: Calendar as any, onClick: () => setActiveTab('sessions') },
+    { key: 'progress', label: 'Progress', icon: Target as any, onClick: () => setActiveTab('progress') },
+    { key: 'crisis', label: 'Crisis Monitoring', icon: Shield as any, onClick: () => setActiveTab('crisis') },
   ];
 
   return (
@@ -134,7 +134,7 @@ function TherapistDashboard() {
       portalType="therapist"
       title="Therapist Portal"
       subtitle="Manage your clients and therapeutic groups"
-      navigationItems={navigationItems}
+      navigationItems={navigationItems as any}
     >
 
       {activeTab === 'overview' && (
@@ -174,9 +174,9 @@ function TherapistDashboard() {
             {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Maya Clinical Assistant Card */}
-              <MayaAccessCard 
-                userRole="therapist" 
-                variant="full" 
+              <MayaAccessCard
+                memberRole="therapist"
+                variant="full"
                 className="md:col-span-1"
               />
               <Card>
@@ -261,7 +261,7 @@ function TherapistDashboard() {
                 Create New Group
               </Button>
             </div>
-            
+
             {isLoading ? (
               <p className="text-gray-500">Loading groups...</p>
             ) : recentGroups.length > 0 ? (
@@ -309,14 +309,14 @@ function TherapistDashboard() {
                           <div className="flex flex-wrap gap-2">
                             {group.members.slice(0, 5).map((member: any) => (
                               <span
-                                key={member.userId}
+                                key={member.memberId}
                                 className={`px-2 py-1 rounded-full text-xs ${
-                                  member.role === 'facilitator' 
-                                    ? 'bg-blue-100 text-blue-800' 
+                                  member.role === 'facilitator'
+                                    ? 'bg-blue-100 text-blue-800'
                                     : 'bg-gray-100 text-gray-800'
                                 }`}
                               >
-                                {member.user?.firstName} {member.user?.lastName} ({member.role})
+                                {member.member?.firstName} {member.member?.lastName} ({member.role})
                               </span>
                             ))}
                             {group.members.length > 5 && (

@@ -5,8 +5,7 @@ import MayaQuickAccess from './ui/MayaQuickAccess';
 import { getPortalTheme } from '@/lib/design-system';
 
 function Layout() {
-  const { user } = useAuthStore();
-  const theme = getPortalTheme('member');
+  const { member } = useAuthStore();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -14,11 +13,11 @@ function Layout() {
       <main className="pb-16">
         <Outlet />
       </main>
-      
+
       {/* Maya Quick Access - only show if not on Maya page */}
-      {user && window.location.pathname !== '/app/maya' && window.location.pathname !== '/maya' && (
-        <MayaQuickAccess 
-          user={user}
+      {member && window.location.pathname !== '/app/maya' && window.location.pathname !== '/maya' && (
+        <MayaQuickAccess
+          member={member}
           position="bottom-right"
           showLabel={false}
         />

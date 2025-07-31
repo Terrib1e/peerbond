@@ -25,20 +25,20 @@ router.post('/ai-response/:groupId', async (req, res) => {
 
     logger.info(`📋 Group found: ${group.name}, type: ${group.type}`);
 
-    // Get recent messages and users
+    // Get recent messages and members
     const recentMessages = await dbService.getRecentMessages(groupId, 10);
     const activeUsers = await dbService.getGroupMembers(groupId);
 
-    logger.info(`📨 Found ${recentMessages.length} recent messages, ${activeUsers.length} active users`);
+    logger.info(`📨 Found ${recentMessages.length} recent messages, ${activeUsers.length} active members`);
 
     // Create a test message
     const testMessage = {
       id: 'test-' + Date.now(),
       groupId,
-      userId: 'test-user',
-      authorId: 'test-user', // Add required authorId property
+      memberId: 'test-member',
+      authorId: 'test-member', // Add required authorId property
       content,
-      type: 'user' as const,
+      type: 'member' as const,
       timestamp: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -65,7 +65,7 @@ router.post('/ai-response/:groupId', async (req, res) => {
     // Create AI message in database
     const aiMessage = await dbService.createMessage({
       groupId,
-      userId: 'ai-facilitator',
+      memberId: 'ai-facilitator',
       content: aiResponse.message,
       type: 'ai_facilitator'
     });

@@ -5,8 +5,8 @@
  * This replaces the analysis-only response with actual execution
  */
 
-import { 
-  initializePeerBond, 
+import {
+  initializePeerBond,
   createDevConfig,
   AgentRegistry,
   ToolRegistry
@@ -27,7 +27,7 @@ async function demonstrateRouterFix() {
   // Test the router with the exact query that was causing issues
   const testMessage = "what groups are available to me?";
   const context = {
-    userId: 'user_demo',
+    memberId: 'member_demo',
     sessionId: 'session_demo',
     agentId: 'router'
   };
@@ -46,7 +46,7 @@ async function demonstrateRouterFix() {
     // Step 2: Show the new router that actually executes
     console.log('✅ NEW BEHAVIOR (Actual execution):');
     const execution = await agentRouter.routeAndExecute(testMessage, context);
-    
+
     console.log(`   Success: ${execution.success}`);
     console.log(`   Agent Used: ${execution.agentUsed}`);
     console.log(`   Tools Executed: ${execution.toolsExecuted.join(', ')}`);
@@ -60,7 +60,7 @@ async function demonstrateRouterFix() {
 
   // Test a few more scenarios
   console.log('\n\n🧪 Testing Additional Scenarios:');
-  
+
   const testCases = [
     {
       message: "I'm looking for an anxiety support group",
@@ -79,13 +79,13 @@ async function demonstrateRouterFix() {
   for (const testCase of testCases) {
     console.log(`\n🔍 Testing: "${testCase.message}"`);
     console.log(`   Expected: ${testCase.expected}`);
-    
+
     try {
       const result = await agentRouter.routeAndExecute(testCase.message, {
         ...context,
         sessionId: `session_${Date.now()}`
       });
-      
+
       console.log(`   ✅ Agent: ${result.agentUsed}, Tools: ${result.toolsExecuted.join(', ')}`);
       console.log(`   📄 Response: ${result.response.substring(0, 100)}...`);
     } catch (error) {
@@ -96,11 +96,11 @@ async function demonstrateRouterFix() {
   console.log('\n🎉 Router fix demonstration completed!');
   console.log('\n💡 Key Changes Made:');
   console.log('1. Created AgentRouter class that executes actions, not just analysis');
-  console.log('2. Added listAllGroups tool for comprehensive group listing');  
+  console.log('2. Added listAllGroups tool for comprehensive group listing');
   console.log('3. Implemented proper tool argument generation');
-  console.log('4. Created tool result formatting for better user experience');
+  console.log('4. Created tool result formatting for better member experience');
   console.log('5. Added proper error handling and fallbacks');
-  
+
   console.log('\n🔧 How to integrate into your existing system:');
   console.log('1. Replace the aiRouterAgent method calls with agentRouter.routeAndExecute()');
   console.log('2. Update your agent handlers to use the new router');

@@ -32,12 +32,12 @@ export class AgentRegistry {
     this.instances.clear();
   }
 
-  static async createSession(agentId: string, userId: string, context?: Record<string, any>): Promise<AgentSession | null> {
+  static async createSession(agentId: string, memberId: string, context?: Record<string, any>): Promise<AgentSession | null> {
     const instance = this.getInstance(agentId);
     if (!instance || typeof instance.createSession !== 'function') {
       return null;
     }
-    return instance.createSession(userId, context);
+    return instance.createSession(memberId, context);
   }
 
   static async processMessage(

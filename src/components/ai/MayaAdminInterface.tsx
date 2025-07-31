@@ -5,43 +5,32 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Settings, 
-  Send, 
-  Bot, 
-  BarChart3, 
-  Shield, 
-  Database, 
-  Users, 
-  Activity, 
-  AlertTriangle, 
+import {
+  Settings,
+  Send,
+  BarChart3,
+  Shield,
+  Users,
+  AlertTriangle,
   FileText,
   Monitor,
   Brain,
-  Zap,
   Clock,
   ChevronDown,
-  TrendingUp,
-  Eye,
   Cpu,
-  HardDrive,
-  Network,
   Key,
   UserCog,
   Layers,
-  Command,
   Terminal,
-  Search,
   Filter
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 
-import { agentService, AgentCallResponse } from '@/services/agentService';
+import { agentService } from '@/services/agentService';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
 import { cn } from '@/utils/cn';
 
 interface AdminMessage {
@@ -60,7 +49,7 @@ interface AdminMessage {
 interface SystemMetrics {
   agentPerformance: AgentMetric[];
   systemHealth: HealthMetric[];
-  userEngagement: EngagementMetric[];
+  memberEngagement: EngagementMetric[];
   alertsSummary: AlertSummary;
 }
 
@@ -121,10 +110,10 @@ const ADMIN_TOOLS = [
     requiresElevation: false
   },
   {
-    id: 'user-engagement',
+    id: 'member-engagement',
     label: 'User Engagement',
     icon: Users,
-    prompt: "Provide detailed analytics on user engagement across the platform including session patterns, satisfaction metrics, and user journey insights.",
+    prompt: "Provide detailed analytics on member engagement across the platform including session patterns, satisfaction metrics, and member journey insights.",
     category: 'analytics',
     requiresElevation: false
   },
@@ -204,8 +193,8 @@ const ALERT_LEVEL_COLORS = {
   'critical': 'bg-red-100 text-red-800'
 };
 
-export default function MayaAdminInterface({ 
-  adminId, 
+export default function MayaAdminInterface({
+  adminId,
   className,
   systemScope = 'platform'
 }: MayaAdminInterfaceProps) {
@@ -232,7 +221,7 @@ export default function MayaAdminInterface({
   const initializeAdminSession = async () => {
     const newSessionId = `admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setSessionId(newSessionId);
-    
+
     const scopeDescription = {
       'platform': 'comprehensive platform oversight and management',
       'agents': 'AI agent performance and optimization',
@@ -269,7 +258,7 @@ export default function MayaAdminInterface({
         { component: 'AI Models', status: 'warning', value: 87.2, threshold: 90.0, unit: '% accuracy' },
         { component: 'Storage', status: 'healthy', value: 68.5, threshold: 85.0, unit: '% utilized' }
       ],
-      userEngagement: [
+      memberEngagement: [
         { period: 'Last 24h', totalSessions: 1247, activeUsers: 892, avgSessionDuration: 18.5, satisfactionScore: 4.3 },
         { period: 'Last 7d', totalSessions: 8934, activeUsers: 3421, avgSessionDuration: 16.8, satisfactionScore: 4.2 },
         { period: 'Last 30d', totalSessions: 34567, activeUsers: 12890, avgSessionDuration: 15.2, satisfactionScore: 4.1 }
@@ -326,14 +315,14 @@ export default function MayaAdminInterface({
         agentService.callAgent('facilitator', contextualContent, sessionId),
         agentService.callAgent('insight', contextualContent, sessionId).catch(() => null)
       ]);
-      
+
       // Simulate system metrics updates for certain tool calls
       let updatedMetrics = systemMetrics;
       if (isToolCall && (content.includes('health') || content.includes('performance'))) {
         await loadSystemMetrics();
         updatedMetrics = systemMetrics;
       }
-      
+
       // Remove loading message and add Maya's response
       setMessages(prev => {
         const filtered = prev.filter(msg => !msg.isLoading);
@@ -347,7 +336,7 @@ export default function MayaAdminInterface({
             ...(insightResponse ? (Array.isArray(insightResponse.agentUsed) ? insightResponse.agentUsed : [insightResponse.agentUsed]) : [])
           ],
           confidence: Math.max(primaryResponse.confidence, insightResponse?.confidence || 0),
-          systemMetrics: updatedMetrics,
+          systemMetrics: updatedMetrics || undefined,
           alertLevel: determineAlertLevel(primaryResponse.response, updatedMetrics),
           requiresAction: requiresElevation
         };
@@ -364,7 +353,7 @@ export default function MayaAdminInterface({
 
     } catch (error) {
       console.error('Maya admin consultation error:', error);
-      
+
       setMessages(prev => {
         const filtered = prev.filter(msg => !msg.isLoading);
         const errorMessage: AdminMessage = {
@@ -409,7 +398,7 @@ export default function MayaAdminInterface({
       // Add system metrics summary for tool calls
       const criticalComponents = metrics.systemHealth.filter(h => h.status === 'critical');
       const warningComponents = metrics.systemHealth.filter(h => h.status === 'warning');
-      
+
       if (criticalComponents.length > 0) {
         enhancedResponse += '\n\n**🚨 CRITICAL SYSTEM ALERTS:**\n';
         criticalComponents.forEach(comp => {
@@ -439,7 +428,7 @@ export default function MayaAdminInterface({
 
   const determineAlertLevel = (response: string, metrics: SystemMetrics | null): 'info' | 'warning' | 'error' | 'critical' => {
     const content = response.toLowerCase();
-    
+
     if (content.includes('critical') || content.includes('emergency') || (metrics && metrics.alertsSummary.critical > 0)) {
       return 'critical';
     }
@@ -452,8 +441,8 @@ export default function MayaAdminInterface({
     return 'info';
   };
 
-  const filteredTools = filterCategory === 'all' 
-    ? ADMIN_TOOLS 
+  const filteredTools = filterCategory === 'all'
+    ? ADMIN_TOOLS
     : ADMIN_TOOLS.filter(tool => tool.category === filterCategory);
 
   const renderMessage = (message: AdminMessage) => {
@@ -488,7 +477,7 @@ export default function MayaAdminInterface({
 
         <div className={cn(
           'max-w-[90%] rounded-lg px-4 py-3',
-          isAdmin 
+          isAdmin
             ? 'bg-blue-500 text-white'
             : isSystem
             ? 'bg-gray-50 text-gray-800 border border-gray-200'
@@ -536,7 +525,7 @@ export default function MayaAdminInterface({
                 </span>
               )}
             </div>
-            
+
             <div className="flex items-center gap-2">
               {message.alertLevel && (
                 <span className={cn(
@@ -570,7 +559,7 @@ export default function MayaAdminInterface({
                 <div className="bg-white p-2 rounded">
                   <div className="font-medium">Active Alerts</div>
                   <div className={cn(
-                    message.systemMetrics.alertsSummary.critical > 0 ? 'text-red-600' : 
+                    message.systemMetrics.alertsSummary.critical > 0 ? 'text-red-600' :
                     message.systemMetrics.alertsSummary.warnings > 0 ? 'text-yellow-600' : 'text-green-600'
                   )}>
                     {message.systemMetrics.alertsSummary.total} total
@@ -626,7 +615,7 @@ export default function MayaAdminInterface({
             <Key className="w-4 h-4 mr-2" />
             {elevatedAccess ? 'Elevated' : 'Standard'}
           </Button>
-          
+
           <Button
             variant="ghost"
             size="sm"
@@ -657,6 +646,7 @@ export default function MayaAdminInterface({
               <div className="flex items-center gap-2 mb-3">
                 <Filter className="w-4 h-4 text-gray-600" />
                 <select
+                  title="Filter Tools"
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
                   className="text-sm border border-gray-200 rounded px-2 py-1"
@@ -672,12 +662,12 @@ export default function MayaAdminInterface({
                   <option value="administration">Administration</option>
                 </select>
               </div>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                 {filteredTools.map(tool => {
                   const Icon = tool.icon;
                   const isDisabled = tool.requiresElevation && !elevatedAccess;
-                  
+
                   return (
                     <button
                       key={tool.id}
@@ -686,7 +676,7 @@ export default function MayaAdminInterface({
                       className={cn(
                         'flex flex-col items-center gap-2 p-3 rounded-lg text-center transition-colors',
                         'hover:bg-white hover:shadow-sm disabled:opacity-50',
-                        isDisabled ? 'bg-gray-100 text-gray-400' : CATEGORY_COLORS[tool.category]
+                        isDisabled ? 'bg-gray-100 text-gray-400' : CATEGORY_COLORS[tool.category as keyof typeof CATEGORY_COLORS]
                       )}
                       title={isDisabled ? 'Requires elevated admin access' : tool.label}
                     >
@@ -699,7 +689,7 @@ export default function MayaAdminInterface({
                   );
                 })}
               </div>
-              
+
               {!elevatedAccess && (
                 <div className="mt-3 p-2 bg-orange-50 rounded text-sm text-orange-700">
                   <strong>Notice:</strong> Some advanced tools require elevated admin privileges. Click "Elevated" to enable.
@@ -750,7 +740,7 @@ export default function MayaAdminInterface({
             )}
           </Button>
         </form>
-        
+
         <div className="mt-2 text-xs text-gray-500 text-center">
           Administrative AI assistant • All operations logged • {elevatedAccess ? 'Elevated privileges active' : 'Standard access mode'}
         </div>

@@ -4,13 +4,13 @@ exports.ListAllGroupsTool = void 0;
 const zod_1 = require("zod");
 const base_1 = require("../base");
 const ListAllGroupsSchema = zod_1.z.object({
-    userId: zod_1.z.string().describe('The user requesting to list all groups'),
+    memberId: zod_1.z.string().describe('The member requesting to list all groups'),
     limit: zod_1.z.number().optional().describe('Maximum number of groups to return'),
     includeInactive: zod_1.z.boolean().optional().describe('Include inactive groups in the results')
 });
 class ListAllGroupsTool extends base_1.BaseTool {
     name = 'listAllGroups';
-    description = 'Lists all available peer support groups that a user can join';
+    description = 'Lists all available peer support groups that a member can join';
     schema = ListAllGroupsSchema;
     permissions = ['group:read'];
     rateLimit = { requests: 20, window: 3600 }; // 20 requests per hour
@@ -127,7 +127,7 @@ class ListAllGroupsTool extends base_1.BaseTool {
             }
             return a.name.localeCompare(b.name);
         });
-        console.log(`Listed ${filteredGroups.length} groups for user ${args.userId}`);
+        console.log(`Listed ${filteredGroups.length} groups for member ${args.memberId}`);
         return filteredGroups;
     }
     async validate(args, _context) {

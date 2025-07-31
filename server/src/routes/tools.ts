@@ -16,16 +16,16 @@ const toolExecutor = new ToolExecutor();
  * GET /api/tools/available/:agent
  * Get available tools for a specific agent
  */
-router.get('/available/:agent', 
+router.get('/available/:agent',
   authenticateToken,
   validateRequest([
-    param('agent').isIn(['ai-router', 'facilitator', 'sentiment', 'crisis', 'matching', 'insight'])
+    param('agent').isIn(['ai-router', 'facilitator', 'sentiment', 'crisis', 'matching', 'insight', 'chat', 'tracker', 'action-items', 'analytics', 'voice', 'orchestration', 'personalization', 'safety', 'knowledge', 'context'])
   ]),
   async (req, res) => {
     try {
       const { agent } = req.params;
       const tools = toolExecutor.getAvailableTools(agent as any);
-      
+
       res.json({
         success: true,
         data: {
@@ -62,7 +62,7 @@ router.get('/audit/:sessionId',
     try {
       const { sessionId } = req.params;
       const auditLogs = await toolExecutor.getAuditLogs(sessionId);
-      
+
       res.json({
         success: true,
         data: {
@@ -93,17 +93,17 @@ router.post('/test',
   authenticateToken,
   validateRequest([
     body('toolName').notEmpty(),
-    body('agent').isIn(['ai-router', 'facilitator', 'sentiment', 'crisis', 'matching', 'insight']),
+    body('agent').isIn(['ai-router', 'facilitator', 'sentiment', 'crisis', 'matching', 'insight', 'chat', 'tracker', 'action-items', 'analytics', 'voice', 'orchestration', 'personalization', 'safety', 'knowledge', 'context']),
     body('parameters').isObject(),
     body('sessionId').optional().matches(/^session_\d+_[a-f0-9\-]{36}$/)
   ]),
   async (req, res) => {
     try {
       const { toolName, agent, parameters, sessionId } = req.body;
-      const userId = req.user.id;
-      
+      const memberId = req.member.id;
+
       const context = {
-        userId,
+        memberId,
         sessionId: sessionId || `session_${Date.now()}_test-session`,
         groupId: 'test-group',
         messageId: `test-${Date.now()}`,

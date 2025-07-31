@@ -4,7 +4,7 @@ import { ToolContext } from '../types';
 
 const EscalateCrisisSchema = z.object({
   severity: z.enum(['moderate', 'high', 'critical']).describe('Severity level of the crisis'),
-  userId: z.string().describe('ID of the user in crisis'),
+  memberId: z.string().describe('ID of the member in crisis'),
   indicators: z.array(z.string()).describe('Specific indicators that triggered the escalation'),
   immediateRisk: z.boolean().describe('Whether there is immediate risk of harm'),
   context: z.string().max(1000).describe('Additional context about the situation'),
@@ -34,12 +34,12 @@ export class EscalateCrisisTool extends BaseTool<EscalateCrisisArgs, CrisisEscal
   // No rate limit for crisis situations
 
   protected async run(args: EscalateCrisisArgs, context: ToolContext): Promise<CrisisEscalationResult> {
-    const escalationId = `crisis_${Date.now()}_${args.userId}`;
-    
+    const escalationId = `crisis_${Date.now()}_${args.memberId}`;
+
     // In a real implementation, this would:
     // 1. Page on-call therapist via multiple channels
     // 2. Create priority ticket in crisis management system
-    // 3. Lock user's account to crisis mode
+    // 3. Lock member's account to crisis mode
     // 4. Notify emergency contacts if configured
     // 5. Start recording all interactions for review
 
@@ -49,7 +49,7 @@ export class EscalateCrisisTool extends BaseTool<EscalateCrisisArgs, CrisisEscal
     const responseTime = this.estimateResponseTime(args.severity);
 
     // Log crisis escalation with full audit trail
-    console.log(`CRISIS ESCALATION for user ${args.userId}:`, {
+    console.log(`CRISIS ESCALATION for member ${args.memberId}:`, {
       escalationId,
       severity: args.severity,
       immediateRisk: args.immediateRisk,
@@ -83,7 +83,7 @@ export class EscalateCrisisTool extends BaseTool<EscalateCrisisArgs, CrisisEscal
       high: 'therapist_senior_002',
       moderate: 'therapist_oncall_003'
     };
-    
+
     return therapistPool[severity as keyof typeof therapistPool];
   }
 
@@ -121,7 +121,7 @@ export class EscalateCrisisTool extends BaseTool<EscalateCrisisArgs, CrisisEscal
       high: 15,       // 15 minutes
       moderate: 30    // 30 minutes
     };
-    
+
     return responseMap[severity as keyof typeof responseMap] || 30;
   }
 
@@ -135,7 +135,7 @@ export class EscalateCrisisTool extends BaseTool<EscalateCrisisArgs, CrisisEscal
     // - Push notification
     // - Email with full context
     // - Slack/Teams alert to crisis channel
-    
+
     console.log(`Notifications sent to ${therapistId} for crisis ${args.severity}`);
     return true;
   }

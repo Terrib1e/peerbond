@@ -5,18 +5,18 @@ const prisma = new PrismaClient();
 
 async function createTestUser() {
   try {
-    console.log('🔧 Setting up test user for orchestration testing...');
+    console.log('🔧 Setting up test member for orchestration testing...');
 
     const testEmail = 'test@orchestration.dev';
     const testPassword = 'TestPass123!';
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    // Check if member already exists
+    const existingUser = await prisma.member.findUnique({
       where: { email: testEmail }
     });
 
     if (existingUser) {
-      console.log('✅ Test user already exists');
+      console.log('✅ Test member already exists');
       console.log('📧 Email:', testEmail);
       console.log('🔑 Password:', testPassword);
       console.log('🆔 User ID:', existingUser.id);
@@ -26,10 +26,10 @@ async function createTestUser() {
     // Hash password
     const hashedPassword = await bcrypt.hash(testPassword, 12);
 
-    // Create user
-    const newUser = await prisma.user.create({
+    // Create member
+    const newUser = await prisma.member.create({
       data: {
-        id: 'test-orchestration-user',
+        id: 'test-orchestration-member',
         firstName: 'Test',
         lastName: 'User',
         email: testEmail,
@@ -43,14 +43,14 @@ async function createTestUser() {
       }
     });
 
-    console.log('✅ Test user created successfully!');
+    console.log('✅ Test member created successfully!');
     console.log('📧 Email:', testEmail);
     console.log('🔑 Password:', testPassword);
     console.log('🆔 User ID:', newUser.id);
     console.log('\n🚀 You can now login with these credentials to test orchestration');
 
   } catch (error) {
-    console.error('❌ Error creating test user:', error);
+    console.error('❌ Error creating test member:', error);
   } finally {
     await prisma.$disconnect();
   }

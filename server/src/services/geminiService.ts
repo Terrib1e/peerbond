@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../utils/logger';
-import { Message, Group, User } from '../types';
+import { Message, Group, Member } from '../types';
 
 export interface GeminiFacilitatorResponse {
   message: string;
@@ -36,20 +36,20 @@ export class GeminiService {
   }
 
   async generateFacilitatorResponse(
-    userMessage: Message,
+    memberMessage: Message,
     recentMessages: Message[],
     group: Group,
-    activeUsers: any[]
+    activeMembers: any[]
   ): Promise<any> {
     try {
       // Check if AI service is available
       if (!this.genAI || !this.model) {
         console.log('Gemini AI service not available, using fallback response');
-        return this.getFallbackResponse(userMessage.content);
+        return this.getFallbackResponse(memberMessage.content);
       }
 
       const contextMessages = recentMessages.slice(-5).map(msg =>
-        `${msg.userId === 'ai-facilitator' ? 'Maya (AI Facilitator)' : 'User'}: ${msg.content}`
+        `${msg.memberId === 'ai-facilitator' ? 'Maya (AI Facilitator)' : 'User'}: ${msg.content}`
       ).join('\n');
 
       const prompt = `You are Maya, an AI therapeutic facilitator for a ${group.type} support group called "${group.name}".
@@ -62,11 +62,11 @@ YOUR ROLE AS A THERAPEUTIC TOOL:
 - Quality over quantity - every word should serve a therapeutic purpose
 
 CURRENT SITUATION:
-- Group has ${activeUsers.length} active members
+- Group has ${activeMembers.length} active members
 - Recent conversation context:
 ${contextMessages}
 
-- Latest message from user: "${userMessage.content}"
+- Latest message from member: "${memberMessage.content}"
 
 RESPONSE CRITERIA (you should ONLY respond if the message involves):
 1. **Crisis/Distress** - Someone needs immediate support or intervention
@@ -129,19 +129,19 @@ Response:`;
   }
 
   private buildFacilitatorPrompt(
-    userMessage: Message,
+    memberMessage: Message,
     recentMessages: Message[],
     group: Group,
-    activeUsers: User[]
+    activeMembers: Member[]
   ): string {
     const conversationContext = recentMessages
       .slice(-5)
       .map(msg => `${msg.type === 'ai_facilitator' ? 'AI Facilitator' : 'Member'}: ${msg.content}`)
       .join('\n');
 
-    const currentMessage = `Member: ${userMessage.content}`;
+    const currentMessage = `Member: ${memberMessage.content}`;
 
-    return `You are Maya, an AI facilitator for PeerBond, a mental health and recovery support platform. You're facilitating a ${group.type} support group with ${activeUsers.length} members.
+    return `You are Maya, an AI facilitator for PeerBond, a mental health and recovery support platform. You're facilitating a ${group.type} support group with ${activeMembers.length} members.
 
 CRITICAL GUIDELINES:
 - Be warm, empathetic, and supportive
@@ -155,7 +155,7 @@ CRITICAL GUIDELINES:
 
 GROUP CONTEXT:
 - Type: ${group.type} support group
-- Active members: ${activeUsers.length}
+- Active members: ${activeMembers.length}
 - Group description: ${group.description}
 
 RECENT CONVERSATION:
@@ -218,7 +218,7 @@ Your response:`;
     };
   }
 
-  private calculateConfidence(userMessage: Message, response: string): number {
+  private calculateConfidence(memberMessage: Message, response: string): number {
     let confidence = 0.7; // Base confidence
 
     // Increase confidence for crisis responses
@@ -233,7 +233,7 @@ Your response:`;
     ];
 
     const hasCrisisContent = crisisIndicators.some(indicator =>
-      userMessage.content.toLowerCase().includes(indicator)
+      memberMessage.content.toLowerCase().includes(indicator)
     );
 
     if (hasCrisisContent && hasCrisisResponse) {

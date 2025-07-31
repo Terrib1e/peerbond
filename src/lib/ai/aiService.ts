@@ -121,16 +121,16 @@ export class AIService {
       content: agent.systemPrompt
     };
 
-    const userMessages = messages
-      .filter(msg => msg.type === 'user')
+    const memberMessages = messages
+      .filter(msg => msg.type === 'member')
       .slice(-10) // Keep last 10 messages for context
       .map(msg => ({
-        role: 'user',
+        role: 'member',
         content: msg.content,
-        name: msg.userId.replace(/[^a-zA-Z0-9_]/g, '_') // Clean user ID for OpenAI
+        name: msg.memberId.replace(/[^a-zA-Z0-9_]/g, '_') // Clean member ID for OpenAI
       }));
 
-    return [systemMessage, ...userMessages];
+    return [systemMessage, ...memberMessages];
   }
 
   private formatToolsForOpenAI(tools: AITool[]): any[] {
@@ -225,7 +225,7 @@ export class AIService {
   private async handleCrisisIntervention(result: any, context: AIContext): Promise<void> {
     // Log crisis intervention for admin review
     console.warn('CRISIS INTERVENTION TRIGGERED:', {
-      userId: context.user.id,
+      memberId: context.member.id,
       riskLevel: result.riskLevel,
       timestamp: new Date(),
       context: 'AI_DETECTION'
@@ -233,9 +233,9 @@ export class AIService {
 
     // In a real system, this would:
     // 1. Alert human moderators immediately
-    // 2. Send crisis resources to the user
+    // 2. Send crisis resources to the member
     // 3. Potentially contact emergency services if configured
-    // 4. Create a safety plan with the user
+    // 4. Create a safety plan with the member
   }
 
   // Mock responses when OpenAI is not available

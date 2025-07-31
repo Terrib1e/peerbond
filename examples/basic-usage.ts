@@ -2,7 +2,7 @@
 
 /**
  * Basic usage example for PeerBond AI System
- * 
+ *
  * This demonstrates:
  * - System initialization
  * - Agent conversations
@@ -10,8 +10,8 @@
  * - Audit logging
  */
 
-import { 
-  initializePeerBond, 
+import {
+  initializePeerBond,
   createDevConfig,
   AgentRegistry,
   ToolRegistry,
@@ -37,10 +37,10 @@ async function main() {
 
   // Demo 1: Maya (Facilitator Agent) helping with group support
   console.log('\n\n=== Demo 1: Group Facilitation ===');
-  
+
   const maya = AgentRegistry.getInstance('facilitator-maya');
   if (maya) {
-    const session = await maya.createSession('user_demo', {
+    const session = await maya.createSession('member_demo', {
       groupType: 'anxiety_support',
       sessionNumber: 1
     });
@@ -49,7 +49,7 @@ async function main() {
     const response = await maya.facilitateCheckIn(session.id, ['Alice', 'Bob', 'Carol']);
     console.log('Maya:', response);
 
-    // Simulate a user sharing
+    // Simulate a member sharing
     console.log('\nUser shares a concern...');
     const supportResponse = await maya.provideCopingStrategy(
       session.id,
@@ -61,15 +61,15 @@ async function main() {
 
   // Demo 2: Sentiment Analysis for Crisis Detection
   console.log('\n\n=== Demo 2: Crisis Detection ===');
-  
+
   const sentimentAgent = AgentRegistry.getInstance('sentiment-analyzer');
   if (sentimentAgent) {
     // Test concerning message
     const concerningText = "I feel hopeless and like nothing matters anymore. I can't see any point in continuing.";
-    
+
     console.log('Analyzing concerning message...');
-    const analysis = await sentimentAgent.analyzeSentiment(concerningText, 'user_at_risk');
-    
+    const analysis = await sentimentAgent.analyzeSentiment(concerningText, 'member_at_risk');
+
     console.log('Analysis Results:');
     console.log(`  Sentiment: ${analysis.sentiment}`);
     console.log(`  Mood: ${analysis.mood}`);
@@ -80,20 +80,20 @@ async function main() {
 
   // Demo 3: Direct Tool Usage with Security
   console.log('\n\n=== Demo 3: Secure Tool Execution ===');
-  
+
   const toolContext = {
-    userId: 'user_demo',
+    memberId: 'member_demo',
     sessionId: 'session_demo',
     agentId: 'demo_agent',
     timestamp: new Date()
   };
 
-  // Suggest groups for a user
+  // Suggest groups for a member
   console.log('Suggesting support groups...');
   const groupResult = await ToolRegistry.execute(
     'suggestGroup',
-    { 
-      userId: 'user_demo',
+    {
+      memberId: 'member_demo',
       goals: ['anxiety', 'social support'],
       language: 'en'
     },
@@ -111,15 +111,15 @@ async function main() {
 
   // Demo 4: Testing Framework
   console.log('\n\n=== Demo 4: Running Tool Tests ===');
-  
+
   const { runAllToolTests } = await import('../src/lib/tools/testing');
   const testReport = await runAllToolTests();
-  
+
   console.log(`Test Results: ${testReport.totalPassed}/${testReport.totalTests} passed`);
 
   // Demo 5: Audit Report
   console.log('\n\n=== Demo 5: Security Audit ===');
-  
+
   const auditLogs = await auditService.query({
     action: { $regex: /tool:/ } as any
   }, { limit: 5 });

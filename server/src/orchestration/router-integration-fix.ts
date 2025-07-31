@@ -18,7 +18,7 @@ export interface QuickRouterFix {
 }
 
 export class RouterExecutionFix implements QuickRouterFix {
-  
+
   /**
    * This method replaces the analysis-only behavior with actual execution
    */
@@ -33,18 +33,18 @@ export class RouterExecutionFix implements QuickRouterFix {
     agentsUsed: string[];
     toolResults: any[];
   }> {
-    
+
     try {
       console.log('[RouterFix] Intercepting routing call to execute instead of analyze');
-      
+
       // Step 1: Get the routing decision (same as before)
       const routingDecision = await originalAiRouterMethod.call(this, message, session);
       console.log('[RouterFix] Routing decision:', routingDecision);
-      
+
       // Step 2: Execute the routing decision (this is the missing piece!)
       const executionResult = await originalExecuteRoutingMethod.call(this, routingDecision, message, session);
       console.log('[RouterFix] Execution result:', executionResult);
-      
+
       // Step 3: Return the actual execution results instead of analysis text
       return {
         response: executionResult.response,
@@ -52,10 +52,10 @@ export class RouterExecutionFix implements QuickRouterFix {
         agentsUsed: executionResult.agentsUsed,
         toolResults: executionResult.toolResults || []
       };
-      
+
     } catch (error) {
       console.error('[RouterFix] Error in router execution fix:', error);
-      
+
       // Fallback to a helpful response
       return {
         response: "I'm here to help you. Could you tell me more about what you're looking for?",
@@ -65,7 +65,7 @@ export class RouterExecutionFix implements QuickRouterFix {
       };
     }
   }
-  
+
   /**
    * Alternative approach: Direct message routing without showing analysis
    */
@@ -78,65 +78,65 @@ export class RouterExecutionFix implements QuickRouterFix {
     confidence: number;
     agentUsed: string;
   }> {
-    
+
     const lowerMessage = message.toLowerCase();
-    
+
     // Check for group listing requests
     if (this.isGroupListingRequest(lowerMessage)) {
       console.log('[RouterFix] Direct routing to group listing');
       return await this.executeGroupListing(session, databaseService);
     }
-    
-    // Check for group finding requests  
+
+    // Check for group finding requests
     if (this.isGroupFindingRequest(lowerMessage)) {
       console.log('[RouterFix] Direct routing to group matching');
       return await this.executeGroupMatching(message, session, databaseService);
     }
-    
+
     // Default to facilitator
     console.log('[RouterFix] Direct routing to facilitator');
     return await this.executeFacilitator(message, session);
   }
-  
+
   private isGroupListingRequest(message: string): boolean {
     const patterns = [
       'what groups are available',
-      'list all groups', 
+      'list all groups',
       'show all groups',
       'groups available',
       'list groups',
       'show groups'
     ];
-    
+
     return patterns.some(pattern => message.includes(pattern)) ||
            (message.includes('groups') && (message.includes('available') || message.includes('list')));
   }
-  
+
   private isGroupFindingRequest(message: string): boolean {
     const patterns = [
       'find group',
-      'recommend group', 
+      'recommend group',
       'suggest group',
       'group for',
       'support group'
     ];
-    
+
     return patterns.some(pattern => message.includes(pattern));
   }
-  
+
   private async executeGroupListing(session: any, databaseService: any): Promise<{
     response: string;
     confidence: number;
     agentUsed: string;
   }> {
-    
+
     try {
       // Get groups from database (mimics your existing matchingAgent logic)
       const { groups: allGroups } = await databaseService.getGroups(1, 50, {
         status: true,
-        userId: session.userId
+        memberId: session.memberId
       });
-      
+
       if (allGroups.length === 0) {
         return {
           response: "I'd love to help you find a supportive group, but it looks like we don't have any active groups available right now. Would you like me to help you create a new support group or connect you with our therapist network?",
@@ -144,29 +144,29 @@ export class RouterExecutionFix implements QuickRouterFix {
           agentUsed: 'matching'
         };
       }
-      
+
       // Format the response like your existing system
       let response = "Here are all the available peer support groups:\n\n";
-      
+
       allGroups.forEach((group: any, index: number) => {
         const memberCount = Array.isArray(group.members) ? group.members.length : 0;
         const maxMembers = group.maxMembers || 8;
-        
+
         response += `**${index + 1}. ${group.name}**\n`;
         response += `${group.description}\n`;
         response += `• Group Type: ${group.type}\n`;
         response += `• Members: ${memberCount}/${maxMembers}\n`;
         response += `• Status: ${group.isActive ? 'Active' : 'Inactive'}\n\n`;
       });
-      
+
       response += "Would you like me to help you join one of these groups, or would you like me to recommend which groups might be best for your specific needs?";
-      
+
       return {
         response,
         confidence: 0.95,
         agentUsed: 'matching'
       };
-      
+
     } catch (error) {
       console.error('[RouterFix] Error in group listing:', error);
       return {
@@ -176,13 +176,13 @@ export class RouterExecutionFix implements QuickRouterFix {
       };
     }
   }
-  
+
   private async executeGroupMatching(message: string, session: any, databaseService: any): Promise<{
     response: string;
     confidence: number;
     agentUsed: string;
   }> {
-    
+
     // This would implement your existing matchingAgent logic
     // For now, return a helpful response
     return {
@@ -191,13 +191,13 @@ export class RouterExecutionFix implements QuickRouterFix {
       agentUsed: 'matching'
     };
   }
-  
+
   private async executeFacilitator(message: string, session: any): Promise<{
     response: string;
     confidence: number;
     agentUsed: string;
   }> {
-    
+
     // Simple facilitator response
     return {
       response: "Thank you for sharing that with me. I'm here to listen and support you. Could you tell me a bit more about what's on your mind today?",

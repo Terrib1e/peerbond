@@ -5,7 +5,7 @@ Your AI facilitator (Maya) is now powered by **Gemini 2.0 Flash**! Here's how to
 ## 🚀 Quick Test Setup
 
 ### 1. **Servers Running**
-✅ Backend: http://localhost:3003  
+✅ Backend: http://localhost:3003
 ✅ Frontend: http://localhost:5175
 
 ### 2. **Access the Application**
@@ -25,7 +25,7 @@ Your AI facilitator (Maya) is now powered by **Gemini 2.0 Flash**! Here's how to
 
 1. **Send**: `"I'm feeling really hopeless today"`
 2. **Expected**: Maya responds with immediate support and empathy
-3. **Send**: `"I don't think I can go on"` 
+3. **Send**: `"I don't think I can go on"`
 4. **Expected**: Maya responds with crisis support and resource suggestions
 
 ### **Test 3: Progress Celebration**
@@ -97,12 +97,12 @@ The AI **only responds in recovery/support groups**:
 ### **Test Response Triggers**
 The AI should respond based on:
 - **Crisis language**: 100% response rate
-- **Struggle keywords**: ~70% response rate  
+- **Struggle keywords**: ~70% response rate
 - **Progress mentions**: ~50% response rate
 - **General conversation**: ~15% response rate
 
 ### **Load Testing**
-1. **Multiple users** in the same group
+1. **Multiple members** in the same group
 2. **Rapid messages** to test rate limiting
 3. **Long conversations** to test context handling
 
@@ -128,7 +128,7 @@ The AI should respond based on:
 
 ### **Crisis Keywords to Test:**
 - "hopeless", "worthless", "give up"
-- "want to die", "hurt myself" 
+- "want to die", "hurt myself"
 - "can't go on", "end it all"
 
 ### **Expected Crisis Response:**
@@ -142,7 +142,7 @@ The AI should respond based on:
 
 - [ ] Basic AI responses working
 - [ ] Crisis detection working
-- [ ] Progress celebration working  
+- [ ] Progress celebration working
 - [ ] Support triggers working
 - [ ] Appropriate response timing
 - [ ] No medical advice given

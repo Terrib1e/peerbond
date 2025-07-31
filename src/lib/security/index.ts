@@ -11,12 +11,12 @@ import { ToolMiddleware } from '../tools/types';
 export function createSecurityMiddleware(): ToolMiddleware {
   return async (tool, args, context, next) => {
     const startTime = Date.now();
-    
+
     try {
       // Check authorization
       const isAuthorized = await authorizationService.authorize(
         {
-          userId: context.userId,
+          memberId: context.memberId,
           sessionId: context.sessionId,
           agentId: context.agentId,
           roles: ['ai-agent'], // Would be determined from context
@@ -29,7 +29,7 @@ export function createSecurityMiddleware(): ToolMiddleware {
 
       if (!isAuthorized) {
         await auditService.logAuthorizationAttempt(
-          context.userId,
+          context.memberId,
           `tool:${tool.name}`,
           'execute',
           false,
@@ -48,7 +48,7 @@ export function createSecurityMiddleware(): ToolMiddleware {
 
       // Log successful execution
       await auditService.logToolExecution(
-        context.userId,
+        context.memberId,
         context.agentId,
         tool.name,
         args,
@@ -59,10 +59,10 @@ export function createSecurityMiddleware(): ToolMiddleware {
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       // Log failed execution
       await auditService.logToolExecution(
-        context.userId,
+        context.memberId,
         context.agentId,
         tool.name,
         args,

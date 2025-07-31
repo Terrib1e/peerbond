@@ -1,25 +1,29 @@
 /**
- * Maya Interface - Basic user interface for communicating with Maya AI
- * Provides essential mental health support functions for regular users
+ * Maya Interface - Basic member interface for communicating with Maya AI
+ * Provides essential mental health support functions for community members
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Heart, 
-  Send, 
-  Bot, 
-  MessageSquare, 
-  Activity, 
-  Users, 
-  BookOpen, 
+import {
+  Heart,
+  Send,
+  Bot,
+  MessageSquare,
+  Activity,
+  Users,
+  BookOpen,
   LifeBuoy,
   Lightbulb,
   Clock,
   ChevronDown,
   Star,
   Shield,
-  RotateCcw
+  RotateCcw,
+  RefreshCw,
+  BarChart3,
+  Mic,
+  Zap
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { formatDistanceToNow } from 'date-fns';
@@ -35,62 +39,136 @@ import { cn } from '@/utils/cn';
 interface MayaMessage {
   id: string;
   content: string;
-  type: 'user' | 'maya' | 'system';
+  type: 'member' | 'maya' | 'system';
   timestamp: Date;
   agentUsed?: string[];
   confidence?: number;
   isLoading?: boolean;
   quickActions?: string[];
+  metadata?: {
+    toolsUsed?: string[];
+    toolContext?: any;
+    isToolsExplanation?: boolean;
+    needsCrisisIntervention?: boolean;
+  };
 }
 
 interface MayaInterfaceProps {
-  userId: string;
+  memberId: string;
   className?: string;
   compact?: boolean;
 }
 
 const QUICK_ACTIONS = [
+  // Core Emotional Support
   {
     id: 'mood-check',
-    label: 'How am I feeling?',
+    label: 'Log my mood',
     icon: Activity,
-    prompt: "Maya, I'd like to check in with how I'm feeling today. Can you help me explore my current emotional state?",
-    category: 'self-reflection'
+    prompt: "Maya, I'd like to log how I'm feeling right now. Can you help me track my mood and any triggers I'm experiencing?",
+    category: 'self-reflection',
+    toolSuggestion: 'logMood'
   },
   {
     id: 'coping-strategies',
-    label: 'Need coping strategies',
+    label: 'Get coping strategies',
     icon: Lightbulb,
-    prompt: "I'm struggling right now and could use some healthy coping strategies. What techniques might help me?",
-    category: 'support'
+    prompt: "I'm struggling right now and could use some personalized coping strategies. What techniques might help me based on my situation?",
+    category: 'support',
+    toolSuggestion: 'suggestCopingStrategies'
   },
-  {
-    id: 'find-support',
-    label: 'Find peer support',
-    icon: Users,
-    prompt: "Maya, I'm looking for peer support groups or communities where I can connect with others who understand what I'm going through.",
-    category: 'connection'
-  },
+
+  // Progress & Analytics
   {
     id: 'progress-check',
     label: 'Check my progress',
     icon: Star,
-    prompt: "Can you help me reflect on my mental health journey and see how I've been progressing lately?",
-    category: 'insight'
+    prompt: "Can you analyze my progress and show me insights about my mental health journey over the past few weeks?",
+    category: 'insight',
+    toolSuggestion: 'analyzeUserProgress'
   },
+  {
+    id: 'mood-report',
+    label: 'Generate mood report',
+    icon: BarChart3,
+    prompt: "Maya, can you create a detailed mood report showing my emotional patterns and trends?",
+    category: 'insight',
+    toolSuggestion: 'generateMoodReport'
+  },
+
+  // Social Connection
+  {
+    id: 'find-support',
+    label: 'Find peer groups',
+    icon: Users,
+    prompt: "I'm looking for peer support groups that match my needs and interests. Can you help me find the right community?",
+    category: 'connection',
+    toolSuggestion: 'searchGroups'
+  },
+
+  // Learning & Resources
+  {
+    id: 'learn-resources',
+    label: 'Find resources',
+    icon: BookOpen,
+    prompt: "I want to learn more about managing my mental health. Can you recommend some educational resources and exercises?",
+    category: 'education',
+    toolSuggestion: 'searchResources'
+  },
+  {
+    id: 'therapeutic-content',
+    label: 'Get exercises',
+    icon: Heart,
+    prompt: "Maya, can you provide me with a therapeutic exercise or technique I can practice right now?",
+    category: 'education',
+    toolSuggestion: 'getTherapeuticContent'
+  },
+
+  // Action & Planning
+  {
+    id: 'create-goals',
+    label: 'Set wellness goals',
+    icon: Star,
+    prompt: "Help me create some actionable wellness goals and track my progress toward achieving them.",
+    category: 'planning',
+    toolSuggestion: 'createActionItem'
+  },
+  {
+    id: 'check-goals',
+    label: 'Review my goals',
+    icon: Clock,
+    prompt: "Can you show me my current wellness goals and help me update my progress?",
+    category: 'planning',
+    toolSuggestion: 'getActionItems'
+  },
+
+  // Crisis Support
   {
     id: 'crisis-support',
     label: 'I need immediate help',
     icon: LifeBuoy,
     prompt: "I'm in crisis and need immediate support. Please help me find resources and coping strategies right now.",
-    category: 'crisis'
+    category: 'crisis',
+    toolSuggestion: 'provideCrisisSupport'
   },
+
+  // Voice & Accessibility
   {
-    id: 'learn-more',
-    label: 'Learn about mental health',
-    icon: BookOpen,
-    prompt: "I'd like to learn more about mental health topics and evidence-based strategies for wellbeing.",
-    category: 'education'
+    id: 'voice-check',
+    label: 'Voice mood check',
+    icon: Mic,
+    prompt: "I'd like to record a voice note about how I'm feeling and get emotional insights from it.",
+    category: 'self-reflection',
+    toolSuggestion: 'transcribeVoiceNote'
+  },
+
+  // System Actions
+  {
+    id: 'retry-connection',
+    label: 'Reconnect to Maya',
+    icon: RefreshCw,
+    prompt: '',
+    category: 'system'
   }
 ];
 
@@ -100,7 +178,9 @@ const CATEGORY_COLORS = {
   'connection': 'bg-purple-50 text-purple-700 border-purple-200',
   'insight': 'bg-yellow-50 text-yellow-700 border-yellow-200',
   'crisis': 'bg-red-50 text-red-700 border-red-200',
-  'education': 'bg-indigo-50 text-indigo-700 border-indigo-200'
+  'education': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  'planning': 'bg-orange-50 text-orange-700 border-orange-200',
+  'system': 'bg-gray-50 text-gray-700 border-gray-200'
 };
 
 // Agent display configuration
@@ -139,6 +219,56 @@ const AGENT_CONFIG = {
     name: 'System',
     description: 'Platform information',
     color: 'bg-indigo-50 text-indigo-700 border-indigo-200'
+  },
+  'chat': {
+    name: 'Chat Manager',
+    description: 'Message organization',
+    color: 'bg-teal-50 text-teal-700 border-teal-200'
+  },
+  'tracker': {
+    name: 'Mood Tracker',
+    description: 'Emotional monitoring',
+    color: 'bg-pink-50 text-pink-700 border-pink-200'
+  },
+  'action-items': {
+    name: 'Goal Tracker',
+    description: 'Wellness planning',
+    color: 'bg-orange-50 text-orange-700 border-orange-200'
+  },
+  'analytics': {
+    name: 'Analytics',
+    description: 'Progress reports',
+    color: 'bg-cyan-50 text-cyan-700 border-cyan-200'
+  },
+  'voice': {
+    name: 'Voice Processing',
+    description: 'Speech analysis',
+    color: 'bg-violet-50 text-violet-700 border-violet-200'
+  },
+  'orchestration': {
+    name: 'Coordinator',
+    description: 'Multi-agent tasks',
+    color: 'bg-slate-50 text-slate-700 border-slate-200'
+  },
+  'personalization': {
+    name: 'Personal Assistant',
+    description: 'Tailored support',
+    color: 'bg-rose-50 text-rose-700 border-rose-200'
+  },
+  'safety': {
+    name: 'Safety Monitor',
+    description: 'Content protection',
+    color: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  },
+  'knowledge': {
+    name: 'Knowledge Base',
+    description: 'Resource library',
+    color: 'bg-sky-50 text-sky-700 border-sky-200'
+  },
+  'context': {
+    name: 'Memory Manager',
+    description: 'Conversation continuity',
+    color: 'bg-lime-50 text-lime-700 border-lime-200'
   }
 };
 
@@ -150,7 +280,7 @@ const getAgentBadgeColor = (agentId: string): string => {
   return AGENT_CONFIG[agentId as keyof typeof AGENT_CONFIG]?.color || 'bg-gray-50 text-gray-700 border-gray-200';
 };
 
-export default function MayaInterface({ userId, className, compact = false }: MayaInterfaceProps) {
+export default function MayaInterface({ memberId, className, compact = false }: MayaInterfaceProps) {
   const [messages, setMessages] = useState<MayaMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -158,10 +288,11 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
   const [showQuickActions, setShowQuickActions] = useState(!compact);
   const [mayaAvailable, setMayaAvailable] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     initializeSession();
-  }, [userId]);
+  }, [memberId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -171,20 +302,20 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
     try {
       // Start a proper session with the orchestration service
       const response = await api.startOrchestrationSession('production', {
-        userProfile: {
+        memberProfile: {
           interests: ['mental-health', 'peer-support'],
           experience: 'beginner',
           goals: ['emotional-support', 'coping-strategies']
         }
       });
-      
+
       const newSessionId = response.sessionId;
       setSessionId(newSessionId);
-      
+
       // Add welcome message (use server's welcome message if provided)
-      const welcomeContent = response.welcomeMessage || 
-        `Hello! I'm Maya, your AI therapeutic companion. I'm here to support you on your mental health journey.\n\nI can help you with:\n• Exploring your feelings and emotions\n• Finding healthy coping strategies\n• Connecting with peer support groups\n• Tracking your progress and insights\n• Providing crisis support resources\n• Learning about mental health\n\nHow can I support you today?`;
-      
+      const welcomeContent = response.welcomeMessage ||
+        `Hello! I'm Maya, your AI therapeutic companion. I'm here to support you on your mental health journey.\n\n## 🎯 **What's New - Full Tool Integration!**\nI now have access to 16 specialized AI agents with 48+ tools to provide comprehensive support:\n\n**✨ Try these quick actions:**\n• **"Log my mood today"** - Track emotional patterns\n• **"Check my progress"** - Get personalized insights  \n• **"Find peer support groups"** - Connect with your community\n• **"Set a wellness goal"** - Create actionable objectives\n• **"Give me a mindfulness exercise"** - Practice therapeutic techniques\n• **"Generate my mood report"** - Visualize your journey\n\n**🤖 Behind the scenes:** I coordinate with specialized agents for mood tracking, progress analytics, crisis support, group matching, personalized resources, and more!\n\n**💡 Tip:** Use the "Quick Actions" panel above for easy access to tools, or just tell me what you need in natural language.\n\nHow can I support you today?`;
+
       const welcomeMessage: MayaMessage = {
         id: `welcome-${Date.now()}`,
         content: welcomeContent,
@@ -197,19 +328,35 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
 
       setMessages([welcomeMessage]);
       setMayaAvailable(true);
-      
+
     } catch (error) {
       console.error('Failed to initialize Maya session:', error);
       setMayaAvailable(false);
-      
+
+      // Provide member-friendly error messages based on error type
+      let errorContent = `I'm having trouble connecting right now. Please try again in a moment.`;
+
+      if (error instanceof Error) {
+        if (error.message.includes('Authentication')) {
+          errorContent = `🔐 Please sign in to PeerBond to access Maya AI.`;
+        } else if (error.message.includes('Network')) {
+          errorContent = `🌐 Network connection issue. Please check your internet connection and try again.`;
+        } else if (error.message.includes('unavailable')) {
+          errorContent = `⚠️ Maya AI service is temporarily unavailable. Please try again in a few minutes.`;
+        } else if (error.message.includes('Rate limit')) {
+          errorContent = `⏱️ Too many requests. Please wait a moment before trying again.`;
+        }
+      }
+
       // Add error message
       const errorMessage: MayaMessage = {
         id: `error-${Date.now()}`,
-        content: `I'm having trouble connecting right now. Please try again in a moment. If the problem persists, you can still use the platform's other features.`,
+        content: errorContent,
         type: 'maya',
         timestamp: new Date(),
         agentUsed: ['system'],
-        confidence: 0.0
+        confidence: 0.0,
+        quickActions: ['retry-connection']
       };
 
       setMessages([errorMessage]);
@@ -217,7 +364,11 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+      inline: 'nearest'
+    });
   };
 
   const handleNewChat = () => {
@@ -231,17 +382,17 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !sessionId) return;
 
-    const userMessage: MayaMessage = {
-      id: `user-${Date.now()}`,
+    const memberMessage: MayaMessage = {
+      id: `member-${Date.now()}`,
       content,
-      type: 'user',
+      type: 'member',
       timestamp: new Date()
     };
 
     // Get recommended agents to show in loading message
     const recommendedAgents = agentService.getAgentRecommendations(content);
     const agentNames = recommendedAgents.map(id => getAgentDisplayName(id)).join(', ');
-    
+
     const loadingMessage: MayaMessage = {
       id: `loading-${Date.now()}`,
       content: `Maya is consulting ${agentNames}...`,
@@ -252,65 +403,36 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
       confidence: 0
     };
 
-    setMessages(prev => [...prev, userMessage, loadingMessage]);
+    setMessages(prev => [...prev, memberMessage, loadingMessage]);
     setInputMessage('');
     setIsLoading(true);
 
     try {
       let response: AgentCallResponse;
-      
-      // Check if user is asking about tools specifically
-      const toolQuestionKeywords = ['tools', 'available', 'capabilities', 'functions', 'help me with', 'what can you'];
-      const isToolQuestion = toolQuestionKeywords.some(keyword => 
-        content.toLowerCase().includes(keyword.toLowerCase())
-      );
-      
-      if (isToolQuestion && (content.toLowerCase().includes('tools') || content.toLowerCase().includes('available'))) {
-        // Provide detailed tools information
-        try {
-          const agentsAndTools = await agentService.getAvailableAgentsAndTools();
-          const toolsDescription = await agentService.getToolDescriptions();
-          
-          const toolsContent = `Here are the available tools and capabilities I can help you with:\n\n${toolsDescription}\n\n**How I work:**\n• I analyze your message and determine which agents are best suited to help\n• Multiple agents can work together on complex requests\n• Each agent has specialized tools for different types of support\n\n**You can ask me to:**\n• Provide emotional support and coping strategies\n• Help you find peer support groups\n• Analyze your mood and emotional patterns\n• Create action items and track progress\n• Provide crisis support resources\n• Generate insights about your mental health journey\n\nWhat specific type of support would you like help with today?`;
-          
-          response = {
-            recommendation: 'facilitator',
-            result: {
-              success: true,
-              response: toolsContent,
-              agentUsed: ['system'],
-              toolsUsed: ['getAvailableAgentsAndTools', 'getToolDescriptions'],
-              confidence: 1.0,
-              metadata: { isToolsExplanation: true }
-            }
-          };
-        } catch (error) {
-          console.error('Error fetching tools:', error);
-          response = await agentService.callRecommendedAgent(content, sessionId);
-        }
-      } else {
-        response = await agentService.callRecommendedAgent(content, sessionId);
-      }
-      
+
+      // Simplified: Just use the agent service for all requests
+      const agentResponse = await agentService.callRecommendedAgent(content, sessionId);
+      response = agentResponse.result;
+
       // Remove loading message and add Maya's response
       setMessages(prev => {
         const filtered = prev.filter(msg => !msg.isLoading);
         const mayaResponse: MayaMessage = {
           id: `maya-${Date.now()}`,
-          content: response.result.response,
+          content: response.response,
           type: 'maya',
           timestamp: new Date(),
-          agentUsed: Array.isArray(response.result.agentUsed) 
-            ? response.result.agentUsed 
-            : [response.result.agentUsed],
-          confidence: response.result.confidence,
-          quickActions: generateQuickActions(response.result.response, response.result.agentUsed)
+          agentUsed: Array.isArray(response.agentUsed)
+            ? response.agentUsed
+            : [response.agentUsed],
+          confidence: response.confidence,
+          quickActions: generateQuickActions(response.response, response.agentUsed)
         };
         return [...filtered, mayaResponse];
       });
 
       // Handle crisis intervention if needed
-      if (response.result.metadata?.needsCrisisIntervention) {
+      if (response.metadata?.needsCrisisIntervention) {
         toast.error('Crisis support resources have been provided. Please reach out for immediate help if needed.', {
           duration: 10000,
           icon: '🚨'
@@ -319,27 +441,73 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
 
     } catch (error) {
       console.error('Maya communication error:', error);
-      
+
+      // Provide specific error messages based on error type
+      let errorContent = 'I apologize, but I\'m having trouble processing your request right now. Please try again in a moment.';
+      let showCrisisMessage = false;
+
+      if (error instanceof Error) {
+        if (error.message.includes('Authentication')) {
+          errorContent = '🔐 Your session has expired. Please refresh the page and sign in again to continue our conversation.';
+        } else if (error.message.includes('Rate limit')) {
+          errorContent = '⏱️ I\'m receiving too many requests right now. Please wait a moment before sending another message.';
+        } else if (error.message.includes('Network')) {
+          errorContent = '🌐 There seems to be a network connection issue. Please check your internet connection and try again.';
+        } else if (error.message.includes('unavailable')) {
+          errorContent = '⚠️ My AI services are temporarily unavailable. Please try again in a few minutes.';
+          showCrisisMessage = true;
+        } else if (error.message.includes('permission')) {
+          errorContent = '🚫 You may not have permission to access this feature. Please contact support if you believe this is an error.';
+        }
+      }
+
+      // Add crisis contact info for serious errors
+      if (showCrisisMessage) {
+        errorContent += '\n\n🆘 **If this is urgent:** Please contact a crisis hotline immediately:\n• National Suicide Prevention Lifeline: 988\n• Crisis Text Line: Text HOME to 741741';
+      }
+
       // Remove loading message and add error message
       setMessages(prev => {
         const filtered = prev.filter(msg => !msg.isLoading);
         const errorMessage: MayaMessage = {
           id: `error-${Date.now()}`,
-          content: 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment, or if this is urgent, please contact a crisis hotline immediately.',
+          content: errorContent,
           type: 'system',
-          timestamp: new Date()
+          timestamp: new Date(),
+          quickActions: showCrisisMessage ? ['find-support', 'retry-connection'] : ['retry-connection']
         };
         return [...filtered, errorMessage];
       });
 
-      toast.error('Unable to connect to Maya. Please try again.');
-      setMayaAvailable(false);
+      // Show appropriate toast message
+      if (error instanceof Error && error.message.includes('Authentication')) {
+        toast.error('Session expired. Please refresh and sign in again.');
+      } else if (error instanceof Error && error.message.includes('Rate limit')) {
+        toast.error('Please wait a moment before sending another message.');
+      } else {
+        toast.error('Unable to connect to Maya. Please try again.');
+      }
+
+      // Only mark Maya as unavailable for serious errors
+      if (showCrisisMessage) {
+        setMayaAvailable(false);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleQuickAction = (actionId: string) => {
+    if (actionId === 'retry-connection') {
+      // Retry connection
+      setMessages([]);
+      setSessionId('');
+      setMayaAvailable(true);
+      initializeSession();
+      toast.success('Reconnecting to Maya...');
+      return;
+    }
+
     const action = QUICK_ACTIONS.find(a => a.id === actionId);
     if (action) {
       sendMessage(action.prompt);
@@ -356,20 +524,42 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
     const responseLower = response.toLowerCase();
     const actions: string[] = [];
 
-    // Suggest follow-up actions based on response content and agents used
+    // Intelligent follow-up suggestions based on agents used and content
     if (agents.includes('crisis')) {
-      actions.push('find-support');
+      actions.push('find-support', 'learn-resources', 'crisis-support');
+    } else if (agents.includes('tracker')) {
+      actions.push('mood-report', 'progress-check', 'coping-strategies');
     } else if (agents.includes('matching')) {
-      actions.push('progress-check');
-    } else if (agents.includes('insight')) {
-      actions.push('coping-strategies');
-    } else if (responseLower.includes('feeling') || responseLower.includes('emotion')) {
-      actions.push('mood-check', 'coping-strategies');
+      actions.push('create-goals', 'therapeutic-content', 'progress-check');
+    } else if (agents.includes('insight') || agents.includes('analytics')) {
+      actions.push('create-goals', 'mood-check', 'find-support');
+    } else if (agents.includes('knowledge')) {
+      actions.push('therapeutic-content', 'create-goals', 'mood-check');
+    } else if (agents.includes('action-items')) {
+      actions.push('check-goals', 'progress-check', 'therapeutic-content');
+    } else if (agents.includes('voice')) {
+      actions.push('mood-check', 'therapeutic-content', 'progress-check');
+    } else if (agents.includes('personalization')) {
+      actions.push('create-goals', 'learn-resources', 'mood-check');
+    } else if (agents.includes('facilitator')) {
+      // For general therapeutic support, suggest varied follow-ups
+      if (responseLower.includes('feeling') || responseLower.includes('emotion')) {
+        actions.push('mood-check', 'coping-strategies', 'therapeutic-content');
+      } else if (responseLower.includes('goal') || responseLower.includes('progress')) {
+        actions.push('create-goals', 'check-goals', 'progress-check');
+      } else if (responseLower.includes('group') || responseLower.includes('community')) {
+        actions.push('find-support', 'progress-check', 'mood-check');
+      } else {
+        actions.push('mood-check', 'find-support', 'learn-resources');
+      }
     } else {
-      actions.push('find-support', 'learn-more');
+      // Default suggestions for system messages or unclear contexts
+      actions.push('mood-check', 'find-support', 'learn-resources');
     }
 
-    return actions.slice(0, 3); // Limit to 3 quick actions
+    // Ensure variety and remove duplicates
+    const uniqueActions = [...new Set(actions)];
+    return uniqueActions.slice(0, 3); // Limit to 3 quick actions
   };
 
   const renderMessage = (message: MayaMessage) => {
@@ -382,7 +572,7 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className={cn(
-          'flex gap-3 mb-4',
+          'flex gap-3',
           isMaya || isSystem ? 'justify-start' : 'justify-end'
         )}
       >
@@ -403,7 +593,7 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
 
         <div className={cn(
           'max-w-[80%] rounded-lg px-4 py-3',
-          message.type === 'user' 
+          message.type === 'member'
             ? 'bg-blue-500 text-white'
             : isSystem
             ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
@@ -458,9 +648,27 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
                       </div>
                     </div>
                   )}
+
+                  {/* Tools indicator */}
+                  {message.metadata?.toolsUsed && message.metadata.toolsUsed.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                      <Zap className="w-3 h-3" />
+                      <span>Tools used:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {message.metadata.toolsUsed.map((tool, index) => (
+                          <span
+                            key={index}
+                            className="px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-mono"
+                          >
+                            {tool}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-              
+
               <div className="prose prose-sm max-w-none">
                 <ReactMarkdown
                   components={{
@@ -496,7 +704,7 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
                 {message.quickActions.map(actionId => {
                   const action = QUICK_ACTIONS.find(a => a.id === actionId);
                   if (!action) return null;
-                  
+
                   return (
                     <button
                       key={actionId}
@@ -505,7 +713,7 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
                       className={cn(
                         'px-2 py-1 rounded-full text-xs font-medium border transition-colors',
                         'hover:bg-opacity-80 disabled:opacity-50',
-                        CATEGORY_COLORS[action.category]
+                        CATEGORY_COLORS[action.category as keyof typeof CATEGORY_COLORS]
                       )}
                     >
                       {action.label}
@@ -517,10 +725,10 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
           )}
         </div>
 
-        {message.type === 'user' && (
+        {message.type === 'member' && (
           <div className="flex-shrink-0">
             <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium">
-              {userId.charAt(0).toUpperCase()}
+              {memberId.charAt(0).toUpperCase()}
             </div>
           </div>
         )}
@@ -539,7 +747,7 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
             mayaAvailable ? 'bg-green-500' : 'bg-gray-300'
           )} />
         </div>
-        
+
         <form onSubmit={handleInputSubmit} className="flex gap-2">
           <Input
             value={inputMessage}
@@ -548,8 +756,8 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
             disabled={isLoading || !mayaAvailable}
             className="flex-1"
           />
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={!inputMessage.trim() || isLoading || !mayaAvailable}
             size="sm"
           >
@@ -563,7 +771,7 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
   return (
     <div className={cn('flex flex-col h-full bg-white', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-purple-50 to-pink-50">
+      <div className="flex-shrink-0 flex items-center justify-between p-4 border-b bg-gradient-to-r from-purple-50 to-pink-50">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
             <Heart className="w-5 h-5 text-white" />
@@ -591,7 +799,7 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
             <RotateCcw className="w-4 h-4 mr-2" />
             New Chat
           </Button>
-          
+
           <Button
             variant="ghost"
             size="sm"
@@ -608,6 +816,24 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
         </div>
       </div>
 
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 scroll-smooth" ref={scrollAreaRef}>
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <Heart className="w-12 h-12 text-purple-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Welcome to Maya</h3>
+              <p className="text-gray-600">Start a conversation to begin your support session</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map(renderMessage)}
+            <div ref={messagesEndRef} className="h-4" />
+          </div>
+        )}
+      </div>
+
       {/* Quick Actions Panel */}
       <AnimatePresence>
         {showQuickActions && (
@@ -615,10 +841,10 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-b bg-gray-50"
+            className="flex-shrink-0 border-t border-b bg-gray-50 overflow-y-auto max-h-48"
           >
             <div className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                 {QUICK_ACTIONS.map(action => {
                   const Icon = action.icon;
                   return (
@@ -627,13 +853,13 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
                       onClick={() => handleQuickAction(action.id)}
                       disabled={isLoading || !mayaAvailable}
                       className={cn(
-                        'flex items-center gap-2 p-3 rounded-lg text-left transition-colors',
+                        'flex items-center gap-2 p-2.5 rounded-lg text-left transition-colors',
                         'hover:bg-white hover:shadow-sm disabled:opacity-50',
-                        CATEGORY_COLORS[action.category]
+                        CATEGORY_COLORS[action.category as keyof typeof CATEGORY_COLORS]
                       )}
                     >
                       <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm font-medium">{action.label}</span>
+                      <span className="text-xs font-medium">{action.label}</span>
                     </button>
                   );
                 })}
@@ -643,26 +869,8 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
         )}
       </AnimatePresence>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Heart className="w-12 h-12 text-purple-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Welcome to Maya</h3>
-              <p className="text-gray-600">Start a conversation to begin your support session</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {messages.map(renderMessage)}
-            <div ref={messagesEndRef} />
-          </>
-        )}
-      </div>
-
       {/* Input Area */}
-      <div className="border-t bg-white p-4">
+      <div className="flex-shrink-0 border-t bg-white p-4">
         <form onSubmit={handleInputSubmit} className="flex gap-3">
           <Input
             value={inputMessage}
@@ -683,7 +891,7 @@ export default function MayaInterface({ userId, className, compact = false }: Ma
             )}
           </Button>
         </form>
-        
+
         <div className="mt-2 text-xs text-gray-500 text-center">
           Maya provides therapeutic support but is not a replacement for professional mental health care
         </div>

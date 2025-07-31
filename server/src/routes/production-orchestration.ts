@@ -38,7 +38,7 @@ router.post('/session/start',
   orchestrationLimiter,
   validateRequest([
     body('groupId').optional().isString().withMessage('GroupId must be a string'),
-    body('userProfile').optional().isObject().withMessage('UserProfile must be an object')
+    body('memberProfile').optional().isObject().withMessage('MemberProfile must be an object')
   ]),
   async (req, res) => {
     console.log('[ProductionOrchestration] 🚀 Session start endpoint hit');
@@ -46,15 +46,15 @@ router.post('/session/start',
 
     try {
       console.log('[ProductionOrchestration] 📝 Extracting request data...');
-      const { groupId, userProfile } = req.body;
-      console.log('[ProductionOrchestration] Request body:', { groupId, userProfile });
+      const { groupId, memberProfile } = req.body;
+      console.log('[ProductionOrchestration] Request body:', { groupId, memberProfile });
 
-      console.log('[ProductionOrchestration] 👤 Getting user from request...');
-      const userId = req.user.id;
-      console.log(`[ProductionOrchestration] User ID: ${userId}`);
+      console.log('[ProductionOrchestration] 👤 Getting member from request...');
+      const memberId = req.member.id;
+      console.log(`[ProductionOrchestration] Member ID: ${memberId}`);
 
       console.log(`[ProductionOrchestration] 🔄 Calling orchestratorService.startSession...`);
-      const result = await orchestratorService.startSession(userId, groupId, userProfile);
+      const result = await orchestratorService.startSession(memberId, groupId, memberProfile);
       console.log('[ProductionOrchestration] ✅ Got result from orchestratorService:', result);
 
       const duration = Date.now() - startTime;
@@ -106,20 +106,20 @@ router.post('/message',
       .withMessage('Invalid session ID format'),
     body('messageType')
       .optional()
-      .isIn(['user', 'system'])
-      .withMessage('MessageType must be user or system')
+      .isIn(['member', 'system'])
+      .withMessage('MessageType must be member or system')
   ]),
   async (req, res) => {
     const startTime = Date.now();
 
     try {
-      const { content, sessionId, messageType = 'user' } = req.body;
-      const userId = req.user.id;
+      const { content, sessionId, messageType = 'member' } = req.body;
+      const memberId = req.member.id;
 
       console.log(`[ProductionOrchestration] Processing message for session ${sessionId}`);
 
       const result = await orchestratorService.processMessage({
-        userId,
+        memberId,
         sessionId,
         content,
         messageType
@@ -389,7 +389,7 @@ router.post('/agent/call',
     body('agentId')
       .notEmpty()
       .withMessage('Agent ID is required')
-      .isIn(['ai-router', 'sentiment', 'crisis', 'facilitator', 'matching', 'insight'])
+      .isIn(['ai-router', 'sentiment', 'crisis', 'facilitator', 'matching', 'insight', 'chat', 'tracker', 'action-items', 'analytics', 'voice', 'orchestration', 'personalization', 'safety', 'knowledge', 'context'])
       .withMessage('Invalid agent ID'),
     body('message')
       .notEmpty()
@@ -411,7 +411,7 @@ router.post('/agent/call',
 
     try {
       const { agentId, message, sessionId, toolName } = req.body;
-      const userId = req.user.id;
+      const memberId = req.member.id;
 
       console.log(`[ProductionOrchestration] Direct agent call: ${agentId} for session ${sessionId}`);
 
@@ -419,7 +419,7 @@ router.post('/agent/call',
         agentId,
         message,
         sessionId,
-        userId,
+        memberId,
         toolName
       );
 
@@ -489,7 +489,7 @@ peerbond_memory_usage_bytes{type="external"} ${memoryUsage.external}
 
 # HELP peerbond_cpu_usage_microseconds CPU usage in microseconds
 # TYPE peerbond_cpu_usage_microseconds counter
-peerbond_cpu_usage_microseconds{type="user"} ${cpuUsage.user}
+peerbond_cpu_usage_microseconds{type="member"} ${cpuUsage.member}
 peerbond_cpu_usage_microseconds{type="system"} ${cpuUsage.system}
 
 # HELP peerbond_orchestration_status System health status (0=unhealthy, 1=degraded, 2=healthy)

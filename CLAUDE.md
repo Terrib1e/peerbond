@@ -3,7 +3,7 @@ Below is a roadmap for adding structured tool-calling and “agentic” workflow
 1 | Why bother with tool calling & agents?
 Pain-point today	What tool-calling gives you
 AI replies can “hallucinate” database IDs, dates, next steps	Model returns JSON arguments that your back-end executes, guaranteeing real data
-LLM must parse user intent from scratch every turn	Intent→function schema mapping off-loads that reasoning
+LLM must parse member intent from scratch every turn	Intent→function schema mapping off-loads that reasoning
 Hard to enforce HIPAA logging & least-privilege	Every tool has an allow-list / audit trail
 
 Function calling is therefore the backbone of an agentic architecture: LLMs decide what to do, your code does the doing.
@@ -14,9 +14,9 @@ Google AI for Developers
 Start by listing the atomic actions your platform already performs and express them as pure functions with JSON-serialisable arguments & return types.
 
 Module	Tool name	Purpose
-Matching	suggestGroup	Return the best 4–6-member group for a user
+Matching	suggestGroup	Return the best 4–6-member group for a member
 Chat	postMessage	Persist a message to the thread
-Tracker	logMood	Append {mood, score, note} to user log
+Tracker	logMood	Append {mood, score, note} to member log
 Action items	createActionItem	Assign a follow-up task to a group member
 Crisis	escalateCrisis	Page on-call therapist + create red flag
 Analytics	summarizeSession	Write a short JSON summary for dashboards
@@ -31,15 +31,15 @@ Edit
  */
 {
   "name": "suggestGroup",
-  "description": "Finds the best peer-support group for a user seeking help.",
+  "description": "Finds the best peer-support group for a member seeking help.",
   "parameters": {
     "type": "object",
     "properties": {
-      "userId": { "type": "string" },
+      "memberId": { "type": "string" },
       "goals":  { "type": "array", "items": { "type": "string" } },
       "language": { "type": "string" }
     },
-    "required": ["userId"]
+    "required": ["memberId"]
   }
 }
 Load these into the chat model’s tools array (OpenAI) or function_declarations (Gemini).
@@ -60,7 +60,7 @@ Runtime loop
 ts
 Copy
 Edit
-const messages = [...history, { role: "user", content: userInput }];
+const messages = [...history, { role: "member", content: memberInput }];
 const response = await openai.chat.completions.create({
   model: "gpt-4o",
   messages,
@@ -72,7 +72,7 @@ if (response.choices[0].finish_reason === "tool_call") {
   const { name, arguments: args } = response.choices[0].message.tool_call;
   const result = await handlers[name](args);   // your TypeScript functions
   messages.push({ role: "tool", name, content: JSON.stringify(result) });
-  return modelContinue(messages);              // let the model craft the user-visible reply
+  return modelContinue(messages);              // let the model craft the member-visible reply
 }
 Gemini’s API is analogous: gemini.chat({ tools: [schema], onToolCall: ... }).
 Google AI for Developers

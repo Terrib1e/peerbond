@@ -56,13 +56,38 @@ class AgentService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch agents: ${response.statusText}`);
+        if (response.status === 401) {
+          // Clear invalid token and provide helpful error
+          localStorage.removeItem('peerbond_token');
+          throw new Error('Authentication expired. Please sign in to PeerBond again.');
+        }
+        if (response.status === 403) {
+          throw new Error('Access denied. You may not have permission to access AI agents.');
+        }
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please wait a moment before trying again.');
+        }
+        if (response.status >= 500) {
+          throw new Error('AI service temporarily unavailable. Please try again in a moment.');
+        }
+        throw new Error(`Failed to fetch agents: ${response.statusText} (${response.status})`);
       }
 
       const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to retrieve agent information');
+      }
+      
       return result.data;
     } catch (error) {
       console.error('Error fetching agents and tools:', error);
+      
+      // Provide member-friendly error messages for common issues
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network connection error. Please check your internet connection and try again.');
+      }
+      
       throw error;
     }
   }
@@ -99,15 +124,44 @@ class AgentService {
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error('Authentication failed. Please sign in to PeerBond again.');
+          // Clear expired token
+          localStorage.removeItem('peerbond_token');
+          throw new Error('Authentication expired. Please sign in to PeerBond again.');
         }
-        throw new Error(`Failed to call agent: ${response.statusText}`);
+        if (response.status === 403) {
+          throw new Error('Access denied. You may not have permission to use this AI agent.');
+        }
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please wait before making another request.');
+        }
+        if (response.status === 400) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Invalid request. Please check your input and try again.');
+        }
+        if (response.status >= 500) {
+          throw new Error('AI agent temporarily unavailable. Please try again in a moment.');
+        }
+        
+        // Try to get more specific error from response
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to call agent: ${response.statusText} (${response.status})`);
       }
 
       const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || `Agent ${agentId} failed to process your request`);
+      }
+      
       return result.data;
     } catch (error) {
       console.error(`Error calling agent ${agentId}:`, error);
+      
+      // Provide member-friendly error messages for network issues
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network connection error. Please check your internet connection and try again.');
+      }
+      
       throw error;
     }
   }
@@ -203,10 +257,10 @@ class AgentService {
   }
 
   /**
-   * Helper method to get quick agent recommendations based on user intent
+   * Helper method to get quick agent recommendations based on member intent
    */
-  getAgentRecommendations(userMessage: string): string[] {
-    const message = userMessage.toLowerCase();
+  getAgentRecommendations(memberMessage: string): string[] {
+    const message = memberMessage.toLowerCase();
     const recommendations: string[] = [];
 
     // Group-related requests
@@ -248,7 +302,7 @@ class AgentService {
   }
 
   /**
-   * Convenience method to call the most appropriate agent based on user message
+   * Convenience method to call the most appropriate agent based on member message
    */
   async callRecommendedAgent(
     message: string,

@@ -3,15 +3,14 @@
  * Can be embedded anywhere in the app for instant Maya support
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Heart, 
-  X, 
-  Maximize2, 
-  Minimize2,
-  MessageSquare,
+import {
+  Heart,
+  X,
   Bot,
+  Maximize2,
+  Minimize2,
   RotateCcw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -19,11 +18,10 @@ import { toast } from 'react-hot-toast';
 import MayaInterface from '../ai/MayaInterface';
 import MayaTherapistInterface from '../ai/MayaTherapistInterface';
 import { Button } from './Button';
-import { Card } from './Card';
 import { cn } from '@/utils/cn';
 
 interface MayaQuickAccessProps {
-  user: {
+  member: {
     id: string;
     firstName: string;
     role: 'member' | 'therapist' | 'admin';
@@ -60,8 +58,8 @@ const THEME_COLORS = {
   }
 };
 
-export default function MayaQuickAccess({ 
-  user, 
+export default function MayaQuickAccess({
+  member,
   position = 'bottom-right',
   className,
   disabled = false,
@@ -188,8 +186,8 @@ export default function MayaQuickAccess({
               exit={{ scale: 0.8, opacity: 0 }}
               className={cn(
                 'bg-white rounded-lg shadow-2xl',
-                isExpanded 
-                  ? 'w-full h-full max-w-none max-h-none' 
+                isExpanded
+                  ? 'w-full h-full max-w-none max-h-none'
                   : 'w-full max-w-5xl min-h-[600px] max-h-[calc(100vh-4rem)]',
                 'overflow-hidden flex-shrink-0'
               )}
@@ -205,11 +203,11 @@ export default function MayaQuickAccess({
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">
-                      {user.role === 'therapist' || user.role === 'admin' ? 'Maya Clinical Assistant' : 'Maya AI'}
+                      {member.role === 'therapist' || member.role === 'admin' ? 'Maya Clinical Assistant' : 'Maya AI'}
                     </h3>
                     <p className="text-sm text-gray-600">
-                      {user.role === 'therapist' || user.role === 'admin' 
-                        ? 'Professional therapeutic support' 
+                      {member.role === 'therapist' || member.role === 'admin'
+                        ? 'Professional therapeutic support'
                         : 'Your therapeutic companion'
                       }
                     </p>
@@ -226,7 +224,7 @@ export default function MayaQuickAccess({
                   >
                     <RotateCcw className="w-4 h-4" />
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -239,7 +237,7 @@ export default function MayaQuickAccess({
                       <Maximize2 className="w-4 h-4" />
                     )}
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -253,17 +251,17 @@ export default function MayaQuickAccess({
 
               {/* Modal Content */}
               <div className="flex-1 h-full">
-                {user.role === 'therapist' || user.role === 'admin' ? (
+                {member.role === 'therapist' || member.role === 'admin' ? (
                   <MayaTherapistInterface
                     key={mayaKey} // Forces remount when key changes
-                    therapistId={user.id}
+                    therapistId={member.id}
                     className="h-full"
                     mode="general"
                   />
                 ) : (
                   <MayaInterface
                     key={mayaKey} // Forces remount when key changes
-                    userId={user.id}
+                    memberId={member.id}
                     className="h-full"
                     compact={false}
                   />

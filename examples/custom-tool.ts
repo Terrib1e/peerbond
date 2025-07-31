@@ -9,7 +9,7 @@ import { BaseTool, ToolRegistry, ToolContext, initializePeerBond, createDevConfi
 
 // Define the schema for our custom tool
 const ScheduleSessionSchema = z.object({
-  userId: z.string().describe('The user requesting a session'),
+  memberId: z.string().describe('The member requesting a session'),
   preferredDate: z.string().describe('Preferred date in YYYY-MM-DD format'),
   preferredTime: z.string().describe('Preferred time in HH:MM format'),
   sessionType: z.enum(['individual', 'group', 'crisis']).describe('Type of therapy session'),
@@ -32,7 +32,7 @@ interface SessionBooking {
 // Create our custom tool class
 class ScheduleSessionTool extends BaseTool<ScheduleSessionArgs, SessionBooking> {
   name = 'scheduleSession';
-  description = 'Books a therapy session for a user with an available therapist';
+  description = 'Books a therapy session for a member with an available therapist';
   schema = ScheduleSessionSchema;
   permissions = ['session:create', 'therapist:read'];
   rateLimit = { requests: 5, window: 3600 }; // 5 bookings per hour
@@ -45,8 +45,8 @@ class ScheduleSessionTool extends BaseTool<ScheduleSessionArgs, SessionBooking> 
     // 4. Create secure meeting room
     // 5. Send confirmation emails
 
-    console.log(`Processing session request for user ${args.userId}`);
-    
+    console.log(`Processing session request for member ${args.memberId}`);
+
     // Mock implementation
     const availableTherapists = [
       { id: 'ther_001', name: 'Dr. Sarah Johnson', specialty: 'anxiety' },
@@ -55,7 +55,7 @@ class ScheduleSessionTool extends BaseTool<ScheduleSessionArgs, SessionBooking> 
     ];
 
     // Select therapist (simplified selection logic)
-    const therapist = args.therapistId 
+    const therapist = args.therapistId
       ? availableTherapists.find(t => t.id === args.therapistId)
       : availableTherapists[Math.floor(Math.random() * availableTherapists.length)];
 
@@ -67,7 +67,7 @@ class ScheduleSessionTool extends BaseTool<ScheduleSessionArgs, SessionBooking> 
     const bookingId = `booking_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Create secure meeting room for telehealth
-    const joinUrl = args.sessionType !== 'crisis' 
+    const joinUrl = args.sessionType !== 'crisis'
       ? `https://secure.peerbond.app/session/${bookingId}`
       : undefined;
 
@@ -129,14 +129,14 @@ async function demonstrateCustomTool() {
 
   // Test the tool
   const toolContext = {
-    userId: 'user_demo',
+    memberId: 'member_demo',
     sessionId: 'session_demo',
     agentId: 'demo_agent',
     timestamp: new Date()
   };
 
   console.log('\n📅 Booking a therapy session...');
-  
+
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const dateString = tomorrow.toISOString().split('T')[0];
@@ -145,7 +145,7 @@ async function demonstrateCustomTool() {
     const result = await ToolRegistry.execute(
       'scheduleSession',
       {
-        userId: 'user_123',
+        memberId: 'member_123',
         preferredDate: dateString,
         preferredTime: '14:00',
         sessionType: 'individual',
@@ -174,12 +174,12 @@ async function demonstrateCustomTool() {
 
   // Test validation errors
   console.log('\n🧪 Testing validation...');
-  
+
   try {
     await ToolRegistry.execute(
       'scheduleSession',
       {
-        userId: 'user_123',
+        memberId: 'member_123',
         preferredDate: '2023-01-01', // Past date
         preferredTime: '14:00',
         sessionType: 'individual'

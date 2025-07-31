@@ -13,19 +13,19 @@ graph TB
         Mobile[Mobile App]
         API_Client[API Clients]
     end
-    
+
     subgraph "API Gateway"
         LB[Load Balancer]
         Nginx[Nginx Proxy]
         RateLimit[Rate Limiter]
     end
-    
+
     subgraph "Application Layer"
         API[PeerBond API]
         Orchestrator[Production Orchestrator]
         Auth[Authentication Service]
     end
-    
+
     subgraph "AI Agent Layer"
         Facilitator[Facilitator Agent]
         Sentiment[Sentiment Agent]
@@ -33,49 +33,49 @@ graph TB
         Matching[Matching Agent]
         Insights[Insights Agent]
     end
-    
+
     subgraph "AI Services"
         OpenAI[OpenAI GPT-4]
         Gemini[Google Gemini]
     end
-    
+
     subgraph "Data Layer"
         PostgreSQL[(PostgreSQL)]
         Redis[(Redis Cache)]
         Sessions[(Session Store)]
     end
-    
+
     subgraph "Monitoring & Observability"
         Prometheus[Prometheus]
         Grafana[Grafana]
         Jaeger[Jaeger Tracing]
         Logs[Centralized Logging]
     end
-    
+
     Web --> LB
     Mobile --> LB
     API_Client --> LB
-    
+
     LB --> Nginx
     Nginx --> RateLimit
     RateLimit --> API
-    
+
     API --> Auth
     API --> Orchestrator
-    
+
     Orchestrator --> Facilitator
     Orchestrator --> Sentiment
     Orchestrator --> Crisis
     Orchestrator --> Matching
     Orchestrator --> Insights
-    
+
     Facilitator --> OpenAI
     Facilitator --> Gemini
-    
+
     API --> PostgreSQL
     API --> Redis
     Orchestrator --> Sessions
-    
+
     API --> Prometheus
     API --> Jaeger
     API --> Logs
@@ -90,7 +90,7 @@ The central coordination hub that manages all AI agent interactions and conversa
 
 **Key Responsibilities:**
 - Session lifecycle management
-- Agent routing and coordination  
+- Agent routing and coordination
 - State persistence and recovery
 - Performance monitoring and telemetry
 - Crisis detection and escalation
@@ -100,7 +100,7 @@ The central coordination hub that manages all AI agent interactions and conversa
 ```typescript
 interface ProductionConversationState {
   sessionId: string;
-  userId: string;
+  memberId: string;
   groupId?: string;
   messages: ProductionMessage[];
   currentAgent: string;
@@ -121,7 +121,7 @@ Specialized agents handling different aspects of conversation management:
 #### Facilitator Agent (Maya)
 - **Primary Role**: Main conversation facilitator and emotional support
 - **AI Models**: OpenAI GPT-4 (primary), Google Gemini (fallback)
-- **Capabilities**: 
+- **Capabilities**:
   - Empathetic response generation
   - Therapeutic conversation guidance
   - Group dynamics management
@@ -169,14 +169,14 @@ Specialized agents handling different aspects of conversation management:
 ### Database Schema (PostgreSQL)
 
 ```sql
--- Core user and session management
-CREATE TABLE users (
+-- Core member and session management
+CREATE TABLE members (
   id UUID PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   first_name VARCHAR(100),
   last_name VARCHAR(100),
-  role VARCHAR(20) DEFAULT 'user',
+  role VARCHAR(20) DEFAULT 'member',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -189,8 +189,8 @@ CREATE TABLE groups (
   type VARCHAR(50) NOT NULL,
   max_members INTEGER DEFAULT 8,
   is_private BOOLEAN DEFAULT false,
-  facilitator_id UUID REFERENCES users(id),
-  created_by UUID REFERENCES users(id),
+  facilitator_id UUID REFERENCES members(id),
+  created_by UUID REFERENCES members(id),
   created_at TIMESTAMP DEFAULT NOW(),
   last_activity TIMESTAMP DEFAULT NOW()
 );
@@ -199,7 +199,7 @@ CREATE TABLE groups (
 CREATE TABLE messages (
   id UUID PRIMARY KEY,
   group_id UUID REFERENCES groups(id),
-  user_id UUID REFERENCES users(id),
+  member_id UUID REFERENCES members(id),
   content TEXT NOT NULL,
   type VARCHAR(20) DEFAULT 'text',
   created_at TIMESTAMP DEFAULT NOW(),
@@ -210,7 +210,7 @@ CREATE TABLE messages (
 -- Session and state management
 CREATE TABLE orchestration_sessions (
   session_id VARCHAR(100) PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
+  member_id UUID REFERENCES members(id),
   group_id UUID REFERENCES groups(id),
   state JSONB NOT NULL,
   created_at TIMESTAMP DEFAULT NOW(),
@@ -221,13 +221,13 @@ CREATE TABLE orchestration_sessions (
 -- Audit logging for HIPAA compliance
 CREATE TABLE audit_logs (
   id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
+  member_id UUID REFERENCES members(id),
   action VARCHAR(100) NOT NULL,
   resource VARCHAR(100),
   resource_id VARCHAR(100),
   details JSONB,
   ip_address INET,
-  user_agent TEXT,
+  member_agent TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 ```
@@ -244,8 +244,8 @@ rate_limit:{ip}:{endpoint} -> {count}
 # Agent response caching (5 minutes TTL)
 agent_cache:{hash} -> {response}
 
-# User profile caching (30 minutes TTL)  
-user:{userId} -> {profile_data}
+# User profile caching (30 minutes TTL)
+member:{memberId} -> {profile_data}
 ```
 
 ## Security Architecture
@@ -259,7 +259,7 @@ sequenceDiagram
     participant Auth
     participant JWT
     participant Database
-    
+
     Client->>API: Login Request
     API->>Auth: Validate Credentials
     Auth->>Database: Query User
@@ -268,9 +268,9 @@ sequenceDiagram
     JWT-->>Auth: Signed Token
     Auth-->>API: Token + User Info
     API-->>Client: Authentication Response
-    
+
     Note over Client,Database: Subsequent requests include JWT
-    
+
     Client->>API: API Request + JWT
     API->>JWT: Validate Token
     JWT-->>API: Token Valid + Claims
@@ -312,30 +312,30 @@ graph TB
         API[PeerBond API]
         Agents[AI Agents]
     end
-    
+
     subgraph "Collection"
         OTel[OpenTelemetry SDK]
         Prometheus_Client[Prometheus Client]
     end
-    
+
     subgraph "Storage & Processing"
         Prometheus[Prometheus TSDB]
         Jaeger[Jaeger Backend]
         Elasticsearch[Elasticsearch]
     end
-    
+
     subgraph "Visualization"
         Grafana[Grafana Dashboards]
         Jaeger_UI[Jaeger UI]
         Kibana[Kibana Logs]
     end
-    
+
     API --> OTel
     Agents --> OTel
     OTel --> Prometheus_Client
     OTel --> Jaeger
     OTel --> Elasticsearch
-    
+
     Prometheus_Client --> Prometheus
     Prometheus --> Grafana
     Jaeger --> Jaeger_UI
@@ -368,12 +368,12 @@ graph TB
 ```dockerfile
 # Multi-stage build for optimization
 FROM node:18-alpine AS base
-FROM base AS development  
+FROM base AS development
 FROM base AS production
 
-# Security: Non-root user
+# Security: Non-root member
 RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+RUN addmember -S nodejs -u 1001
 USER nodejs
 
 # Resource limits
@@ -461,7 +461,7 @@ class AIServiceCircuitBreaker {
   private failureCount = 0;
   private lastFailureTime = 0;
   private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
-  
+
   async call<T>(operation: () => Promise<T>): Promise<T> {
     if (this.state === 'OPEN') {
       if (Date.now() - this.lastFailureTime > this.timeout) {
@@ -470,7 +470,7 @@ class AIServiceCircuitBreaker {
         throw new Error('Circuit breaker is OPEN');
       }
     }
-    
+
     try {
       const result = await operation();
       this.onSuccess();
@@ -519,4 +519,4 @@ class AIServiceCircuitBreaker {
    - Edge computing for reduced latency
    - Data sovereignty compliance
 
-This architecture provides a solid foundation for scaling PeerBond to serve millions of users while maintaining the highest standards of reliability, security, and compliance for mental health applications.
+This architecture provides a solid foundation for scaling PeerBond to serve millions of members while maintaining the highest standards of reliability, security, and compliance for mental health applications.

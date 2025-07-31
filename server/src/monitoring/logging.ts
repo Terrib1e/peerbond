@@ -103,19 +103,19 @@ export const logger = createLogger();
 export function correlationMiddleware() {
   return (req: any, res: any, next: any) => {
     // Get correlation ID from header or generate new one
-    const correlationId = req.headers['x-correlation-id'] || 
-                         req.headers['x-request-id'] || 
+    const correlationId = req.headers['x-correlation-id'] ||
+                         req.headers['x-request-id'] ||
                          uuidv4();
-    
+
     // Add to request context
     req.correlationId = correlationId;
-    
+
     // Add to response headers
     res.setHeader('x-correlation-id', correlationId);
-    
+
     // Create child logger with correlation ID
     req.logger = logger.child({ correlationId });
-    
+
     next();
   };
 }
@@ -142,13 +142,13 @@ export class OrchestrationLogger {
   /**
    * Create child logger with session context
    */
-  static withSession(sessionId: string, userId: string): OrchestrationLogger {
+  static withSession(sessionId: string, memberId: string): OrchestrationLogger {
     const childLogger = logger.child({
       sessionId,
-      userId,
+      memberId,
       component: 'orchestration',
     });
-    
+
     const instance = new OrchestrationLogger();
     instance.baseLogger = childLogger;
     return instance;
@@ -160,13 +160,13 @@ export class OrchestrationLogger {
   logSessionEvent(
     event: 'session_started' | 'session_ended' | 'message_processed',
     sessionId: string,
-    userId: string,
+    memberId: string,
     metadata: Record<string, any> = {}
   ): void {
     this.baseLogger.info(`Session ${event}`, {
       event,
       sessionId,
-      userId,
+      memberId,
       correlationId: this.correlationId,
       component: 'orchestration.session',
       ...metadata,
@@ -200,7 +200,7 @@ export class OrchestrationLogger {
    */
   logCrisisIntervention(
     sessionId: string,
-    userId: string,
+    memberId: string,
     severity: string,
     triggers: string[],
     metadata: Record<string, any> = {}
@@ -208,7 +208,7 @@ export class OrchestrationLogger {
     this.baseLogger.warn('Crisis intervention triggered', {
       event: 'crisis_intervention',
       sessionId,
-      userId,
+      memberId,
       severity,
       triggers,
       correlationId: this.correlationId,
@@ -228,7 +228,7 @@ export class OrchestrationLogger {
     metadata: Record<string, any> = {}
   ): void {
     const level = duration > 5000 ? 'warn' : 'info'; // Warn if operation takes > 5s
-    
+
     this.baseLogger.log(level, `Performance: ${operation}`, {
       event: 'performance',
       operation,
@@ -245,13 +245,13 @@ export class OrchestrationLogger {
    */
   logSecurityEvent(
     event: 'auth_failure' | 'rate_limit' | 'invalid_input' | 'access_denied',
-    userId?: string,
+    memberId?: string,
     metadata: Record<string, any> = {}
   ): void {
     this.baseLogger.warn(`Security event: ${event}`, {
       event: 'security',
       securityEvent: event,
-      userId,
+      memberId,
       correlationId: this.correlationId,
       component: 'orchestration.security',
       priority: 'high',
@@ -320,13 +320,13 @@ export function requestLoggingMiddleware() {
   return (req: any, res: any, next: any) => {
     const startTime = Date.now();
     const correlationId = req.correlationId || uuidv4();
-    
+
     // Log incoming request
     logger.info('Incoming request', {
       event: 'request_start',
       method: req.method,
       url: req.url,
-      userAgent: req.headers['user-agent'],
+      memberAgent: req.headers['member-agent'],
       ip: req.ip || req.connection.remoteAddress,
       correlationId,
       component: 'http',
@@ -336,7 +336,7 @@ export function requestLoggingMiddleware() {
     const originalEnd = res.end;
     res.end = function(chunk: any, encoding: any) {
       const duration = Date.now() - startTime;
-      
+
       // Log response
       logger.info('Request completed', {
         event: 'request_end',
@@ -346,7 +346,7 @@ export function requestLoggingMiddleware() {
         duration,
         correlationId,
         component: 'http',
-        userAgent: req.headers['user-agent'],
+        memberAgent: req.headers['member-agent'],
         responseSize: chunk ? chunk.length : 0,
       });
 
@@ -376,7 +376,7 @@ export function requestLoggingMiddleware() {
 export function errorLoggingMiddleware() {
   return (error: Error, req: any, res: any, next: any) => {
     const correlationId = req.correlationId || 'unknown';
-    
+
     logger.error('Unhandled error', {
       event: 'unhandled_error',
       error: {
@@ -431,8 +431,8 @@ export class LogAggregator {
     format: 'json' | 'csv' = 'json'
   ): Promise<string> {
     // Implementation would export actual logs
-    return format === 'json' 
+    return format === 'json'
       ? JSON.stringify({ message: 'Log export not implemented in mock' })
-      : 'timestamp,level,message,sessionId,userId\n';
+      : 'timestamp,level,message,sessionId,memberId\n';
   }
 }

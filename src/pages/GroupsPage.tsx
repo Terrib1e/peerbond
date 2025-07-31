@@ -11,7 +11,7 @@ function GroupsPage() {
   const [filterType, setFilterType] = useState('all');
   const [filterAssignment, setFilterAssignment] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const { user } = useAuthStore();
+  const { member } = useAuthStore();
   const [newGroup, setNewGroup] = useState<CreateGroupRequest>({
     name: '',
     description: '',
@@ -24,9 +24,9 @@ function GroupsPage() {
   const queryClient = useQueryClient();
 
   const { data: groups = [], isLoading, error } = useQuery<Group[]>({
-    queryKey: ['user-available-groups'],
+    queryKey: ['member-available-groups'],
     queryFn: async () => {
-      const result = await api.getUserAvailableGroups();
+      const result = await api.getMemberAvailableGroups();
       console.log('Fetched available groups:', result);
       return result;
     },
@@ -35,7 +35,7 @@ function GroupsPage() {
   const createGroupMutation = useMutation({
     mutationFn: (groupData: CreateGroupRequest) => api.createGroup(groupData),
     onSuccess: (_data) => {
-      queryClient.invalidateQueries({ queryKey: ['user-available-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['member-available-groups'] });
       setShowCreateModal(false);
       setNewGroup({
         name: '',
@@ -55,7 +55,7 @@ function GroupsPage() {
   const deleteGroupMutation = useMutation({
     mutationFn: (groupId: string) => api.deleteGroup(groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-available-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['member-available-groups'] });
     },
     onError: (error) => {
       console.error('Failed to delete group:', error);
@@ -66,7 +66,7 @@ function GroupsPage() {
   const joinGroupMutation = useMutation({
     mutationFn: (groupId: string) => api.joinGroup(groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-available-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['member-available-groups'] });
     },
     onError: (error) => {
       console.error('Failed to join group:', error);
@@ -77,7 +77,7 @@ function GroupsPage() {
   const leaveGroupMutation = useMutation({
     mutationFn: (groupId: string) => api.leaveGroup(groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-available-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['member-available-groups'] });
     },
     onError: (error) => {
       console.error('Failed to leave group:', error);
@@ -89,7 +89,7 @@ function GroupsPage() {
     const matchesSearch = group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (group.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || group.type === filterType;
-    const matchesAssignment = filterAssignment === 'all' || 
+    const matchesAssignment = filterAssignment === 'all' ||
       (filterAssignment === 'assigned' && group.isAssigned) ||
       (filterAssignment === 'public' && !group.isAssigned);
     return matchesSearch && matchesType && matchesAssignment;
@@ -247,7 +247,7 @@ function GroupsPage() {
                 <span className={`px-2 py-1 text-xs rounded-full ${getTypeColor(group.type)}`}>
                   {group.type}
                 </span>
-                {group.memberCount >= group.maxMembers && (
+                {group.memberCount && group.memberCount >= group.maxMembers && (
                   <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">
                     Full
                   </span>
@@ -292,7 +292,7 @@ function GroupsPage() {
                   </button>
                 ) : (
                   <span className="text-gray-500 text-sm">
-                    {group.memberCount >= group.maxMembers ? 'Group Full' : 'Cannot Join'}
+                    {(group.memberCount ?? 0) >= group.maxMembers ? 'Group Full' : 'Cannot Join'}
                   </span>
                 )}
                 <Link

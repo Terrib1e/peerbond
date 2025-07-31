@@ -1,11 +1,11 @@
-import { Message, User, ActionItem, Insight } from '@/types';
+import { Message, Member, ActionItem, Insight } from '@/types';
 
 export interface FacilitatorPrompt {
   type: 'welcome' | 'check_in' | 'redirect' | 'encourage' | 'summarize' | 'action_item';
   context: {
     groupType: string;
     recentMessages: Message[];
-    activeUsers: User[];
+    activeMembers: Member[];
     sessionLength: number;
     lastActivity: Date;
   };
@@ -51,26 +51,26 @@ export class AIFacilitatorService {
 
   static async generateResponse(prompt: FacilitatorPrompt): Promise<FacilitatorResponse> {
     const personality = this.FACILITATOR_PERSONALITIES.supportive;
-    
+
     switch (prompt.type) {
       case 'welcome':
         return this.generateWelcomeMessage(prompt, personality);
-      
+
       case 'check_in':
         return this.generateCheckInPrompt(prompt, personality);
-      
+
       case 'redirect':
         return this.generateRedirectMessage(prompt, personality);
-      
+
       case 'encourage':
         return this.generateEncouragement(prompt, personality);
-      
+
       case 'summarize':
         return this.generateSummary(prompt, personality);
-      
+
       case 'action_item':
         return this.generateActionItem(prompt, personality);
-      
+
       default:
         return {
           message: "I'm here to support our group discussion. What would you like to talk about?",
@@ -78,14 +78,14 @@ export class AIFacilitatorService {
     }
   }
 
-  static analyzeGroupDynamics(messages: Message[], users: User[]): Insight[] {
+  static analyzeGroupDynamics(messages: Message[], members: Member[]): Insight[] {
     const insights: Insight[] = [];
     const now = new Date();
-    
-    const participationRates = this.calculateParticipationRates(messages, users);
+
+    const participationRates = this.calculateParticipationRates(messages, members);
     const sentimentTrends = this.analyzeSentimentTrends(messages);
     const engagementPatterns = this.analyzeEngagementPatterns(messages);
-    
+
     if (participationRates.low.length > 0) {
       insights.push({
         id: Date.now().toString(),
@@ -97,7 +97,7 @@ export class AIFacilitatorService {
         relevantMembers: participationRates.low,
       });
     }
-    
+
     if (sentimentTrends.improving) {
       insights.push({
         id: (Date.now() + 1).toString(),
@@ -109,7 +109,7 @@ export class AIFacilitatorService {
         relevantMembers: [],
       });
     }
-    
+
     if (engagementPatterns.highSupport) {
       insights.push({
         id: (Date.now() + 2).toString(),
@@ -121,7 +121,7 @@ export class AIFacilitatorService {
         relevantMembers: [],
       });
     }
-    
+
     return insights;
   }
 
@@ -129,11 +129,11 @@ export class AIFacilitatorService {
     const actionItems: ActionItem[] = [];
     const now = new Date();
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    
+
     const recentMessages = messages.slice(-10);
     const mentionedChallenges = this.extractChallenges(recentMessages);
     const mentionedGoals = this.extractGoals(recentMessages);
-    
+
     if (mentionedChallenges.includes('sleep')) {
       actionItems.push({
         id: Date.now().toString(),
@@ -146,7 +146,7 @@ export class AIFacilitatorService {
         createdAt: now,
       });
     }
-    
+
     if (mentionedGoals.includes('exercise')) {
       actionItems.push({
         id: (Date.now() + 1).toString(),
@@ -159,22 +159,22 @@ export class AIFacilitatorService {
         createdAt: now,
       });
     }
-    
+
     return actionItems;
   }
 
   static shouldInterject(messages: Message[], lastInterjection: Date): boolean {
     const recentMessages = messages.filter(m => m.timestamp > lastInterjection);
-    const nonAIMessages = recentMessages.filter(m => m.type === 'user');
-    
+    const nonAIMessages = recentMessages.filter(m => m.type === 'member');
+
     if (nonAIMessages.length >= 5) return true;
-    
+
     const silenceDuration = Date.now() - Math.max(...recentMessages.map(m => m.timestamp.getTime()));
     if (silenceDuration > 10 * 60 * 1000) return true;
-    
+
     const negativeLanguage = this.detectNegativeLanguage(nonAIMessages);
     if (negativeLanguage.length > 2) return true;
-    
+
     return false;
   }
 
@@ -185,10 +185,10 @@ export class AIFacilitatorService {
       depression: "Good to see everyone here. Remember, showing up is an act of courage.",
       general: "Welcome to our support group. Let's focus on lifting each other up today.",
     };
-    
-    const message = groupTypeMessages[prompt.context.groupType as keyof typeof groupTypeMessages] || 
+
+    const message = groupTypeMessages[prompt.context.groupType as keyof typeof groupTypeMessages] ||
                    _personality.prompts.welcome;
-    
+
     return {
       message,
       suggestedFollowUp: "How would you like to begin today's session?",
@@ -202,7 +202,7 @@ export class AIFacilitatorService {
       "On a scale of 1-10, how are you managing today?",
       "What's one thing you're grateful for today?",
     ];
-    
+
     return {
       message: messages[Math.floor(Math.random() * messages.length)],
     };
@@ -215,7 +215,7 @@ export class AIFacilitatorService {
       "Let's pause here and see if anyone else has thoughts on this topic.",
       "I notice we've been focused on one area. Are there other perspectives we should consider?",
     ];
-    
+
     return {
       message: messages[Math.floor(Math.random() * messages.length)],
     };
@@ -228,7 +228,7 @@ export class AIFacilitatorService {
       "Your honesty is helping create a safe space for everyone.",
       "It's clear you're putting in the work. That's something to be proud of.",
     ];
-    
+
     return {
       message: messages[Math.floor(Math.random() * messages.length)],
     };
@@ -236,8 +236,8 @@ export class AIFacilitatorService {
 
   private static generateSummary(prompt: FacilitatorPrompt, _personality: any): FacilitatorResponse {
     const themes = this.extractCommonThemes(prompt.context.recentMessages);
-    const insights = this.analyzeGroupDynamics(prompt.context.recentMessages, prompt.context.activeUsers);
-    
+    const insights = this.analyzeGroupDynamics(prompt.context.recentMessages, prompt.context.activeMembers);
+
     return {
       message: `Let me summarize what I've heard today: ${themes.join(', ')}. The group has shown great support for each other.`,
       insights,
@@ -247,42 +247,42 @@ export class AIFacilitatorService {
 
   private static generateActionItem(prompt: FacilitatorPrompt, _personality: any): FacilitatorResponse {
     const actionItems = this.generateActionItems(prompt.context.recentMessages, prompt.context.groupType);
-    
+
     return {
       message: "Based on our discussion, I'd like to suggest some action items for the group.",
       actionItems,
     };
   }
 
-  private static calculateParticipationRates(messages: Message[], users: User[]) {
-    const userMessageCounts = new Map<string, number>();
+  private static calculateParticipationRates(messages: Message[], members: Member[]) {
+    const memberMessageCounts = new Map<string, number>();
     const recentMessages = messages.filter(m => m.timestamp > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-    
-    users.forEach(user => userMessageCounts.set(user.id, 0));
+
+    members.forEach(member => memberMessageCounts.set(member.id, 0));
     recentMessages.forEach(msg => {
-      if (msg.type === 'user') {
-        userMessageCounts.set(msg.userId, (userMessageCounts.get(msg.userId) || 0) + 1);
+      if (msg.type === 'member') {
+        memberMessageCounts.set(msg.memberId, (memberMessageCounts.get(msg.memberId) || 0) + 1);
       }
     });
-    
-    const avgParticipation = Array.from(userMessageCounts.values()).reduce((a, b) => a + b, 0) / users.length;
-    
+
+    const avgParticipation = Array.from(memberMessageCounts.values()).reduce((a, b) => a + b, 0) / members.length;
+
     return {
-      low: users.filter(u => (userMessageCounts.get(u.id) || 0) < avgParticipation * 0.5).map(u => u.id),
-      high: users.filter(u => (userMessageCounts.get(u.id) || 0) > avgParticipation * 1.5).map(u => u.id),
+      low: members.filter(u => (memberMessageCounts.get(u.id) || 0) < avgParticipation * 0.5).map(u => u.id),
+      high: members.filter(u => (memberMessageCounts.get(u.id) || 0) > avgParticipation * 1.5).map(u => u.id),
     };
   }
 
   private static analyzeSentimentTrends(messages: Message[]) {
     const positiveWords = ['better', 'good', 'happy', 'progress', 'improvement', 'grateful', 'strong'];
     const negativeWords = ['difficult', 'hard', 'struggle', 'pain', 'worry', 'scared', 'overwhelmed'];
-    
+
     const recentMessages = messages.filter(m => m.timestamp > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
     const olderMessages = messages.filter(m => m.timestamp <= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-    
+
     const recentSentiment = this.calculateSentimentScore(recentMessages, positiveWords, negativeWords);
     const olderSentiment = this.calculateSentimentScore(olderMessages, positiveWords, negativeWords);
-    
+
     return {
       improving: recentSentiment > olderSentiment,
       declining: recentSentiment < olderSentiment,
@@ -293,30 +293,30 @@ export class AIFacilitatorService {
   private static calculateSentimentScore(messages: Message[], positiveWords: string[], negativeWords: string[]): number {
     let score = 0;
     let totalWords = 0;
-    
+
     messages.forEach(msg => {
-      if (msg.type === 'user') {
+      if (msg.type === 'member') {
         const words = msg.content.toLowerCase().split(/\s+/);
         totalWords += words.length;
-        
+
         words.forEach(word => {
           if (positiveWords.includes(word)) score += 1;
           if (negativeWords.includes(word)) score -= 1;
         });
       }
     });
-    
+
     return totalWords > 0 ? score / totalWords : 0;
   }
 
   private static analyzeEngagementPatterns(messages: Message[]) {
     const recentMessages = messages.filter(m => m.timestamp > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
     const reactions = recentMessages.reduce((acc, msg) => acc + (msg.reactions?.length || 0), 0);
-    
+
     return {
       highSupport: reactions > recentMessages.length * 0.5,
       activeDiscussion: recentMessages.length > 20,
-      consistentParticipation: new Set(recentMessages.map(m => m.userId)).size > 3,
+      consistentParticipation: new Set(recentMessages.map(m => m.memberId)).size > 3,
     };
   }
 
@@ -333,9 +333,9 @@ export class AIFacilitatorService {
       depression: ['sad', 'down', 'hopeless', 'empty'],
       social: ['lonely', 'isolated', 'alone', 'disconnected'],
     };
-    
+
     messages.forEach(msg => {
-      if (msg.type === 'user') {
+      if (msg.type === 'member') {
         const content = msg.content.toLowerCase();
         Object.entries(challengeKeywords).forEach(([challenge, keywords]) => {
           if (keywords.some(keyword => content.includes(keyword))) {
@@ -344,7 +344,7 @@ export class AIFacilitatorService {
         });
       }
     });
-    
+
     return [...new Set(challenges)];
   }
 
@@ -356,9 +356,9 @@ export class AIFacilitatorService {
       social: ['friends', 'family', 'social', 'connection'],
       work: ['job', 'career', 'work', 'productivity'],
     };
-    
+
     messages.forEach(msg => {
-      if (msg.type === 'user') {
+      if (msg.type === 'member') {
         const content = msg.content.toLowerCase();
         Object.entries(goalKeywords).forEach(([goal, keywords]) => {
           if (keywords.some(keyword => content.includes(keyword))) {
@@ -367,7 +367,7 @@ export class AIFacilitatorService {
         });
       }
     });
-    
+
     return [...new Set(goals)];
   }
 
@@ -376,7 +376,7 @@ export class AIFacilitatorService {
       'give up', 'hopeless', 'can\'t do this', 'worthless', 'failure',
       'want to die', 'hurt myself', 'nobody cares', 'pointless'
     ];
-    
+
     const detected: string[] = [];
     messages.forEach(msg => {
       const content = msg.content.toLowerCase();
@@ -386,7 +386,7 @@ export class AIFacilitatorService {
         }
       });
     });
-    
+
     return detected;
   }
 }

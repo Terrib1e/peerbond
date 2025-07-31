@@ -57,7 +57,7 @@ export default function AssignGroupModal({ client, onClose, onSuccess }: AssignG
   };
 
   const groups = groupsData?.groups || [];
-  const filteredGroups = groups.filter(group => 
+  const filteredGroups = groups.filter(group =>
     group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     group.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -74,6 +74,7 @@ export default function AssignGroupModal({ client, onClose, onSuccess }: AssignG
               </p>
             </div>
             <button
+              title="Close Modal"
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg"
             >
@@ -156,6 +157,7 @@ export default function AssignGroupModal({ client, onClose, onSuccess }: AssignG
             </button>
             <button
               onClick={handleAssign}
+              title="Assign to Group"
               disabled={!selectedGroup || assignGroupMutation.isPending}
               className="btn-primary"
             >

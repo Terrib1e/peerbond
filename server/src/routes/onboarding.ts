@@ -9,9 +9,9 @@ import { logger } from '../utils/logger';
 const router = Router();
 const dbService = new DatabaseService();
 
-// Validation rules for user onboarding
-const userOnboardingValidation = [
-  body('userId').isUUID().withMessage('Valid user ID is required'),
+// Validation rules for member onboarding
+const memberOnboardingValidation = [
+  body('memberId').isUUID().withMessage('Valid member ID is required'),
   body('recoveryGoals').isArray().withMessage('Recovery goals must be an array'),
   body('wellnessGoals').isArray().withMessage('Wellness goals must be an array'),
   body('anxietyLevel').isInt({ min: 1, max: 10 }).withMessage('Anxiety level must be between 1-10'),
@@ -24,7 +24,7 @@ const userOnboardingValidation = [
 
 // Validation rules for therapist onboarding
 const therapistOnboardingValidation = [
-  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('memberId').isUUID().withMessage('Valid member ID is required'),
   body('licenseNumber').notEmpty().withMessage('License number is required'),
   body('licenseState').notEmpty().withMessage('License state is required'),
   body('licenseExpiration').isISO8601().withMessage('Valid license expiration date is required'),
@@ -38,7 +38,7 @@ const therapistOnboardingValidation = [
 
 // Validation rules for admin onboarding
 const adminOnboardingValidation = [
-  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('memberId').isUUID().withMessage('Valid member ID is required'),
   body('mfaEnabled').isBoolean().withMessage('MFA status is required'),
   body('completedHIPAATraining').isBoolean().withMessage('HIPAA training status is required'),
   body('completedSecurityTraining').isBoolean().withMessage('Security training status is required'),
@@ -46,10 +46,10 @@ const adminOnboardingValidation = [
   body('completedCrisisProtocol').isBoolean().withMessage('Crisis protocol training status is required'),
 ];
 
-// Complete user onboarding
-router.post('/user/complete', validateRequest(userOnboardingValidation), asyncHandler(async (req, res) => {
+// Complete member onboarding
+router.post('/member/complete', validateRequest(memberOnboardingValidation), asyncHandler(async (req, res) => {
   const {
-    userId,
+    memberId,
     recoveryGoals,
     wellnessGoals,
     customGoals,
@@ -66,15 +66,15 @@ router.post('/user/complete', validateRequest(userOnboardingValidation), asyncHa
   } = req.body;
 
   try {
-    // Update user with onboarding data
-    await dbService.updateUser(userId, {
+    // Update member with onboarding data
+    await dbService.updateMember(memberId, {
       recoveryGoals: JSON.stringify(recoveryGoals),
       wellnessGoals: JSON.stringify(wellnessGoals)
     });
 
     // Create initial mood entry
     await dbService.createMoodEntry({
-      userId,
+      memberId,
       score: Math.round((anxietyLevel + depressionLevel + stressLevel) / 3),
       emotions: JSON.stringify({
         anxiety: anxietyLevel,
@@ -84,7 +84,7 @@ router.post('/user/complete', validateRequest(userOnboardingValidation), asyncHa
       notes: customGoals || 'Initial onboarding assessment'
     });
 
-    // Store onboarding preferences (you may want to create a UserPreferences table)
+    // Store onboarding preferences (you may want to create a MemberPreferences table)
     const onboardingData = {
       supportNeeds: JSON.stringify(supportNeeds),
       previousExperience,
@@ -98,25 +98,25 @@ router.post('/user/complete', validateRequest(userOnboardingValidation), asyncHa
 
     // Log audit event
     await dbService.createAuditLog({
-      userId,
+      memberId,
       action: 'onboarding_completed',
-      resource: 'user_onboarding',
+      resource: 'member_onboarding',
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
       metadata: onboardingData
     });
 
-    logger.info(`User onboarding completed: ${userId}`);
+    logger.info(`Member onboarding completed: ${memberId}`);
 
     res.json({
       success: true,
-      message: 'User onboarding completed successfully',
-      data: { userId, completedAt: new Date().toISOString() },
+      message: 'Member onboarding completed successfully',
+      data: { memberId, completedAt: new Date().toISOString() },
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    logger.error('User onboarding completion failed:', error);
+    logger.error('Member onboarding completion failed:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to complete onboarding',
@@ -128,7 +128,7 @@ router.post('/user/complete', validateRequest(userOnboardingValidation), asyncHa
 // Complete therapist onboarding
 router.post('/therapist/complete', validateRequest(therapistOnboardingValidation), asyncHandler(async (req, res) => {
   const {
-    userId,
+    memberId,
     licenseNumber,
     licenseState,
     licenseExpiration,
@@ -148,7 +148,7 @@ router.post('/therapist/complete', validateRequest(therapistOnboardingValidation
   try {
     // Create or update therapist profile
     const therapistProfileData = {
-      userId,
+      memberId,
       licenseNumber,
       specializations: JSON.stringify(specializations),
       bio,
@@ -156,9 +156,9 @@ router.post('/therapist/complete', validateRequest(therapistOnboardingValidation
     };
 
     // Check if therapist profile already exists
-    const existingProfile = await dbService.getTherapistProfile(userId);
+    const existingProfile = await dbService.getTherapistProfile(memberId);
     if (existingProfile) {
-      await dbService.updateTherapistProfile(userId, therapistProfileData);
+      await dbService.updateTherapistProfile(memberId, therapistProfileData);
     } else {
       await dbService.createTherapistProfile(therapistProfileData);
     }
@@ -182,21 +182,21 @@ router.post('/therapist/complete', validateRequest(therapistOnboardingValidation
 
     // Log audit event
     await dbService.createAuditLog({
-      userId,
+      memberId,
       action: 'therapist_onboarding_submitted',
       resource: 'therapist_onboarding',
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
       metadata: onboardingData
     });
 
-    logger.info(`Therapist onboarding submitted: ${userId}`);
+    logger.info(`Therapist onboarding submitted: ${memberId}`);
 
     res.json({
       success: true,
       message: 'Therapist onboarding submitted for review',
-      data: { 
-        userId, 
+      data: {
+        memberId,
         submittedAt: new Date().toISOString(),
         verificationStatus: 'pending',
         estimatedReviewTime: '3-5 business days'
@@ -217,13 +217,13 @@ router.post('/therapist/complete', validateRequest(therapistOnboardingValidation
 // Complete admin onboarding
 router.post('/admin/complete', validateRequest(adminOnboardingValidation), asyncHandler(async (req, res) => {
   const {
-    userId,
+    memberId,
     mfaEnabled,
     securityQuestion1,
     securityAnswer1,
     securityQuestion2,
     securityAnswer2,
-    userManagement,
+    memberManagement,
     therapistApproval,
     systemConfiguration,
     auditAccess,
@@ -240,8 +240,8 @@ router.post('/admin/complete', validateRequest(adminOnboardingValidation), async
 
   try {
     // Verify all required trainings are completed
-    if (!completedHIPAATraining || !completedSecurityTraining || 
-        !completedPlatformTraining || !completedCrisisProtocol || 
+    if (!completedHIPAATraining || !completedSecurityTraining ||
+        !completedPlatformTraining || !completedCrisisProtocol ||
         !agreedToResponsibilities) {
       return res.status(400).json({
         success: false,
@@ -250,8 +250,8 @@ router.post('/admin/complete', validateRequest(adminOnboardingValidation), async
       });
     }
 
-    // Update user role to admin (if not already)
-    await dbService.updateUser(userId, {
+    // Update member role to admin (if not already)
+    await dbService.updateMember(memberId, {
       role: 'admin'
     });
 
@@ -263,7 +263,7 @@ router.post('/admin/complete', validateRequest(adminOnboardingValidation), async
         { question: securityQuestion2, answer: securityAnswer2 }
       ]),
       permissions: JSON.stringify({
-        userManagement,
+        memberManagement,
         therapistApproval,
         systemConfiguration,
         auditAccess,
@@ -284,25 +284,25 @@ router.post('/admin/complete', validateRequest(adminOnboardingValidation), async
 
     // Log audit event
     await dbService.createAuditLog({
-      userId,
+      memberId,
       action: 'admin_onboarding_completed',
       resource: 'admin_onboarding',
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
       metadata: adminData
     });
 
-    logger.info(`Admin onboarding completed: ${userId}`);
+    logger.info(`Admin onboarding completed: ${memberId}`);
 
     res.json({
       success: true,
       message: 'Admin onboarding completed successfully',
-      data: { 
-        userId, 
+      data: {
+        memberId,
         activatedAt: new Date().toISOString(),
         role: 'admin',
         permissions: {
-          userManagement,
+          memberManagement,
           therapistApproval,
           systemConfiguration,
           auditAccess,
@@ -326,11 +326,11 @@ router.post('/admin/complete', validateRequest(adminOnboardingValidation), async
 }));
 
 // Get onboarding status
-router.get('/status/:userId', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId } = req.params;
+router.get('/status/:memberId', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { memberId } = req.params;
 
-  // Verify user can access this onboarding status
-  if (req.user?.id !== userId && req.user?.role !== 'admin') {
+  // Verify member can access this onboarding status
+  if (req.member?.id !== memberId && req.member?.role !== 'admin') {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -339,34 +339,34 @@ router.get('/status/:userId', authenticateToken, asyncHandler(async (req: Authen
   }
 
   try {
-    const user = await dbService.getUserById(userId);
-    if (!user) {
+    const member = await dbService.getMemberById(memberId);
+    if (!member) {
       return res.status(404).json({
         success: false,
-        error: 'User not found',
+        error: 'Member not found',
         timestamp: new Date().toISOString()
       });
     }
 
     const status = {
-      userId,
-      role: user.role,
+      memberId,
+      role: member.role,
       onboardingCompleted: false,
       verificationStatus: 'pending'
     };
 
     // Check role-specific onboarding status
-    if (user.role === 'therapist') {
-      const therapistProfile = await dbService.getTherapistProfile(userId);
+    if (member.role === 'therapist') {
+      const therapistProfile = await dbService.getTherapistProfile(memberId);
       status.onboardingCompleted = !!therapistProfile;
       status.verificationStatus = therapistProfile?.isVerified ? 'verified' : 'pending';
-    } else if (user.role === 'admin') {
+    } else if (member.role === 'admin') {
       // Check if admin onboarding was completed (could check audit logs)
       status.onboardingCompleted = true; // Simplified for now
       status.verificationStatus = 'active';
     } else {
-      // For regular users, check if they have goals set
-      status.onboardingCompleted = !!(user.recoveryGoals && user.wellnessGoals);
+      // For regular members, check if they have goals set
+      status.onboardingCompleted = !!(member.recoveryGoals && member.wellnessGoals);
       status.verificationStatus = 'active';
     }
 

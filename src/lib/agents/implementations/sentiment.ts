@@ -36,12 +36,12 @@ Crisis escalation triggers:
 
 When to escalate:
 - Severity: critical (immediate risk), high (concerning patterns), moderate (monitor closely)
-- Always err on the side of caution for user safety
+- Always err on the side of caution for member safety
 - Document specific indicators that triggered the escalation
 
 Your responses should be clinical, objective, and focused on risk assessment.`;
 
-  async analyzeSentiment(text: string, userId: string): Promise<{
+  async analyzeSentiment(text: string, memberId: string): Promise<{
     sentiment: number;
     mood: string;
     riskLevel: 'low' | 'moderate' | 'high' | 'critical';
@@ -59,7 +59,7 @@ Provide analysis in the following format:
 - Specific indicators found
 - Whether crisis intervention is needed`;
 
-    const session = await this.createSession(userId, {
+    const session = await this.createSession(memberId, {
       analysisType: 'sentiment',
       originalText: text
     });
@@ -73,13 +73,13 @@ Provide analysis in the following format:
     // Log the mood if significant
     if (Math.abs(analysis.sentiment) > 0.3) {
       const moodCategory = this.sentimentToMoodCategory(analysis.sentiment);
-      
+
       const toolResults = response.toolResults || [];
       const logMoodCall = toolResults.find(tr => tr.toolCall.name === 'logMood');
-      
+
       if (!logMoodCall) {
         // Log mood programmatically if not done by the agent
-        await this.processMessage(session.id, 
+        await this.processMessage(session.id,
           `Log mood: ${moodCategory}, score: ${analysis.sentiment}, note: Analyzed from message`
         );
       }
@@ -97,7 +97,7 @@ Provide analysis in the following format:
 
   async analyzeConversationTrend(
     messages: string[],
-    userId: string,
+    memberId: string,
     timeWindow: number = 24 // hours
   ): Promise<{
     trend: 'improving' | 'stable' | 'declining';
@@ -115,7 +115,7 @@ Provide:
 - Identified risk factors
 - Recommendations for care team`;
 
-    const session = await this.createSession(userId, {
+    const session = await this.createSession(memberId, {
       analysisType: 'trend',
       messageCount: messages.length,
       timeWindow
@@ -139,7 +139,7 @@ Provide:
     const riskMatch = response.match(/risk.*?(low|moderate|high|critical)/i);
     const riskLevel = (riskMatch?.[1]?.toLowerCase() as any) || 'low';
 
-    const needsIntervention = response.toLowerCase().includes('crisis') || 
+    const needsIntervention = response.toLowerCase().includes('crisis') ||
                              response.toLowerCase().includes('intervention') ||
                              riskLevel === 'critical';
 
@@ -184,7 +184,7 @@ Provide:
   private extractIndicators(text: string): string[] {
     const indicators = [];
     const crisisKeywords = [
-      'suicide', 'self-harm', 'hopeless', 'worthless', 
+      'suicide', 'self-harm', 'hopeless', 'worthless',
       'end it all', 'no point', 'can\'t go on'
     ];
 

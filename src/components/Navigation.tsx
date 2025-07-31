@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 function Navigation() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { member, logout } = useAuthStore();
 
   const navItems = [
     { path: '/app', icon: Home, label: 'Home' },
@@ -23,13 +23,13 @@ function Navigation() {
 
   return (
     <>
-      {/* Top Portal Switcher for privileged users */}
-      {(user?.role === 'admin' || user?.role === 'therapist') && (
+      {/* Top Portal Switcher for privileged members */}
+      {(member?.role === 'admin' || member?.role === 'therapist') && (
         <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
           <div className="flex items-center justify-between max-w-4xl mx-auto">
             <div className="flex items-center gap-4">
               <span className="text-sm text-blue-700">
-                Currently in: <strong>User Portal</strong>
+                Currently in: <strong>Member Portal</strong>
               </span>
               <Link
                 to="/maya"
@@ -48,9 +48,9 @@ function Navigation() {
                 else if (e.target.value === 'maya') navigate('/maya');
               }}
             >
-              <option value="user">User Portal</option>
-              {user?.role === 'therapist' && <option value="therapist">Therapist Portal</option>}
-              {user?.role === 'admin' && <option value="admin">Admin Portal</option>}
+              <option value="member">Member Portal</option>
+              {member?.role === 'therapist' && <option value="therapist">Therapist Portal</option>}
+              {member?.role === 'admin' && <option value="admin">Admin Portal</option>}
               <option value="maya">Maya AI</option>
             </select>
           </div>
@@ -63,7 +63,7 @@ function Navigation() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActiveItem = isActive(item.path);
-            
+
             return (
               <Link
                 key={item.path}

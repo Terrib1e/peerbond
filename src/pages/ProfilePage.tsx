@@ -17,7 +17,7 @@ const profileSchema = z.object({
 type ProfileFormData = z.infer<typeof profileSchema>;
 
 function ProfilePage() {
-  const { user, updateProfile } = useAuthStore();
+  const { member, updateProfile } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'goals' | 'stats'>('profile');
 
@@ -29,12 +29,12 @@ function ProfilePage() {
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      email: user?.email || '',
-      recoveryGoals: user?.recoveryGoals || [],
-      wellnessGoals: user?.wellnessGoals || [],
-      experienceLevel: user?.experienceLevel || 'beginner',
+      firstName: member?.firstName || '',
+      lastName: member?.lastName || '',
+      email: member?.email || '',
+      recoveryGoals: member?.recoveryGoals || [],
+      wellnessGoals: member?.wellnessGoals || [],
+      experienceLevel: member?.experienceLevel || 'beginner',
     },
   });
 
@@ -71,18 +71,18 @@ function ProfilePage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                {user?.firstName} {user?.lastName}
+                {member?.firstName} {member?.lastName}
               </h1>
-              <p className="text-gray-600">{user?.email}</p>
+              <p className="text-gray-600">{member?.email}</p>
               <div className="flex items-center gap-2 mt-2">
-                {user?.isPremium && (
+                {member?.isPremium && (
                   <div className="flex items-center gap-1 bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">
                     <Crown size={12} />
                     Premium
                   </div>
                 )}
                 <div className="bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs">
-                  {user?.experienceLevel}
+                  {member?.experienceLevel}
                 </div>
               </div>
             </div>
@@ -221,7 +221,7 @@ function ProfilePage() {
                   <div
                     key={goal}
                     className={`p-3 rounded-lg border ${
-                      user?.recoveryGoals.includes(goal.toLowerCase().replace(' ', '_'))
+                      member?.recoveryGoals.includes(goal.toLowerCase().replace(' ', '_'))
                         ? 'border-primary-300 bg-primary-50'
                         : 'border-gray-200'
                     }`}
@@ -242,7 +242,7 @@ function ProfilePage() {
                   <div
                     key={goal}
                     className={`p-3 rounded-lg border ${
-                      user?.wellnessGoals.includes(goal.toLowerCase().replace(' ', '_'))
+                      member?.wellnessGoals.includes(goal.toLowerCase().replace(' ', '_'))
                         ? 'border-primary-300 bg-primary-50'
                         : 'border-gray-200'
                     }`}

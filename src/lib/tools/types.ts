@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export interface ToolContext {
-  userId: string;
+  memberId: string;
   sessionId: string;
   agentId: string;
   timestamp: Date;
@@ -32,7 +32,7 @@ export interface ToolExecutionLog {
   id: string;
   toolName: string;
   agentId: string;
-  userId: string;
+  memberId: string;
   sessionId: string;
   timestamp: Date;
   duration: number;

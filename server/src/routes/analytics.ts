@@ -9,8 +9,8 @@ import { logger } from '../utils/logger';
 const router = Router();
 const dbService = new DatabaseService();
 
-// Get user analytics (admin only)
-router.get('/users', requireAdmin, validateRequest([
+// Get member analytics (admin only)
+router.get('/members', requireAdmin, validateRequest([
   query('period').optional().isIn(['day', 'week', 'month', 'quarter', 'year']).withMessage('Invalid period'),
   query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date'),
   query('endDate').optional().isISO8601().withMessage('End date must be a valid ISO 8601 date'),
@@ -19,7 +19,7 @@ router.get('/users', requireAdmin, validateRequest([
   const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
 
-  const analytics = await dbService.getUserAnalytics(period, startDate, endDate);
+  const analytics = await dbService.getMemberAnalytics(period, startDate, endDate);
 
   res.json({
     success: true,
@@ -93,34 +93,34 @@ router.get('/engagement', requireAdmin, validateRequest([
   });
 }));
 
-// Get user activity analytics (users can see their own, admins can see all)
+// Get member activity analytics (members can see their own, admins can see all)
 router.get('/activity', validateRequest([
   query('period').optional().isIn(['day', 'week', 'month', 'quarter', 'year']).withMessage('Invalid period'),
   query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date'),
   query('endDate').optional().isISO8601().withMessage('End date must be a valid ISO 8601 date'),
-  query('userId').optional().isUUID().withMessage('Invalid user ID format'),
+  query('memberId').optional().isUUID().withMessage('Invalid member ID format'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const period = req.query.period as string || 'month';
   const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
-  const targetUserId = req.query.userId as string;
-  const requestingUserId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const targetMemberId = req.query.memberId as string;
+  const requestingMemberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
-  // Users can only see their own activity unless they're admin
-  let userId = requestingUserId;
-  if (targetUserId) {
-    if (!isAdmin && targetUserId !== requestingUserId) {
+  // Members can only see their own activity unless they're admin
+  let memberId = requestingMemberId;
+  if (targetMemberId) {
+    if (!isAdmin && targetMemberId !== requestingMemberId) {
       return res.status(403).json({
         success: false,
         error: 'Access denied',
         timestamp: new Date().toISOString()
       });
     }
-    userId = targetUserId;
+    memberId = targetMemberId;
   }
 
-  const analytics = await dbService.getUserActivityAnalytics(userId, period, startDate, endDate);
+  const analytics = await dbService.getMemberActivityAnalytics(memberId, period, startDate, endDate);
 
   res.json({
     success: true,
@@ -141,10 +141,10 @@ router.get('/groups/:groupId', validateRequest([
   const period = req.query.period as string || 'month';
   const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -154,7 +154,7 @@ router.get('/groups/:groupId', validateRequest([
     });
   }
 
-  if (!isAdmin && !group.members.includes(userId)) {
+  if (!isAdmin && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -272,7 +272,7 @@ router.get('/premium', requireAdmin, validateRequest([
 
 // Export analytics data (admin only)
 router.get('/export', requireAdmin, validateRequest([
-  query('type').isIn(['users', 'groups', 'messages', 'engagement', 'retention', 'funnel', 'ai', 'premium']).withMessage('Invalid export type'),
+  query('type').isIn(['members', 'groups', 'messages', 'engagement', 'retention', 'funnel', 'ai', 'premium']).withMessage('Invalid export type'),
   query('format').optional().isIn(['json', 'csv', 'xlsx']).withMessage('Invalid format'),
   query('period').optional().isIn(['day', 'week', 'month', 'quarter', 'year']).withMessage('Invalid period'),
   query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date'),
@@ -283,15 +283,15 @@ router.get('/export', requireAdmin, validateRequest([
   const period = req.query.period as string || 'month';
   const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
-  const adminId = req.user!.id;
+  const adminId = req.member!.id;
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
+    memberId: adminId,
     action: 'analytics_export',
     resource: 'analytics',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       type,
       format,
@@ -305,7 +305,7 @@ router.get('/export', requireAdmin, validateRequest([
 
   // Note: In a real implementation, this would generate and return actual export data
   // For now, we'll return a placeholder response
-  
+
   res.json({
     success: true,
     message: `Analytics export for ${type} data has been queued`,

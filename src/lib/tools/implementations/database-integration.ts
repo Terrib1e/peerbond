@@ -25,7 +25,7 @@ export class DatabaseIntegratedTools {
    */
   createDatabaseListAllGroups() {
     const tool = new ListAllGroupsTool();
-    
+
     // Override the run method to use database
     (tool as any).run = async (args: any, _context: any) => {
       try {
@@ -34,7 +34,7 @@ export class DatabaseIntegratedTools {
           args.limit || 50, // limit
           {
             status: !args.includeInactive, // only active groups
-            userId: args.userId
+            memberId: args.memberId
           }
         );
 
@@ -67,24 +67,24 @@ export class DatabaseIntegratedTools {
    */
   createDatabaseSuggestGroup() {
     const tool = new SuggestGroupTool();
-    
+
     (tool as any).run = async (args: any, _context: any) => {
       try {
         // Get all active groups
         const { groups } = await this.databaseService.getGroups(
-          1, 
+          1,
           100, // get more for better matching
           {
             status: true,
-            userId: args.userId
+            memberId: args.memberId
           }
         );
 
-        // Score and rank groups based on user goals
+        // Score and rank groups based on member goals
         const scoredGroups = groups.map(group => {
           let score = 0;
           const groupText = `${group.name} ${group.description} ${group.type}`.toLowerCase();
-          
+
           // Score based on goal matches
           args.goals?.forEach((goal: string) => {
             if (groupText.includes(goal.toLowerCase())) {
@@ -140,12 +140,12 @@ export class DatabaseIntegratedTools {
    */
   createDatabaseJoinGroup() {
     const tool = new JoinGroupTool();
-    
+
     (tool as any).run = async (args: any, _context: any) => {
       try {
         // Get group details first
         const group = await this.databaseService.getGroupById(args.groupId);
-        
+
         if (!group) {
           throw new Error(`Group ${args.groupId} not found`);
         }
@@ -163,11 +163,11 @@ export class DatabaseIntegratedTools {
           throw new Error(`Group ${group.name} is currently full (${memberCount}/${group.maxMembers || 8} members)`);
         }
 
-        // Check if user is already a member
+        // Check if member is already a member
         const existingMembership = await this.databaseService.prisma.groupMember.findUnique({
           where: {
-            userId_groupId: {
-              userId: args.userId,
+            memberId_groupId: {
+              memberId: args.memberId,
               groupId: args.groupId
             }
           }
@@ -177,10 +177,10 @@ export class DatabaseIntegratedTools {
           throw new Error('You are already a member of this group');
         }
 
-        // Add user to group
+        // Add member to group
         await this.databaseService.prisma.groupMember.create({
           data: {
-            userId: args.userId,
+            memberId: args.memberId,
             groupId: args.groupId,
             role: 'member'
           }
@@ -189,11 +189,11 @@ export class DatabaseIntegratedTools {
         // Send notification to group if requested
         if (args.notifyMembers) {
           // In production, this would trigger real notifications
-          console.log(`[JoinGroup] Notifying group members about new member ${args.userId}`);
+          console.log(`[JoinGroup] Notifying group members about new member ${args.memberId}`);
         }
 
         // Generate welcome message
-        const welcomeMessage = `Welcome to ${group.name}! We're so glad you've joined us. 
+        const welcomeMessage = `Welcome to ${group.name}! We're so glad you've joined us.
 
 ${group.description}
 
@@ -208,8 +208,8 @@ Next meeting: ${group.schedule || 'Check the group schedule for meeting times'}`
           welcomeMessage,
           nextMeeting: group.nextMeeting ? new Date(group.nextMeeting) : undefined,
           memberCount: memberCount + 1,
-          facilitatorMessage: group.facilitator ? 
-            `Hi! I'm ${group.facilitator.name}, the facilitator for ${group.name}. Looking forward to having you in our group!` : 
+          facilitatorMessage: group.facilitator ?
+            `Hi! I'm ${group.facilitator.name}, the facilitator for ${group.name}. Looking forward to having you in our group!` :
             undefined
         };
 
@@ -230,12 +230,12 @@ Next meeting: ${group.schedule || 'Check the group schedule for meeting times'}`
     ToolRegistry.unregister('listAllGroups');
     ToolRegistry.unregister('suggestGroup');
     ToolRegistry.unregister('joinGroup');
-    
+
     // Register database-integrated versions
     ToolRegistry.register(this.createDatabaseListAllGroups());
     ToolRegistry.register(this.createDatabaseSuggestGroup());
     ToolRegistry.register(this.createDatabaseJoinGroup());
-    
+
     console.log('[DatabaseIntegration] Tools updated to use real database');
   }
 }

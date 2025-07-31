@@ -17,7 +17,7 @@ const geminiService = new GeminiService();
 // Validation rules
 const sendMessageValidation = [
   body('content').trim().isLength({ min: 1, max: 2000 }).withMessage('Message content must be between 1 and 2000 characters'),
-  body('type').optional().isIn(['text', 'user', 'system', 'ai', 'ai_facilitator']).withMessage('Invalid message type'),
+  body('type').optional().isIn(['text', 'member', 'system', 'ai', 'ai_facilitator']).withMessage('Invalid message type'),
   body('metadata').optional().isObject().withMessage('Metadata must be an object'),
 ];
 
@@ -38,10 +38,10 @@ router.get('/:groupId', validateRequest([
   query('after').optional().isISO8601().withMessage('After must be a valid ISO 8601 date'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.groupId;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -51,7 +51,7 @@ router.get('/:groupId', validateRequest([
     });
   }
 
-  if (!isAdmin && !group.members.includes(userId)) {
+  if (!isAdmin && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -89,10 +89,10 @@ router.get('/:groupId', validateRequest([
 // Send message to a group
 router.post('/:groupId', validateRequest([...groupIdValidation, ...sendMessageValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.groupId;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -110,7 +110,7 @@ router.post('/:groupId', validateRequest([...groupIdValidation, ...sendMessageVa
     });
   }
 
-  if (!isAdmin && !group.members.includes(userId)) {
+  if (!isAdmin && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -120,7 +120,7 @@ router.post('/:groupId', validateRequest([...groupIdValidation, ...sendMessageVa
 
   const messageData = {
     groupId,
-    userId,
+    memberId,
     content: req.body.content,
     type: req.body.type || 'text',
     metadata: req.body.metadata || {},
@@ -130,12 +130,12 @@ router.post('/:groupId', validateRequest([...groupIdValidation, ...sendMessageVa
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'message_send',
     resource: 'message',
     resourceId: message.id,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupId,
       messageType: message.type,
@@ -143,7 +143,7 @@ router.post('/:groupId', validateRequest([...groupIdValidation, ...sendMessageVa
     }
   });
 
-  logger.info(`Message sent: ${message.id} in group ${groupId} by ${userId}`);
+  logger.info(`Message sent: ${message.id} in group ${groupId} by ${memberId}`);
 
   // Trigger AI facilitator response (async, don't wait for completion)
   triggerAIFacilitatorResponse(message, group).catch(error => {
@@ -163,10 +163,10 @@ router.post('/:groupId', validateRequest([...groupIdValidation, ...sendMessageVa
 router.get('/:groupId/:messageId', validateRequest([...groupIdValidation, ...messageIdValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.groupId;
   const messageId = req.params.messageId;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -176,7 +176,7 @@ router.get('/:groupId/:messageId', validateRequest([...groupIdValidation, ...mes
     });
   }
 
-  if (!isAdmin && !group.members.includes(userId)) {
+  if (!isAdmin && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -210,10 +210,10 @@ router.patch('/:groupId/:messageId', validateRequest([
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.groupId;
   const messageId = req.params.messageId;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -223,7 +223,7 @@ router.patch('/:groupId/:messageId', validateRequest([
     });
   }
 
-  if (!isAdmin && !group.members.includes(userId)) {
+  if (!isAdmin && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -240,8 +240,8 @@ router.patch('/:groupId/:messageId', validateRequest([
     });
   }
 
-  // Check if user can edit this message
-  if (!isAdmin && message.userId !== userId) {
+  // Check if member can edit this message
+  if (!isAdmin && message.memberId !== memberId) {
     return res.status(403).json({
       success: false,
       error: 'Can only edit your own messages',
@@ -269,12 +269,12 @@ router.patch('/:groupId/:messageId', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'message_edit',
     resource: 'message',
     resourceId: messageId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupId,
       originalContent: message.content,
@@ -282,7 +282,7 @@ router.patch('/:groupId/:messageId', validateRequest([
     }
   });
 
-  logger.info(`Message edited: ${messageId} in group ${groupId} by ${userId}`);
+  logger.info(`Message edited: ${messageId} in group ${groupId} by ${memberId}`);
 
   res.json({
     success: true,
@@ -297,10 +297,10 @@ router.patch('/:groupId/:messageId', validateRequest([
 router.delete('/:groupId/:messageId', validateRequest([...groupIdValidation, ...messageIdValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.groupId;
   const messageId = req.params.messageId;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -310,7 +310,7 @@ router.delete('/:groupId/:messageId', validateRequest([...groupIdValidation, ...
     });
   }
 
-  if (!isAdmin && !group.members.includes(userId)) {
+  if (!isAdmin && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -327,8 +327,8 @@ router.delete('/:groupId/:messageId', validateRequest([...groupIdValidation, ...
     });
   }
 
-  // Check if user can delete this message
-  if (!isAdmin && message.userId !== userId && !group.facilitators.includes(userId)) {
+  // Check if member can delete this message
+  if (!isAdmin && message.memberId !== memberId && !group.facilitators.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Can only delete your own messages or as a facilitator',
@@ -340,20 +340,20 @@ router.delete('/:groupId/:messageId', validateRequest([...groupIdValidation, ...
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'message_delete',
     resource: 'message',
     resourceId: messageId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupId,
       deletedContent: message.content,
-      originalUserId: message.userId
+      originalMemberId: message.memberId
     }
   });
 
-  logger.info(`Message deleted: ${messageId} in group ${groupId} by ${userId}`);
+  logger.info(`Message deleted: ${messageId} in group ${groupId} by ${memberId}`);
 
   res.json({
     success: true,
@@ -370,11 +370,11 @@ router.post('/:groupId/:messageId/reactions', validateRequest([
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.groupId;
   const messageId = req.params.messageId;
-  const userId = req.user!.id;
+  const memberId = req.member!.id;
   const { emoji } = req.body;
-  const isAdmin = req.user!.role === 'admin';
+  const isAdmin = req.member!.role === 'admin';
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -384,7 +384,7 @@ router.post('/:groupId/:messageId/reactions', validateRequest([
     });
   }
 
-  if (!isAdmin && !group.members.includes(userId)) {
+  if (!isAdmin && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -401,16 +401,16 @@ router.post('/:groupId/:messageId/reactions', validateRequest([
     });
   }
 
-  const updatedMessage = await dbService.addMessageReaction(messageId, userId, emoji);
+  const updatedMessage = await dbService.addMessageReaction(messageId, memberId, emoji);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'reaction_add',
     resource: 'message',
     resourceId: messageId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupId,
       emoji
@@ -434,11 +434,11 @@ router.delete('/:groupId/:messageId/reactions', validateRequest([
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.groupId;
   const messageId = req.params.messageId;
-  const userId = req.user!.id;
+  const memberId = req.member!.id;
   const { emoji } = req.body;
-  const isAdmin = req.user!.role === 'admin';
+  const isAdmin = req.member!.role === 'admin';
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -448,7 +448,7 @@ router.delete('/:groupId/:messageId/reactions', validateRequest([
     });
   }
 
-  if (!isAdmin && !group.members.includes(userId)) {
+  if (!isAdmin && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -465,16 +465,16 @@ router.delete('/:groupId/:messageId/reactions', validateRequest([
     });
   }
 
-  const updatedMessage = await dbService.removeMessageReaction(messageId, userId, emoji);
+  const updatedMessage = await dbService.removeMessageReaction(messageId, memberId, emoji);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'reaction_remove',
     resource: 'message',
     resourceId: messageId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupId,
       emoji
@@ -493,9 +493,9 @@ router.delete('/:groupId/:messageId/reactions', validateRequest([
 // Manual AI facilitator trigger for therapists/admins
 router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.groupId;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
-  const isTherapist = req.user!.role === 'therapist';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
+  const isTherapist = req.member!.role === 'therapist';
 
   // Only admins and therapists can manually trigger Maya
   if (!isAdmin && !isTherapist) {
@@ -506,7 +506,7 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
     });
   }
 
-  // Check if user has access to this group
+  // Check if member has access to this group
   const group = await dbService.getGroupById(groupId);
   if (!group) {
     return res.status(404).json({
@@ -527,13 +527,13 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
   try {
     // Get recent messages for context
     const recentMessages = await dbService.getRecentMessages(group.id, 10);
-    const activeUsers = await dbService.getGroupMembers(group.id);
+    const activeMembers = await dbService.getGroupMembers(group.id);
 
     // Create a synthetic "therapist request" message for Maya to respond to
     const contextMessage = {
       id: `manual-trigger-${Date.now()}`,
       groupId,
-      userId: 'therapist-trigger',
+      memberId: 'therapist-trigger',
       authorId: 'therapist-trigger',
       content: 'Therapist has requested Maya to provide therapeutic facilitation for the current conversation.',
       type: 'system' as const,
@@ -548,7 +548,7 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
       contextMessage,
       recentMessages,
       group,
-      activeUsers
+      activeMembers
     );
 
     if (!aiResponse) {
@@ -562,26 +562,26 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
     // Create AI message in database
     const aiMessage = await dbService.createMessage({
       groupId: group.id,
-      userId: 'ai-facilitator',
+      memberId: 'ai-facilitator',
       content: aiResponse.message,
       type: 'ai_facilitator'
     });
 
     // Log audit event
     await dbService.createAuditLog({
-      userId,
+      memberId,
       action: 'manual_maya_trigger',
       resource: 'message',
       resourceId: aiMessage.id,
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
       metadata: {
         groupId,
-        triggeredBy: req.user!.role
+        triggeredBy: req.member!.role
       }
     });
 
-    logger.info(`Maya manually triggered by ${req.user!.role} ${userId} in group ${groupId}`);
+    logger.info(`Maya manually triggered by ${req.member!.role} ${memberId} in group ${groupId}`);
 
     // Broadcast WebSocket event
     setTimeout(() => {
@@ -589,7 +589,7 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
       if (wsService) {
         wsService.broadcastToGroup(group.id, 'new_message', {
           ...aiMessage,
-          user: {
+          member: {
             id: 'ai-facilitator',
             firstName: 'AI',
             lastName: 'Facilitator',
@@ -619,9 +619,9 @@ router.post('/:groupId/trigger-maya', validateRequest([...groupIdValidation]), a
 }));
 
 // AI Facilitator trigger function
-async function triggerAIFacilitatorResponse(userMessage: any, group: any) {
+async function triggerAIFacilitatorResponse(memberMessage: any, group: any) {
   try {
-    logger.info(`🤖 Checking AI trigger for group ${group.id}, type: ${group.type}, message: "${userMessage.content}"`);
+    logger.info(`🤖 Checking AI trigger for group ${group.id}, type: ${group.type}, message: "${memberMessage.content}"`);
 
     // Trigger AI for recovery, support, wellness, and general groups
     const aiEnabledTypes = ['recovery', 'support', 'wellness', 'general'];
@@ -634,28 +634,28 @@ async function triggerAIFacilitatorResponse(userMessage: any, group: any) {
 
     logger.info(`✅ AI enabled for group type: ${group.type}`);
 
-    // Get recent messages and users for context
+    // Get recent messages and members for context
     const recentMessages = await dbService.getRecentMessages(group.id, 10);
-    const activeUsers = await dbService.getGroupMembers(group.id);
+    const activeMembers = await dbService.getGroupMembers(group.id);
 
     // Check if AI should respond based on message content
-    const shouldRespond = await shouldAIRespond(recentMessages, userMessage, group);
+    const shouldRespond = await shouldAIRespond(recentMessages, memberMessage, group);
 
-    logger.info(`🎯 Should AI respond? ${shouldRespond} for message: "${userMessage.content}"`);
+    logger.info(`🎯 Should AI respond? ${shouldRespond} for message: "${memberMessage.content}"`);
 
     if (!shouldRespond) {
       logger.info(`❌ AI decided not to respond based on conversation flow`);
       return;
     }
 
-    logger.info(`✅ AI will respond to message: "${userMessage.content}"`);
+    logger.info(`✅ AI will respond to message: "${memberMessage.content}"`);
 
     // Generate AI facilitator response using Gemini
     const aiResponse = await geminiService.generateFacilitatorResponse(
-      userMessage,
+      memberMessage,
       recentMessages,
       group,
-      activeUsers
+      activeMembers
     );
 
     if (!aiResponse) {
@@ -668,7 +668,7 @@ async function triggerAIFacilitatorResponse(userMessage: any, group: any) {
     // Create AI message in database
     const aiMessage = await dbService.createMessage({
       groupId: group.id,
-      userId: 'ai-facilitator',
+      memberId: 'ai-facilitator',
       content: aiResponse.message,
       type: 'ai_facilitator'
     });
@@ -681,7 +681,7 @@ async function triggerAIFacilitatorResponse(userMessage: any, group: any) {
       if (wsService) {
         wsService.broadcastToGroup(group.id, 'new_message', {
           ...aiMessage,
-          user: {
+          member: {
             id: 'ai-facilitator',
             firstName: 'AI',
             lastName: 'Facilitator',
@@ -699,18 +699,18 @@ async function triggerAIFacilitatorResponse(userMessage: any, group: any) {
 }
 
 // AI response decision logic - Maya as a selective therapeutic tool
-async function shouldAIRespond(recentMessages: any[], userMessage: any, group: any): Promise<boolean> {
-  logger.info(`🔍 Checking if Maya should respond to: "${userMessage.content}"`);
+async function shouldAIRespond(recentMessages: any[], memberMessage: any, group: any): Promise<boolean> {
+  logger.info(`🔍 Checking if Maya should respond to: "${memberMessage.content}"`);
 
   // Get AI messages in recent conversation
   const aiMessages = recentMessages.filter(m => m.type === 'ai_facilitator');
-  const userMessages = recentMessages.filter(m => m.type === 'user' || m.type === 'text');
+  const memberMessages = recentMessages.filter(m => m.type === 'member' || m.type === 'text');
 
-  logger.info(`📊 Recent messages: ${userMessages.length} user messages, ${aiMessages.length} AI messages`);
+  logger.info(`📊 Recent messages: ${memberMessages.length} member messages, ${aiMessages.length} AI messages`);
 
   // Strong frequency control - Maya should be much less chatty
-  if (aiMessages.length >= 1 && userMessages.length < 5) {
-    logger.info(`⏸️ Recent AI activity detected (${aiMessages.length} AI vs ${userMessages.length} user) - Maya staying quiet`);
+  if (aiMessages.length >= 1 && memberMessages.length < 5) {
+    logger.info(`⏸️ Recent AI activity detected (${aiMessages.length} AI vs ${memberMessages.length} member) - Maya staying quiet`);
     return false;
   }
 
@@ -721,11 +721,11 @@ async function shouldAIRespond(recentMessages: any[], userMessage: any, group: a
     return false;
   }
 
-  const messageContent = userMessage.content.toLowerCase();
+  const messageContent = memberMessage.content.toLowerCase();
 
   // Check for crisis language using Gemini (if available)
   try {
-    const isCrisis = await geminiService.checkCrisisLanguage(userMessage.content);
+    const isCrisis = await geminiService.checkCrisisLanguage(memberMessage.content);
     if (isCrisis) {
       logger.info(`🚨 Crisis language detected - Maya responding immediately`);
       return true; // Always respond to crisis indicators
@@ -737,10 +737,10 @@ async function shouldAIRespond(recentMessages: any[], userMessage: any, group: a
   // Direct mentions of Maya or explicit facilitator requests
   const directMentions = ['maya', '@maya', 'facilitator'];
   const explicitRequests = ['need facilitator', 'facilitator help', 'maya help', 'ai help'];
-  
+
   const hasDirectMention = directMentions.some(mention => messageContent.includes(mention));
   const hasExplicitRequest = explicitRequests.some(request => messageContent.includes(request));
-  
+
   if (hasDirectMention || hasExplicitRequest) {
     logger.info(`🎯 Direct Maya mention/request detected - responding`);
     return true;

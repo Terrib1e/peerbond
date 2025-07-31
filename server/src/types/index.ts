@@ -1,10 +1,10 @@
 import { Request } from 'express';
 
-// Extend Express Request to include user from auth middleware
+// Extend Express Request to include member from auth middleware
 declare global {
   namespace Express {
     interface Request {
-      user?: {
+      member?: {
         id: string;
         firstName: string;
         lastName: string;
@@ -19,7 +19,7 @@ declare global {
   }
 }
 
-export interface UserStats {
+export interface MemberStats {
   totalMessages: number;
   groupsJoined: number;
   streakDays: number;
@@ -27,13 +27,13 @@ export interface UserStats {
   engagementScore: number;
 }
 
-export interface User {
+export interface Member {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
   password?: string;
-  role: 'user' | 'admin' | 'therapist';
+  role: 'member' | 'admin' | 'therapist';
   recoveryGoals: string[];
   wellnessGoals: string[];
   experienceLevel: 'beginner' | 'intermediate' | 'advanced';
@@ -43,8 +43,8 @@ export interface User {
   lastActive?: Date;
   profilePicture?: string;
   bio?: string;
-  preferences?: UserPreferences;
-  stats?: UserStats;
+  preferences?: MemberPreferences;
+  stats?: MemberStats;
   // Additional properties expected by the code
   scopes?: string[];
   preferredLanguage?: string;
@@ -105,10 +105,10 @@ export interface Group {
 export interface Message {
   id: string;
   groupId: string;
-  userId: string;
+  memberId: string;
   authorId: string; // Add authorId for compatibility
   content: string;
-  type: 'user' | 'text' | 'system' | 'ai' | 'ai_facilitator';
+  type: 'member' | 'text' | 'system' | 'ai' | 'ai_facilitator';
   createdAt: Date;
   timestamp: Date;
   editedAt?: Date;
@@ -122,7 +122,7 @@ export interface Message {
 export interface MessageReaction {
   id: string;
   messageId: string;
-  userId: string;
+  memberId: string;
   emoji: string;
   createdAt: Date;
 }
@@ -130,7 +130,7 @@ export interface MessageReaction {
 export interface ActionItem {
   id: string;
   groupId: string;
-  userId?: string;
+  memberId?: string;
   title: string; // Keep this property as code expects it
   description: string;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -158,7 +158,7 @@ export interface Insight {
 
 export interface Session {
   id: string;
-  userId: string;
+  memberId: string;
   token: string;
   expiresAt: Date;
   createdAt: Date;
@@ -167,20 +167,20 @@ export interface Session {
 
 export interface AuditLog {
   id: string;
-  userId: string;
+  memberId: string;
   action: string;
   resource: string;
   resourceId?: string;
   details?: Record<string, any>;
   ipAddress: string;
-  userAgent: string;
+  memberAgent: string;
   createdAt: Date;
 }
 
 export interface GroupMembership {
   id: string;
   groupId: string;
-  userId: string;
+  memberId: string;
   role: 'member' | 'moderator' | 'admin';
   joinedAt: Date;
   leftAt?: Date;
@@ -198,9 +198,9 @@ export interface AIFacilitatorConfig {
   updatedAt: Date;
 }
 
-export interface UserPreferences {
+export interface MemberPreferences {
   id: string;
-  userId: string;
+  memberId: string;
   notifications: {
     email: boolean;
     push: boolean;
@@ -226,7 +226,7 @@ export interface UserPreferences {
 
 export interface Subscription {
   id: string;
-  userId: string;
+  memberId: string;
   planId: string;
   status: 'active' | 'cancelled' | 'expired' | 'past_due';
   currentPeriodStart: Date;
@@ -241,13 +241,13 @@ export interface Subscription {
 export interface Analytics {
   id: string;
   groupId?: string;
-  userId?: string;
+  memberId?: string;
   eventType: string;
   eventData: Record<string, any>;
   timestamp: Date;
   sessionId?: string;
   ipAddress?: string;
-  userAgent?: string;
+  memberAgent?: string;
 }
 
 // Request/Response types
@@ -278,10 +278,10 @@ export interface CreateGroupRequest {
 export interface SendMessageRequest {
   groupId: string;
   content: string;
-  type?: 'user' | 'system';
+  type?: 'member' | 'system';
 }
 
-export interface UpdateUserRequest {
+export interface UpdateMemberRequest {
   firstName?: string;
   lastName?: string;
   avatar?: string;
@@ -292,7 +292,7 @@ export interface UpdateUserRequest {
 
 export interface CreateActionItemRequest {
   groupId: string;
-  userId?: string;
+  memberId?: string;
   title: string;
   description: string;
   priority?: 'low' | 'medium' | 'high';
@@ -309,7 +309,7 @@ export interface UpdateActionItemRequest {
 
 // Response types
 export interface AuthResponse {
-  user: User;
+  member: Member;
   token: string;
   expiresAt: Date;
 }
@@ -336,10 +336,10 @@ export interface PaginatedResponse<T = any> {
 
 // WebSocket types
 export interface WebSocketMessage {
-  type: 'message' | 'user_joined' | 'user_left' | 'typing' | 'reaction' | 'action_item' | 'insight';
+  type: 'message' | 'member_joined' | 'member_left' | 'typing' | 'reaction' | 'action_item' | 'insight';
   data: any;
   timestamp: Date;
-  userId?: string;
+  memberId?: string;
   groupId?: string;
 }
 
@@ -359,7 +359,7 @@ export interface AIResponse {
 export interface ConversationContext {
   groupId: string;
   messages: Message[];
-  participants: User[];
+  participants: Member[];
   groupType: string;
   sessionDuration: number;
   lastFacilitatorMessage?: Date;

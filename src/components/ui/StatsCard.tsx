@@ -29,8 +29,7 @@ const StatsCard: React.FC<StatsCardProps> = ({
   className,
   isLoading = false,
 }) => {
-  const theme = getPortalTheme(portalType);
-  
+
   const sizeClasses = {
     sm: 'p-4',
     base: 'p-6',
@@ -96,8 +95,8 @@ const StatsCard: React.FC<StatsCardProps> = ({
             'flex-shrink-0 p-2 rounded-full',
             `bg-${portalType === 'member' ? 'blue' : portalType === 'therapist' ? 'green' : 'purple'}-100`
           )}>
-            <Icon 
-              size={iconSizes[size]} 
+            <Icon
+              size={iconSizes[size]}
               className={cn(
                 portalType === 'member' && 'text-blue-600',
                 portalType === 'therapist' && 'text-green-600',

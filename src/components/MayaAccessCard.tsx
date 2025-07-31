@@ -2,15 +2,13 @@
  * Maya Access Card - Reusable card component for accessing Maya AI
  * Can be used in dashboards, pages, or any interface where Maya access is needed
  */
-
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Heart, 
-  Bot, 
-  Stethoscope, 
-  Settings, 
+import {
+  Heart,
+  Bot,
+  Stethoscope,
+  Settings,
   ArrowRight,
   Sparkles
 } from 'lucide-react';
@@ -19,7 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
 
 interface MayaAccessCardProps {
-  userRole: 'member' | 'therapist' | 'admin';
+  memberRole: 'member' | 'therapist' | 'admin';
   className?: string;
   variant?: 'compact' | 'full' | 'hero';
   context?: {
@@ -59,24 +57,24 @@ const ROLE_CONFIGS = {
   }
 };
 
-export default function MayaAccessCard({ 
-  userRole, 
-  className, 
+export default function MayaAccessCard({
+  memberRole,
+  className,
   variant = 'full',
-  context 
+  context
 }: MayaAccessCardProps) {
-  const config = ROLE_CONFIGS[userRole];
+  const config = ROLE_CONFIGS[memberRole];
   const Icon = config.icon;
 
   // Build URL with context parameters
   const buildMayaUrl = () => {
     const baseUrl = '/maya';
     const params = new URLSearchParams();
-    
+
     if (context?.groupId) params.set('groupId', context.groupId);
     if (context?.clientId) params.set('clientId', context.clientId);
     if (context?.sessionId) params.set('sessionId', context.sessionId);
-    
+
     return params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
   };
 
@@ -119,7 +117,7 @@ export default function MayaAccessCard({
         <div className="absolute top-0 right-0 w-32 h-32 opacity-10">
           <Sparkles className="w-full h-full" />
         </div>
-        
+
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 rounded-2xl bg-white bg-opacity-20 flex items-center justify-center">
@@ -147,7 +145,7 @@ export default function MayaAccessCard({
           </div>
 
           <Link to={buildMayaUrl()}>
-            <Button 
+            <Button
               size="lg"
               className="bg-white text-gray-900 hover:bg-gray-100 font-semibold"
             >
@@ -171,7 +169,7 @@ export default function MayaAccessCard({
           )}>
             <Icon className="w-6 h-6 text-white" />
           </div>
-          
+
           <div className="flex-1 min-w-0">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               {config.title}
@@ -179,7 +177,7 @@ export default function MayaAccessCard({
             <p className="text-gray-600 mb-4">
               {config.description}
             </p>
-            
+
             <div className="space-y-2 mb-6">
               {config.features.map((feature, index) => (
                 <div key={index} className="flex items-center gap-2 text-sm text-gray-600">
@@ -205,14 +203,14 @@ export default function MayaAccessCard({
 /**
  * Pre-configured variants for specific use cases
  */
-export const MayaAccessCardMember = (props: Omit<MayaAccessCardProps, 'userRole'>) => (
-  <MayaAccessCard {...props} userRole="member" />
+export const MayaAccessCardMember = (props: Omit<MayaAccessCardProps, 'memberRole'>) => (
+  <MayaAccessCard {...props} memberRole="member" />
 );
 
-export const MayaAccessCardTherapist = (props: Omit<MayaAccessCardProps, 'userRole'>) => (
-  <MayaAccessCard {...props} userRole="therapist" />
+export const MayaAccessCardTherapist = (props: Omit<MayaAccessCardProps, 'memberRole'>) => (
+  <MayaAccessCard {...props} memberRole="therapist" />
 );
 
-export const MayaAccessCardAdmin = (props: Omit<MayaAccessCardProps, 'userRole'>) => (
-  <MayaAccessCard {...props} userRole="admin" />
+export const MayaAccessCardAdmin = (props: Omit<MayaAccessCardProps, 'memberRole'>) => (
+  <MayaAccessCard {...props} memberRole="admin" />
 );

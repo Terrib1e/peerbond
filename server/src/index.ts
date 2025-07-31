@@ -17,7 +17,7 @@ import { authenticateToken } from './middleware/auth';
 
 // Import route handlers
 import authRoutes from './routes/auth';
-import userRoutes from './routes/users';
+import memberRoutes from './routes/members';
 import groupRoutes from './routes/groups';
 import messageRoutes from './routes/messages';
 import adminRoutes from './routes/admin';
@@ -192,7 +192,7 @@ try {
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', authenticateToken, userRoutes);
+app.use('/api/members', authenticateToken, memberRoutes);
 app.use('/api/groups', authenticateToken, groupRoutes);
 app.use('/api/messages', authenticateToken, messageRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);

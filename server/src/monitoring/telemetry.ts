@@ -59,9 +59,9 @@ export class OrchestrationTelemetry {
   /**
    * Record session creation
    */
-  public static recordSessionCreated(userId: string, groupId?: string): void {
+  public static recordSessionCreated(memberId: string, groupId?: string): void {
     this.sessionCounter.add(1, {
-      user_id: userId,
+      member_id: memberId,
       has_group: groupId ? 'true' : 'false',
     });
     this.activeSessionsGauge.add(1);
@@ -160,7 +160,7 @@ export class OrchestrationTelemetry {
   public static async traceSessionOperation<T>(
     operationName: string,
     sessionId: string,
-    userId: string,
+    memberId: string,
     operation: (span: any) => Promise<T>
   ): Promise<T> {
     return this.traceOperation(
@@ -168,7 +168,7 @@ export class OrchestrationTelemetry {
       operation,
       {
         'session.id': sessionId,
-        'user.id': userId,
+        'member.id': memberId,
         'operation.type': operationName,
       }
     );

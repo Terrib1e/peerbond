@@ -10,9 +10,9 @@ RUN apk add --no-cache \
     curl \
     dumb-init
 
-# Create app user for security
+# Create app member for security
 RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+RUN addmember -S nodejs -u 1001
 
 # Set working directory
 WORKDIR /app
@@ -48,7 +48,7 @@ RUN mkdir -p tmp && chown nodejs:nodejs tmp
 COPY --chown=nodejs:nodejs prisma ./prisma
 COPY --chown=nodejs:nodejs .env.example ./.env.example
 
-# Switch to non-root user
+# Switch to non-root member
 USER nodejs
 
 # Expose ports

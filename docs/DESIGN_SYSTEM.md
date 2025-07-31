@@ -36,7 +36,7 @@ The design system provides:
 - **Primary**: Purple-600 (#9333ea)
 - **Background**: Purple-50 (#faf5ff)
 - **Text**: Purple-700 (#7c3aed)
-- **Use Case**: System administration, analytics, user management
+- **Use Case**: System administration, analytics, member management
 
 ## Layout Structure
 
@@ -61,7 +61,7 @@ import PortalLayout from '@/components/ui/PortalLayout';
 ```
 
 ### Key Features:
-- **Portal Switcher**: Automatically shown for privileged users
+- **Portal Switcher**: Automatically shown for privileged members
 - **Unified Header**: Consistent styling with portal-specific colors
 - **Navigation Tabs**: Optional tabbed navigation for complex interfaces
 - **Maya Integration**: Built-in Maya quick access

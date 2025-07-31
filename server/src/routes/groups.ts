@@ -47,15 +47,15 @@ router.get('/', authenticateToken, validateRequest([
   const type = req.query.type as string;
   const status = req.query.status as string || 'active';
   const privacy = req.query.privacy as string || 'all';
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
   const filters = {
     search,
     type,
     status: status === 'all' ? undefined : status === 'active',
     privacy: privacy === 'all' ? undefined : privacy === 'public',
-    userId: isAdmin ? undefined : userId, // Non-admin users only see their groups or public groups
+    memberId: isAdmin ? undefined : memberId, // Non-admin members only see their groups or public groups
   };
 
   const result = await dbService.getGroups(page, limit, filters);
@@ -75,11 +75,11 @@ router.get('/', authenticateToken, validateRequest([
   });
 }));
 
-// Get groups available to current user (assigned + public)
+// Get groups available to current member (assigned + public)
 router.get('/available', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.user!.id;
+  const memberId = req.member!.id;
 
-  const availableGroups = await dbService.getUserAvailableGroups(userId);
+  const availableGroups = await dbService.getMemberAvailableGroups(memberId);
 
   res.json({
     success: true,
@@ -90,11 +90,11 @@ router.get('/available', authenticateToken, asyncHandler(async (req: Authenticat
   });
 }));
 
-// Get groups assigned to current user
+// Get groups assigned to current member
 router.get('/assigned', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.user!.id;
+  const memberId = req.member!.id;
 
-  const assignedGroups = await dbService.getUserAssignedGroups(userId);
+  const assignedGroups = await dbService.getMemberAssignedGroups(memberId);
 
   res.json({
     success: true,
@@ -108,8 +108,8 @@ router.get('/assigned', authenticateToken, asyncHandler(async (req: Authenticate
 // Get group by ID
 router.get('/:id', authenticateToken, validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
   const group = await dbService.getGroupById(groupId);
   if (!group) {
@@ -120,8 +120,8 @@ router.get('/:id', authenticateToken, validateRequest(groupIdValidation), asyncH
     });
   }
 
-  // Check if user has access to this group
-  if (!isAdmin && group.isPrivate && !group.members.includes(userId)) {
+  // Check if member has access to this group
+  if (!isAdmin && group.isPrivate && !group.members.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -140,33 +140,33 @@ router.get('/:id', authenticateToken, validateRequest(groupIdValidation), asyncH
 
 // Create group
 router.post('/', authenticateToken, validateRequest(createGroupValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
   const groupData = {
     ...req.body,
-    createdBy: userId,
-    members: [userId], // Creator is automatically a member
-    facilitators: isAdmin ? [userId] : [], // Admins are automatically facilitators
+    createdBy: memberId,
+    members: [memberId], // Creator is automatically a member
+    facilitators: isAdmin ? [memberId] : [], // Admins are automatically facilitators
   };
 
   const group = await dbService.createGroup(groupData);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'group_create',
     resource: 'group',
     resourceId: group.id,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupName: group.name,
       groupType: group.type
     }
   });
 
-  logger.info(`Group created: ${group.id} by ${userId}`);
+  logger.info(`Group created: ${group.id} by ${memberId}`);
 
   res.status(201).json({
     success: true,
@@ -180,8 +180,8 @@ router.post('/', authenticateToken, validateRequest(createGroupValidation), asyn
 // Update group
 router.patch('/:id', authenticateToken, validateRequest([...groupIdValidation, ...updateGroupValidation]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
   const group = await dbService.getGroupById(groupId);
   if (!group) {
@@ -192,8 +192,8 @@ router.patch('/:id', authenticateToken, validateRequest([...groupIdValidation, .
     });
   }
 
-  // Check if user has permission to update this group
-  if (!isAdmin && group.createdBy !== userId && !group.facilitators.includes(userId)) {
+  // Check if member has permission to update this group
+  if (!isAdmin && group.createdBy !== memberId && !group.facilitators.includes(memberId)) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -201,7 +201,7 @@ router.patch('/:id', authenticateToken, validateRequest([...groupIdValidation, .
     });
   }
 
-  // Non-admin users cannot change certain fields
+  // Non-admin members cannot change certain fields
   if (!isAdmin) {
     delete req.body.isActive;
   }
@@ -210,19 +210,19 @@ router.patch('/:id', authenticateToken, validateRequest([...groupIdValidation, .
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'group_update',
     resource: 'group',
     resourceId: groupId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       updatedFields: Object.keys(req.body),
       isAdmin
     }
   });
 
-  logger.info(`Group updated: ${groupId} by ${userId}`);
+  logger.info(`Group updated: ${groupId} by ${memberId}`);
 
   res.json({
     success: true,
@@ -236,7 +236,7 @@ router.patch('/:id', authenticateToken, validateRequest([...groupIdValidation, .
 // Delete group (admin only)
 router.delete('/:id', requireAdmin, validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
-  const userId = req.user!.id;
+  const memberId = req.member!.id;
 
   const group = await dbService.getGroupById(groupId);
   if (!group) {
@@ -251,19 +251,19 @@ router.delete('/:id', requireAdmin, validateRequest(groupIdValidation), asyncHan
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'group_delete',
     resource: 'group',
     resourceId: groupId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupName: group.name,
       memberCount: group.members.length
     }
   });
 
-  logger.info(`Group deleted: ${groupId} by ${userId}`);
+  logger.info(`Group deleted: ${groupId} by ${memberId}`);
 
   res.json({
     success: true,
@@ -275,7 +275,7 @@ router.delete('/:id', requireAdmin, validateRequest(groupIdValidation), asyncHan
 // Join group
 router.post('/:id/join', authenticateToken, validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
-  const userId = req.user!.id;
+  const memberId = req.member!.id;
 
   const group = await dbService.getGroupById(groupId);
   if (!group) {
@@ -294,7 +294,7 @@ router.post('/:id/join', authenticateToken, validateRequest(groupIdValidation), 
     });
   }
 
-  if (group.members.includes(userId)) {
+  if (group.members.includes(memberId)) {
     return res.status(400).json({
       success: false,
       error: 'Already a member of this group',
@@ -310,22 +310,22 @@ router.post('/:id/join', authenticateToken, validateRequest(groupIdValidation), 
     });
   }
 
-  const updatedGroup = await dbService.addGroupMember(groupId, userId);
+  const updatedGroup = await dbService.addGroupMember(groupId, memberId);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'group_join',
     resource: 'group',
     resourceId: groupId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupName: group.name
     }
   });
 
-  logger.info(`User joined group: ${userId} joined ${groupId}`);
+  logger.info(`Member joined group: ${memberId} joined ${groupId}`);
 
   res.json({
     success: true,
@@ -339,7 +339,7 @@ router.post('/:id/join', authenticateToken, validateRequest(groupIdValidation), 
 // Leave group
 router.post('/:id/leave', authenticateToken, validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
-  const userId = req.user!.id;
+  const memberId = req.member!.id;
 
   const group = await dbService.getGroupById(groupId);
   if (!group) {
@@ -350,7 +350,7 @@ router.post('/:id/leave', authenticateToken, validateRequest(groupIdValidation),
     });
   }
 
-  if (!group.members.includes(userId)) {
+  if (!group.members.includes(memberId)) {
     return res.status(400).json({
       success: false,
       error: 'Not a member of this group',
@@ -359,7 +359,7 @@ router.post('/:id/leave', authenticateToken, validateRequest(groupIdValidation),
   }
 
   // Prevent creator from leaving if they're the only facilitator
-  if (group.createdBy === userId && group.facilitators.length === 1 && group.facilitators[0] === userId) {
+  if (group.createdBy === memberId && group.facilitators.length === 1 && group.facilitators[0] === memberId) {
     return res.status(400).json({
       success: false,
       error: 'Cannot leave group as the only facilitator. Transfer ownership first.',
@@ -367,22 +367,22 @@ router.post('/:id/leave', authenticateToken, validateRequest(groupIdValidation),
     });
   }
 
-  const updatedGroup = await dbService.removeGroupMember(groupId, userId);
+  const updatedGroup = await dbService.removeGroupMember(groupId, memberId);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'group_leave',
     resource: 'group',
     resourceId: groupId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupName: group.name
     }
   });
 
-  logger.info(`User left group: ${userId} left ${groupId}`);
+  logger.info(`Member left group: ${memberId} left ${groupId}`);
 
   res.json({
     success: true,
@@ -396,12 +396,12 @@ router.post('/:id/leave', authenticateToken, validateRequest(groupIdValidation),
 // Add facilitator (admin or group creator only)
 router.post('/:id/facilitators', authenticateToken, validateRequest([
   ...groupIdValidation,
-  body('userId').isUUID().withMessage('Invalid user ID format'),
+  body('memberId').isUUID().withMessage('Invalid member ID format'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
-  const { userId: targetUserId } = req.body;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const { memberId: targetMemberId } = req.body;
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
   const group = await dbService.getGroupById(groupId);
   if (!group) {
@@ -412,8 +412,8 @@ router.post('/:id/facilitators', authenticateToken, validateRequest([
     });
   }
 
-  // Check if user has permission to add facilitators
-  if (!isAdmin && group.createdBy !== userId) {
+  // Check if member has permission to add facilitators
+  if (!isAdmin && group.createdBy !== memberId) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -421,39 +421,39 @@ router.post('/:id/facilitators', authenticateToken, validateRequest([
     });
   }
 
-  if (!group.members.includes(targetUserId)) {
+  if (!group.members.includes(targetMemberId)) {
     return res.status(400).json({
       success: false,
-      error: 'User must be a member of the group first',
+      error: 'Member must be a member of the group first',
       timestamp: new Date().toISOString()
     });
   }
 
-  if (group.facilitators.includes(targetUserId)) {
+  if (group.facilitators.includes(targetMemberId)) {
     return res.status(400).json({
       success: false,
-      error: 'User is already a facilitator',
+      error: 'Member is already a facilitator',
       timestamp: new Date().toISOString()
     });
   }
 
-  const updatedGroup = await dbService.addGroupFacilitator(groupId, targetUserId);
+  const updatedGroup = await dbService.addGroupFacilitator(groupId, targetMemberId);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'facilitator_add',
     resource: 'group',
     resourceId: groupId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupName: group.name,
-      targetUserId
+      targetMemberId
     }
   });
 
-  logger.info(`Facilitator added: ${targetUserId} to ${groupId} by ${userId}`);
+  logger.info(`Facilitator added: ${targetMemberId} to ${groupId} by ${memberId}`);
 
   res.json({
     success: true,
@@ -465,14 +465,14 @@ router.post('/:id/facilitators', authenticateToken, validateRequest([
 }));
 
 // Remove facilitator (admin or group creator only)
-router.delete('/:id/facilitators/:userId', authenticateToken, validateRequest([
+router.delete('/:id/facilitators/:memberId', authenticateToken, validateRequest([
   ...groupIdValidation,
-  param('userId').isUUID().withMessage('Invalid user ID format'),
+  param('memberId').isUUID().withMessage('Invalid member ID format'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;
-  const targetUserId = req.params.userId;
-  const userId = req.user!.id;
-  const isAdmin = req.user!.role === 'admin';
+  const targetMemberId = req.params.memberId;
+  const memberId = req.member!.id;
+  const isAdmin = req.member!.role === 'admin';
 
   const group = await dbService.getGroupById(groupId);
   if (!group) {
@@ -483,8 +483,8 @@ router.delete('/:id/facilitators/:userId', authenticateToken, validateRequest([
     });
   }
 
-  // Check if user has permission to remove facilitators
-  if (!isAdmin && group.createdBy !== userId) {
+  // Check if member has permission to remove facilitators
+  if (!isAdmin && group.createdBy !== memberId) {
     return res.status(403).json({
       success: false,
       error: 'Access denied',
@@ -492,10 +492,10 @@ router.delete('/:id/facilitators/:userId', authenticateToken, validateRequest([
     });
   }
 
-  if (!group.facilitators.includes(targetUserId)) {
+  if (!group.facilitators.includes(targetMemberId)) {
     return res.status(400).json({
       success: false,
-      error: 'User is not a facilitator',
+      error: 'Member is not a facilitator',
       timestamp: new Date().toISOString()
     });
   }
@@ -509,23 +509,23 @@ router.delete('/:id/facilitators/:userId', authenticateToken, validateRequest([
     });
   }
 
-  const updatedGroup = await dbService.removeGroupFacilitator(groupId, targetUserId);
+  const updatedGroup = await dbService.removeGroupFacilitator(groupId, targetMemberId);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId,
+    memberId,
     action: 'facilitator_remove',
     resource: 'group',
     resourceId: groupId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupName: group.name,
-      targetUserId
+      targetMemberId
     }
   });
 
-  logger.info(`Facilitator removed: ${targetUserId} from ${groupId} by ${userId}`);
+  logger.info(`Facilitator removed: ${targetMemberId} from ${groupId} by ${memberId}`);
 
   res.json({
     success: true,

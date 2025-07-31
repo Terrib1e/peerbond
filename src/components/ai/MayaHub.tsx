@@ -1,16 +1,16 @@
 /**
  * Maya Hub - Unified interface that provides role-based access to Maya AI
- * Integrates with existing agent system and provides appropriate interface based on user role
+ * Integrates with existing agent system and provides appropriate interface based on member role
  */
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Heart, 
-  Stethoscope, 
-  Settings, 
-  User, 
-  Shield, 
+import {
+  Heart,
+  Stethoscope,
+  Settings,
+  User,
+  Shield,
   ChevronRight,
   Bot,
   AlertCircle,
@@ -27,7 +27,7 @@ import { Card } from '@/components/ui/Card';
 import { cn } from '@/utils/cn';
 
 interface MayaHubProps {
-  user: {
+  member: {
     id: string;
     firstName: string;
     lastName: string;
@@ -67,7 +67,7 @@ const INTERFACE_OPTIONS: InterfaceOption[] = [
     requiredRole: 'member',
     features: [
       'Emotional support and validation',
-      'Coping strategy suggestions', 
+      'Coping strategy suggestions',
       'Peer group recommendations',
       'Progress tracking',
       'Crisis support resources',
@@ -114,7 +114,7 @@ const INTERFACE_OPTIONS: InterfaceOption[] = [
   }
 ];
 
-export default function MayaHub({ user, context, className, defaultMode = 'full' }: MayaHubProps) {
+export default function MayaHub({ member, context, className, defaultMode = 'full' }: MayaHubProps) {
   const [activeInterface, setActiveInterface] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [mayaStatus, setMayaStatus] = useState<'available' | 'degraded' | 'unavailable'>('available');
@@ -122,23 +122,23 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
 
   useEffect(() => {
     initializeMayaHub();
-  }, [user.role]);
+  }, [member.role]);
 
   const initializeMayaHub = async () => {
     setIsLoading(true);
-    
+
     try {
       // Check Maya system availability
       await checkMayaAvailability();
-      
+
       // Auto-select appropriate interface based on role
-      const defaultInterface = getDefaultInterfaceForRole(user.role);
+      const defaultInterface = getDefaultInterfaceForRole(member.role);
       setActiveInterface(defaultInterface);
-      
-      // Show interface selector if user has multiple options
-      const availableInterfaces = getAvailableInterfaces(user.role);
+
+      // Show interface selector if member has multiple options
+      const availableInterfaces = getAvailableInterfaces(member.role);
       setShowInterfaceSelector(availableInterfaces.length > 1);
-      
+
     } catch (error) {
       console.error('Maya Hub initialization error:', error);
       setMayaStatus('unavailable');
@@ -191,7 +191,7 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
     }
   };
 
-  const hasAccessToInterface = (interfaceId: string, userRole: string): boolean => {
+  const hasAccessToInterface = (interfaceId: string, memberRole: string): boolean => {
     const interface_option = INTERFACE_OPTIONS.find(opt => opt.id === interfaceId);
     if (!interface_option) return false;
 
@@ -201,14 +201,14 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
       'admin': 3
     };
 
-    const userLevel = roleHierarchy[userRole as keyof typeof roleHierarchy] || 0;
+    const memberLevel = roleHierarchy[memberRole as keyof typeof roleHierarchy] || 0;
     const requiredLevel = roleHierarchy[interface_option.requiredRole];
 
-    return userLevel >= requiredLevel;
+    return memberLevel >= requiredLevel;
   };
 
   const switchInterface = (interfaceId: string) => {
-    if (!hasAccessToInterface(interfaceId, user.role)) {
+    if (!hasAccessToInterface(interfaceId, member.role)) {
       toast.error('You do not have permission to access this interface');
       return;
     }
@@ -236,14 +236,14 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
   };
 
   const renderInterfaceSelector = () => {
-    const availableInterfaces = getAvailableInterfaces(user.role);
+    const availableInterfaces = getAvailableInterfaces(member.role);
 
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {availableInterfaces.map(interface_option => {
           const Icon = interface_option.icon;
           const isActive = activeInterface === interface_option.id;
-          const hasAccess = hasAccessToInterface(interface_option.id, user.role);
+          const hasAccess = hasAccessToInterface(interface_option.id, member.role);
 
           return (
             <Card
@@ -265,7 +265,7 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
                   )}>
                     <Icon className={cn('w-6 h-6', interface_option.color)} />
                   </div>
-                  
+
                   {isActive && (
                     <div className="flex items-center gap-1 text-blue-600 text-sm font-medium">
                       <CheckCircle className="w-4 h-4" />
@@ -329,29 +329,29 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
       case 'basic':
         return (
           <MayaInterface
-            userId={user.id}
+            memberId={member.id}
             {...commonProps}
           />
         );
-      
+
       case 'therapist':
         return (
           <MayaTherapistInterface
-            therapistId={user.id}
+            therapistId={member.id}
             clientId={context?.clientId}
             sessionId={context?.sessionId}
             {...commonProps}
           />
         );
-      
+
       case 'admin':
         return (
           <MayaAdminInterface
-            adminId={user.id}
+            adminId={member.id}
             {...commonProps}
           />
         );
-      
+
       default:
         return (
           <div className="flex items-center justify-center h-full">
@@ -386,7 +386,7 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
           <p className="text-gray-600 mb-4">
             The Maya AI system is currently unavailable. Please try again later.
           </p>
-          <Button 
+          <Button
             onClick={initializeMayaHub}
             variant="outline"
           >
@@ -437,7 +437,7 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
                 Choose Your Maya Experience
               </h2>
               <p className="text-gray-600">
-                Select the interface that best fits your role and needs. You can switch between 
+                Select the interface that best fits your role and needs. You can switch between
                 available interfaces at any time.
               </p>
             </div>
@@ -451,16 +451,16 @@ export default function MayaHub({ user, context, className, defaultMode = 'full'
         {renderActiveInterface()}
       </div>
 
-      {/* Footer with user context */}
+      {/* Footer with member context */}
       <div className="border-t bg-gray-50 px-4 py-2">
         <div className="flex items-center justify-between text-sm text-gray-600">
           <div className="flex items-center gap-2">
             <User className="w-4 h-4" />
-            <span>{user.firstName} {user.lastName}</span>
+            <span>{member.firstName} {member.lastName}</span>
             <span className="text-gray-400">•</span>
-            <span className="capitalize">{user.role}</span>
+            <span className="capitalize">{member.role}</span>
           </div>
-          
+
           <div className="flex items-center gap-4">
             {context?.groupId && (
               <span>Group: {context.groupId}</span>

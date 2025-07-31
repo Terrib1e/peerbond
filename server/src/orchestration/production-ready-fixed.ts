@@ -10,7 +10,7 @@ import { GeminiService } from '../services/geminiService';
 // Production-safe interfaces
 export interface ProductionConversationState {
   sessionId: string;
-  userId: string;
+  memberId: string;
   groupId?: string;
   messages: ProductionMessage[];
   currentAgent: string;
@@ -27,7 +27,7 @@ export interface ProductionMessage {
   id: string;
   content: string;
   timestamp: Date;
-  type: 'user' | 'ai' | 'system';
+  type: 'member' | 'ai' | 'system';
   agentId?: string;
   metadata?: Record<string, any>;
 }
@@ -72,20 +72,20 @@ export class ProductionOrchestratorService {
    * Start a new conversation session
    */
   public async startSession(
-    userId: string,
+    memberId: string,
     groupId?: string,
-    userProfile?: any
+    memberProfile?: any
   ): Promise<{
     sessionId: string;
     welcomeMessage: string;
     success: boolean;
   }> {
-    console.log('[ProductionOrchestrator] 🚀 Starting session for userId:', userId);
+    console.log('[ProductionOrchestrator] 🚀 Starting session for memberId:', memberId);
     try {
-      console.log('[ProductionOrchestrator] 📝 Validating userId...');
-      if (!userId || typeof userId !== 'string') {
-        console.log('[ProductionOrchestrator] ❌ Invalid userId');
-        throw new Error('Valid userId is required');
+      console.log('[ProductionOrchestrator] 📝 Validating memberId...');
+      if (!memberId || typeof memberId !== 'string') {
+        console.log('[ProductionOrchestrator] ❌ Invalid memberId');
+        throw new Error('Valid memberId is required');
       }
 
       console.log('[ProductionOrchestrator] 📊 Checking session limits...');
@@ -99,7 +99,7 @@ export class ProductionOrchestratorService {
           console.warn('[ProductionOrchestrator] ❌ Maximum session limit reached', {
             currentSessions: this.sessions.size,
             maxSessions: this.maxSessions,
-            userId,
+            memberId,
           });
           throw new Error('Server is at capacity. Please try again later.');
         }
@@ -114,7 +114,7 @@ export class ProductionOrchestratorService {
       // Create conversation state
       const session: ProductionConversationState = {
         sessionId,
-        userId,
+        memberId,
         groupId,
         messages: [],
         currentAgent: 'none',
@@ -123,7 +123,7 @@ export class ProductionOrchestratorService {
         startTime: new Date(),
         lastActivity: new Date(),
         agentHistory: [],
-        metadata: userProfile ? { userProfile } : {},
+        metadata: memberProfile ? { memberProfile } : {},
       };
 
       console.log('[ProductionOrchestrator] 💾 Storing session in memory...');
@@ -136,7 +136,7 @@ export class ProductionOrchestratorService {
         ? "Welcome to your group session! I'm Maya, here to facilitate our discussion. How are you feeling today?"
         : "Hi! I'm Maya, your AI peer support facilitator. I'm here to help you connect with others and provide support. What brings you here today?";
 
-      console.log(`[ProductionOrchestrator] ✅ Session ${sessionId} created successfully for user ${userId}`);
+      console.log(`[ProductionOrchestrator] ✅ Session ${sessionId} created successfully for member ${memberId}`);
 
       return {
         sessionId,
@@ -154,15 +154,15 @@ export class ProductionOrchestratorService {
    * Process a message through the orchestration system
    */
   public async processMessage(input: {
-    userId: string;
+    memberId: string;
     sessionId: string;
     content: string;
-    messageType?: 'user' | 'system';
+    messageType?: 'member' | 'system';
   }): Promise<AgentResponse> {
     try {
       // Validate input
-      if (!input.userId || !input.sessionId || !input.content) {
-        throw new Error('userId, sessionId, and content are required');
+      if (!input.memberId || !input.sessionId || !input.content) {
+        throw new Error('memberId, sessionId, and content are required');
       }
 
       if (input.content.length > this.maxMessageLength) {
@@ -175,20 +175,20 @@ export class ProductionOrchestratorService {
         throw new Error(`Session ${input.sessionId} not found`);
       }
 
-      if (session.userId !== input.userId) {
+      if (session.memberId !== input.memberId) {
         throw new Error('Unauthorized access to session');
       }
 
-      // Add user message
-      const userMessage: ProductionMessage = {
+      // Add member message
+      const memberMessage: ProductionMessage = {
         id: `msg_${Date.now()}_${uuidv4()}`,
         content: input.content,
         timestamp: new Date(),
-        type: input.messageType || 'user',
-        metadata: { userId: input.userId }
+        type: input.messageType || 'member',
+        metadata: { memberId: input.memberId }
       };
 
-      session.messages.push(userMessage);
+      session.messages.push(memberMessage);
       session.messageCount += 1;
       session.lastActivity = new Date();
 
@@ -346,7 +346,7 @@ export class ProductionOrchestratorService {
       {
         id: 'ai-router',
         name: 'AI Router',
-        description: 'Intelligently routes user messages to the most appropriate agent using LLM analysis',
+        description: 'Intelligently routes member messages to the most appropriate agent using LLM analysis',
         capabilities: ['intent_analysis', 'agent_routing', 'decision_making'],
         tools: ['analyzeLLMIntent', 'routeToAgent', 'provideRoutingInsight']
       },
@@ -374,51 +374,170 @@ export class ProductionOrchestratorService {
       {
         id: 'matching',
         name: 'Matching Agent',
-        description: 'Finds and recommends suitable peer support groups based on user needs',
+        description: 'Finds and recommends suitable peer support groups based on member needs',
         capabilities: ['group_matching', 'peer_connection', 'community_building'],
         tools: ['searchGroups', 'rankGroupsByRelevance', 'generateGroupRecommendations', 'listAllGroups']
       },
       {
         id: 'insight',
         name: 'Insight Agent',
-        description: 'Analyzes user progress and provides journey insights and growth tracking',
+        description: 'Analyzes member progress and provides journey insights and growth tracking',
         capabilities: ['progress_tracking', 'pattern_analysis', 'growth_insights'],
-        tools: ['analyzeUserProgress', 'generateProgressInsights', 'trackJourney', 'identifyPatterns']
+        tools: ['analyzeMemberProgress', 'generateProgressInsights', 'trackJourney', 'identifyPatterns']
+      },
+      {
+        id: 'chat',
+        name: 'Chat Manager',
+        description: 'Manages conversation threads and message organization',
+        capabilities: ['message_management', 'thread_organization', 'conversation_flow'],
+        tools: ['postMessage', 'createThread', 'archiveMessages']
+      },
+      {
+        id: 'tracker',
+        name: 'Mood Tracker',
+        description: 'Tracks emotional states and wellness metrics over time',
+        capabilities: ['mood_tracking', 'wellness_monitoring', 'progress_logging'],
+        tools: ['logMood', 'trackProgress', 'generateMoodReport']
+      },
+      {
+        id: 'action-items',
+        name: 'Goal Tracker',
+        description: 'Manages wellness goals and action items for members',
+        capabilities: ['goal_setting', 'task_management', 'progress_tracking'],
+        tools: ['createActionItem', 'updateActionItem', 'getActionItems']
+      },
+      {
+        id: 'analytics',
+        name: 'Analytics Engine',
+        description: 'Generates insights and reports from member data',
+        capabilities: ['data_analysis', 'insight_generation', 'reporting'],
+        tools: ['summarizeSession', 'generateInsights', 'exportAnalytics']
+      },
+      {
+        id: 'voice',
+        name: 'Voice Processor',
+        description: 'Handles voice note transcription and emotional analysis',
+        capabilities: ['voice_transcription', 'speech_analysis', 'emotional_detection'],
+        tools: ['transcribeVoiceNote', 'analyzeVoiceSentiment', 'processVoiceToText']
+      },
+      {
+        id: 'orchestration',
+        name: 'Workflow Coordinator',
+        description: 'Coordinates complex multi-agent workflows and processes',
+        capabilities: ['workflow_management', 'agent_coordination', 'process_orchestration'],
+        tools: ['routeToAgent', 'coordinateAgents', 'manageWorkflow']
+      },
+      {
+        id: 'personalization',
+        name: 'Personal Assistant',
+        description: 'Adapts system behavior to individual member preferences and needs',
+        capabilities: ['member_adaptation', 'preference_learning', 'personalized_content'],
+        tools: ['updateMemberPreferences', 'adaptToMember', 'generatePersonalizedContent']
+      },
+      {
+        id: 'safety',
+        name: 'Safety Monitor',
+        description: 'Ensures content safety and HIPAA compliance',
+        capabilities: ['content_filtering', 'safety_validation', 'compliance_monitoring'],
+        tools: ['screenContent', 'validateSafety', 'filterContent']
+      },
+      {
+        id: 'knowledge',
+        name: 'Knowledge Base',
+        description: 'Provides access to therapeutic resources and educational content',
+        capabilities: ['resource_discovery', 'content_recommendation', 'educational_support'],
+        tools: ['searchResources', 'getTherapeuticContent', 'recommendReading']
+      },
+      {
+        id: 'context',
+        name: 'Memory Manager',
+        description: 'Maintains conversation context and member memory across sessions',
+        capabilities: ['context_management', 'memory_persistence', 'session_continuity'],
+        tools: ['updateContext', 'retrieveContext', 'manageMemory']
       }
     ];
 
     const tools = [
       // AI Router Tools
-      { name: 'analyzeLLMIntent', description: 'Use LLM to analyze user intent and determine routing', agent: 'ai-router' },
+      { name: 'analyzeLLMIntent', description: 'Use LLM to analyze member intent and determine routing', agent: 'ai-router' },
       { name: 'routeToAgent', description: 'Route message to appropriate agent based on analysis', agent: 'ai-router' },
       { name: 'provideRoutingInsight', description: 'Explain why specific routing decision was made', agent: 'ai-router' },
 
       // Sentiment Agent Tools
-      { name: 'analyzeSentiment', description: 'Analyze emotional tone and sentiment score of user message', agent: 'sentiment' },
+      { name: 'analyzeSentiment', description: 'Analyze emotional tone and sentiment score of member message', agent: 'sentiment' },
       { name: 'detectCrisis', description: 'Identify crisis keywords and risk levels', agent: 'sentiment' },
       { name: 'assessEmotionalState', description: 'Comprehensive emotional state assessment', agent: 'sentiment' },
 
       // Crisis Agent Tools
       { name: 'provideCrisisSupport', description: 'Provide immediate crisis intervention and safety resources', agent: 'crisis' },
       { name: 'escalateToHuman', description: 'Escalate to human crisis counselor when needed', agent: 'crisis' },
-      { name: 'createSafetyPlan', description: 'Help user create a personalized safety plan', agent: 'crisis' },
+      { name: 'createSafetyPlan', description: 'Help member create a personalized safety plan', agent: 'crisis' },
 
       // Facilitator Agent Tools
       { name: 'provideSupportiveResponse', description: 'Generate empathetic, therapeutic responses', agent: 'facilitator' },
-      { name: 'validateFeelings', description: 'Acknowledge and validate user emotions', agent: 'facilitator' },
+      { name: 'validateFeelings', description: 'Acknowledge and validate member emotions', agent: 'facilitator' },
       { name: 'suggestCopingStrategies', description: 'Recommend evidence-based coping techniques', agent: 'facilitator' },
 
       // Matching Agent Tools
       { name: 'searchGroups', description: 'Search for groups matching specific criteria', agent: 'matching' },
-      { name: 'rankGroupsByRelevance', description: 'Rank groups by match score to user needs', agent: 'matching' },
+      { name: 'rankGroupsByRelevance', description: 'Rank groups by match score to member needs', agent: 'matching' },
       { name: 'generateGroupRecommendations', description: 'Create personalized group recommendations', agent: 'matching' },
       { name: 'listAllGroups', description: 'List all available peer support groups', agent: 'matching' },
 
       // Insight Agent Tools
-      { name: 'analyzeUserProgress', description: 'Analyze patterns in user\'s conversation and growth', agent: 'insight' },
-      { name: 'generateProgressInsights', description: 'Provide insights about user\'s journey', agent: 'insight' },
-      { name: 'trackJourney', description: 'Track user\'s progress over time', agent: 'insight' },
-      { name: 'identifyPatterns', description: 'Identify behavioral and emotional patterns', agent: 'insight' }
+      { name: 'analyzeMemberProgress', description: 'Analyze patterns in member\'s conversation and growth', agent: 'insight' },
+      { name: 'generateProgressInsights', description: 'Provide insights about member\'s journey', agent: 'insight' },
+      { name: 'trackJourney', description: 'Track member\'s progress over time', agent: 'insight' },
+      { name: 'identifyPatterns', description: 'Identify behavioral and emotional patterns', agent: 'insight' },
+
+      // Chat Manager Tools
+      { name: 'postMessage', description: 'Send message to conversation thread', agent: 'chat' },
+      { name: 'createThread', description: 'Create new conversation thread', agent: 'chat' },
+      { name: 'archiveMessages', description: 'Archive old messages for storage', agent: 'chat' },
+
+      // Mood Tracker Tools
+      { name: 'logMood', description: 'Record member mood and emotional state', agent: 'tracker' },
+      { name: 'trackProgress', description: 'Track wellness progress over time', agent: 'tracker' },
+      { name: 'generateMoodReport', description: 'Generate comprehensive mood analysis report', agent: 'tracker' },
+
+      // Goal Tracker Tools
+      { name: 'createActionItem', description: 'Create new wellness goal or action item', agent: 'action-items' },
+      { name: 'updateActionItem', description: 'Update progress on existing action item', agent: 'action-items' },
+      { name: 'getActionItems', description: 'Retrieve member\'s current action items and goals', agent: 'action-items' },
+
+      // Analytics Engine Tools
+      { name: 'summarizeSession', description: 'Generate session summary and insights', agent: 'analytics' },
+      { name: 'generateInsights', description: 'Create data-driven insights about member patterns', agent: 'analytics' },
+      { name: 'exportAnalytics', description: 'Export analytics data in various formats', agent: 'analytics' },
+
+      // Voice Processor Tools
+      { name: 'transcribeVoiceNote', description: 'Convert voice recordings to text', agent: 'voice' },
+      { name: 'analyzeVoiceSentiment', description: 'Analyze emotional tone from voice recordings', agent: 'voice' },
+      { name: 'processVoiceToText', description: 'Process voice input for chat interface', agent: 'voice' },
+
+      // Workflow Coordinator Tools
+      { name: 'coordinateAgents', description: 'Coordinate multiple agents for complex tasks', agent: 'orchestration' },
+      { name: 'manageWorkflow', description: 'Manage multi-step therapeutic workflows', agent: 'orchestration' },
+
+      // Personal Assistant Tools
+      { name: 'updateMemberPreferences', description: 'Update member preferences and settings', agent: 'personalization' },
+      { name: 'adaptToMember', description: 'Adapt system behavior to member needs', agent: 'personalization' },
+      { name: 'generatePersonalizedContent', description: 'Create personalized therapeutic content', agent: 'personalization' },
+
+      // Safety Monitor Tools
+      { name: 'screenContent', description: 'Screen content for safety and appropriateness', agent: 'safety' },
+      { name: 'validateSafety', description: 'Validate content meets safety standards', agent: 'safety' },
+      { name: 'filterContent', description: 'Filter potentially harmful content', agent: 'safety' },
+
+      // Knowledge Base Tools
+      { name: 'searchResources', description: 'Search therapeutic resources and materials', agent: 'knowledge' },
+      { name: 'getTherapeuticContent', description: 'Retrieve specific therapeutic exercises and content', agent: 'knowledge' },
+      { name: 'recommendReading', description: 'Recommend relevant reading materials', agent: 'knowledge' },
+
+      // Memory Manager Tools
+      { name: 'updateContext', description: 'Update conversation context and member memory', agent: 'context' },
+      { name: 'retrieveContext', description: 'Retrieve session context and member history', agent: 'context' },
+      { name: 'manageMemory', description: 'Manage member memory and persistent preferences', agent: 'context' }
     ];
 
     return { agents, tools };
@@ -431,7 +550,7 @@ export class ProductionOrchestratorService {
     agentId: string,
     message: string,
     sessionId: string,
-    userId: string,
+    memberId: string,
     toolName?: string
   ): Promise<{
     success: boolean;
@@ -448,7 +567,7 @@ export class ProductionOrchestratorService {
         throw new Error(`Session ${sessionId} not found`);
       }
 
-      if (session.userId !== userId) {
+      if (session.memberId !== memberId) {
         throw new Error('Unauthorized access to session');
       }
 
@@ -493,7 +612,7 @@ export class ProductionOrchestratorService {
 
         case 'insight':
           result = await this.insightAgent(message, session);
-          toolsUsed = ['analyzeUserProgress', 'generateProgressInsights'];
+          toolsUsed = ['analyzeMemberProgress', 'generateProgressInsights'];
           break;
 
         case 'ai-router':
@@ -502,9 +621,9 @@ export class ProductionOrchestratorService {
           const routingResult = await this.aiRouterAgent(message, session);
           console.log('[ProductionOrchestrator] Got routing decision:', routingResult);
           const executionResult = await this.executeRoutingDecision(routingResult, message, session);
-          console.log('[ProductionOrchestrator] Execution completed:', { 
+          console.log('[ProductionOrchestrator] Execution completed:', {
             agentsUsed: executionResult.agentsUsed,
-            responseLength: executionResult.response.length 
+            responseLength: executionResult.response.length
           });
           result = {
             response: executionResult.response,
@@ -581,7 +700,7 @@ export class ProductionOrchestratorService {
 
       // 1. AI Router Agent - Determines which agents and tools to use
       let routingDecision;
-      
+
       // TEMPORARY DEBUGGING: Force a specific routing decision to test agent execution
       console.log('[DEBUG] Temporarily forcing routing decision to test multi-agent execution');
       agentsUsed.push('ai-router-debug');
@@ -591,7 +710,7 @@ export class ProductionOrchestratorService {
         reasoning: 'DEBUG: Forced routing to facilitator with multiple tools for testing',
         confidence: 0.9
       };
-      
+
       // COMMENTED OUT FOR DEBUGGING - UNCOMMENT AFTER TESTING
       /*
       try {
@@ -637,19 +756,19 @@ export class ProductionOrchestratorService {
       // 3. Crisis intervention takes highest priority but doesn't exclude other agents
       if (sentimentResult.crisisLevel !== 'none') {
         console.log('[ProductionOrchestrator] Crisis detected, routing to crisis agent AND router decision');
-        
+
         // Run crisis agent
         try {
           const crisisResult = await this.crisisAgent(content, session);
           agentsUsed.push('crisis');
           needsCrisisIntervention = true;
-          
+
           // For crisis situations, also execute the routing decision for additional support
           try {
             const executionResult = await this.executeRoutingDecision(routingDecision, content, session);
             agentsUsed.push(...executionResult.agentsUsed);
             toolResults.push(...executionResult.toolResults);
-            
+
             // Combine crisis response with routing response
             response = crisisResult.response + "\n\n" + executionResult.response;
             confidence = Math.max(crisisResult.confidence, executionResult.confidence);
@@ -739,13 +858,13 @@ export class ProductionOrchestratorService {
   }> {
     try {
       console.log('[FacilitatorAgent] Maya processing message with enhanced therapeutic approach');
-      
+
       // Use LLM for more sophisticated therapeutic responses
       const therapeuticResponse = await this.generateTherapeuticResponse(content, session);
-      
+
       // Add proactive elements based on session context
       const enhancedResponse = await this.enhanceWithProactiveSupport(therapeuticResponse, session);
-      
+
       return {
         response: enhancedResponse.response,
         confidence: enhancedResponse.confidence
@@ -786,7 +905,7 @@ USER MESSAGE: "${content}"
 SESSION CONTEXT: ${JSON.stringify(contextInfo)}
 
 RESPONSE GUIDELINES:
-1. Acknowledge the user's experience with validation
+1. Acknowledge the member's experience with validation
 2. Reflect their emotional state
 3. Ask a thoughtful follow-up question OR offer a relevant coping strategy
 4. Keep responses warm but professional (2-4 sentences)
@@ -794,24 +913,24 @@ RESPONSE GUIDELINES:
 
 AVAILABLE THERAPEUTIC TOOLS TO REFERENCE:
 - Mindfulness and grounding techniques
-- Cognitive reframing strategies  
+- Cognitive reframing strategies
 - Emotional regulation skills
 - Connection and community building
 - Progress recognition and celebration
 
-Respond as Maya would - authentically therapeutic, warm, and focused on the user's wellbeing:`;
+Respond as Maya would - authentically therapeutic, warm, and focused on the member's wellbeing:`;
 
     try {
       const result = await this.callGeminiDirectly(therapeuticPrompt);
       let responseText = '';
-      
+
       if (result?.response?.text) {
         responseText = typeof result.response.text === 'function' ? result.response.text() : result.response.text;
       }
 
       // Clean and validate the response
       const cleanResponse = responseText.trim();
-      
+
       if (cleanResponse && cleanResponse.length > 20 && cleanResponse.length < 800) {
         console.log('[FacilitatorAgent] Generated therapeutic response successfully');
         return {
@@ -890,9 +1009,9 @@ Respond as Maya would - authentically therapeutic, warm, and focused on the user
     // Simple pattern detection - could be enhanced with more sophisticated analysis
     const recentMessages = session.messages.slice(-3);
     const isolationKeywords = ['alone', 'lonely', 'isolated', 'no one', 'by myself', 'disconnected'];
-    
-    return recentMessages.some(msg => 
-      isolationKeywords.some(keyword => 
+
+    return recentMessages.some(msg =>
+      isolationKeywords.some(keyword =>
         msg.content.toLowerCase().includes(keyword)
       )
     );
@@ -1064,10 +1183,10 @@ What's one small thing that has brought you even a tiny bit of comfort recently?
       const { groups: allGroups } = await this.databaseService.getGroups(1, 50, {
         status: true, // Only active groups
         privacy: undefined, // Include both public and private groups (like frontend)
-        userId: session.userId // Show groups the user has access to
+        memberId: session.memberId // Show groups the member has access to
       });
 
-      // Use all available groups (no filtering - show user-created groups too)
+      // Use all available groups (no filtering - show member-created groups too)
       const availableGroups = allGroups;
 
       console.log('[MatchingAgent] Found', availableGroups.length, 'available groups');
@@ -1086,7 +1205,7 @@ Would you like me to help you:
         };
       }
 
-      // Filter and rank groups based on user's needs
+      // Filter and rank groups based on member's needs
       const matchedGroups = this.rankGroupsByRelevance(availableGroups, goals, challenges);
 
       console.log('[MatchingAgent] Matched groups:', matchedGroups.map(g => g.name));
@@ -1170,7 +1289,7 @@ Once our systems are back online, I'll be able to give you personalized group re
   }
 
   /**
-   * Extract potential goals from user message content
+   * Extract potential goals from member message content
    */
   private extractGoalsFromContent(content: string): string[] {
     const lowerContent = content.toLowerCase();
@@ -1195,7 +1314,7 @@ Once our systems are back online, I'll be able to give you personalized group re
   }
 
   /**
-   * Extract challenges from user message content
+   * Extract challenges from member message content
    */
   private extractChallengesFromContent(content: string): string[] {
     const lowerContent = content.toLowerCase();
@@ -1220,7 +1339,7 @@ Once our systems are back online, I'll be able to give you personalized group re
   }
 
   /**
-   * Rank groups by relevance to user's goals and challenges
+   * Rank groups by relevance to member's goals and challenges
    */
   private rankGroupsByRelevance(groups: any[], goals: string[], challenges: string[]): any[] {
     return groups
@@ -1232,7 +1351,7 @@ Once our systems are back online, I'll be able to give you personalized group re
   }
 
   /**
-   * Calculate match score between user needs and group
+   * Calculate match score between member needs and group
    */
   private calculateMatchScore(group: any, goals: string[], challenges: string[]): number {
     let score = 0;
@@ -1351,7 +1470,7 @@ Once our systems are back online, I'll be able to give you personalized group re
       crisisLevel: session.crisisLevel
     };
 
-         const prompt = `You are an AI orchestration system for PeerBond, a mental health support platform. Your job is to analyze user messages and intelligently route them to the most appropriate therapeutic agent while maximizing tool utilization for better outcomes.
+         const prompt = `You are an AI orchestration system for PeerBond, a mental health support platform. Your job is to analyze member messages and intelligently route them to the most appropriate therapeutic agent while maximizing tool utilization for better outcomes.
 
 🧠 **AVAILABLE AGENTS & THEIR SPECIALIZATIONS:**
 
@@ -1360,13 +1479,13 @@ Once our systems are back online, I'll be able to give you personalized group re
    - Use for: Emotional support, therapeutic conversations, coping guidance, validation
    - Proactive capabilities: Detects patterns, suggests coping strategies, recognizes progress
 
-2. **matching** - Community connection specialist 
+2. **matching** - Community connection specialist
    - Tools: searchGroups, rankGroupsByRelevance, generateGroupRecommendations, listAllGroups
    - Use for: Group discovery, peer connections, community building, social support
    - When to prefer: Isolation, loneliness, "connect with others", group requests
 
 3. **insight** - Progress tracking and growth analysis expert
-   - Tools: analyzeUserProgress, generateProgressInsights, trackJourney, identifyPatterns  
+   - Tools: analyzeMemberProgress, generateProgressInsights, trackJourney, identifyPatterns
    - Use for: Reflection, progress reviews, milestone recognition, pattern analysis
    - When to prefer: "How am I doing?", journey reflection, growth questions
 
@@ -1389,7 +1508,7 @@ CURRENT CONTEXT:
 - ALWAYS select 2-3 tools per agent for comprehensive responses
 - Mix validation + strategy tools for facilitator (provideSupportiveResponse + validateFeelings + suggestCopingStrategies)
 - Combine search + recommendation tools for matching (searchGroups + generateGroupRecommendations + rankGroupsByRelevance)
-- Use progress + insight tools together for deeper analysis (analyzeUserProgress + generateProgressInsights + identifyPatterns)
+- Use progress + insight tools together for deeper analysis (analyzeMemberProgress + generateProgressInsights + identifyPatterns)
 - Prefer multiple complementary tools over single tool usage
 
 **PATTERN RECOGNITION:**
@@ -1398,13 +1517,13 @@ CURRENT CONTEXT:
 - "find a group", "connect with others", "peer support"
 - "feel alone", "lonely", "isolated" → facilitator FIRST, then suggest matching
 
-💙 **Emotional Processing** → facilitator agent  
+💙 **Emotional Processing** → facilitator agent
 - Sharing feelings, distress, anxiety, depression
 - Seeking comfort, validation, therapeutic conversation
 - Stress, overwhelm, relationship issues
 
 📈 **Growth & Reflection** → insight agent
-- "my progress", "how am I doing", "journey", "milestones" 
+- "my progress", "how am I doing", "journey", "milestones"
 - "what have I learned", "growth", "patterns", "improvement"
 
 🆘 **Crisis Language** → Always flagged by sentiment analysis separately
@@ -1575,7 +1694,7 @@ RESPOND WITH ONLY THIS JSON:
     const defaultTools = {
       'matching': ['searchGroups', 'generateGroupRecommendations'],
       'facilitator': ['provideSupportiveResponse', 'validateFeelings'],
-      'insight': ['analyzeUserProgress', 'generateProgressInsights']
+      'insight': ['analyzeMemberProgress', 'generateProgressInsights']
     };
     return defaultTools[agent] || defaultTools['facilitator'];
   }
@@ -1587,7 +1706,7 @@ RESPOND WITH ONLY THIS JSON:
     const agentTools = {
       'matching': ['searchGroups', 'rankGroupsByRelevance', 'generateGroupRecommendations', 'listAllGroups'],
       'facilitator': ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'],
-      'insight': ['analyzeUserProgress', 'generateProgressInsights', 'trackJourney', 'identifyPatterns']
+      'insight': ['analyzeMemberProgress', 'generateProgressInsights', 'trackJourney', 'identifyPatterns']
     };
     return agentTools[agent] || agentTools['facilitator'];
   }
@@ -1599,22 +1718,22 @@ RESPOND WITH ONLY THIS JSON:
     const toolDescriptions = {
       // Facilitator tools
       'provideSupportiveResponse': 'Generate empathetic, therapeutic responses with validation',
-      'validateFeelings': 'Acknowledge and validate user emotions with therapeutic techniques',
+      'validateFeelings': 'Acknowledge and validate member emotions with therapeutic techniques',
       'suggestCopingStrategies': 'Recommend evidence-based coping techniques and strategies',
-      
+
       // Matching tools
-      'searchGroups': 'Search for peer support groups matching user criteria',
-      'rankGroupsByRelevance': 'Rank groups by compatibility with user needs',
+      'searchGroups': 'Search for peer support groups matching member criteria',
+      'rankGroupsByRelevance': 'Rank groups by compatibility with member needs',
       'generateGroupRecommendations': 'Create personalized group recommendations',
       'listAllGroups': 'List all available peer support groups',
-      
+
       // Insight tools
-      'analyzeUserProgress': 'Analyze patterns in user conversation and growth',
-      'generateProgressInsights': 'Provide insights about user journey and development',
-      'trackJourney': 'Track user progress over time with milestone recognition',
-      'identifyPatterns': 'Identify behavioral and emotional patterns in user interactions'
+      'analyzeMemberProgress': 'Analyze patterns in member conversation and growth',
+      'generateProgressInsights': 'Provide insights about member journey and development',
+      'trackJourney': 'Track member progress over time with milestone recognition',
+      'identifyPatterns': 'Identify behavioral and emotional patterns in member interactions'
     };
-    
+
     return toolDescriptions[toolName] || `Execute ${toolName} tool`;
   }
 
@@ -1623,18 +1742,18 @@ RESPOND WITH ONLY THIS JSON:
    */
   private determineFacilitatorToolOutcome(toolName: string, content: string, session: ProductionConversationState): string {
     const outcomes = {
-      'provideSupportiveResponse': `Provided therapeutic response addressing user's emotional needs`,
-      'validateFeelings': `Validated and acknowledged user's emotional experience`,
+      'provideSupportiveResponse': `Provided therapeutic response addressing member's emotional needs`,
+      'validateFeelings': `Validated and acknowledged member's emotional experience`,
       'suggestCopingStrategies': `Offered evidence-based coping strategies for current situation`
     };
 
     let outcome = outcomes[toolName] || `Executed ${toolName}`;
-    
+
     // Add context-specific details
     if (session.lastSentimentScore !== undefined) {
-      const sentimentLabel = session.lastSentimentScore > 0 ? 'positive' : 
+      const sentimentLabel = session.lastSentimentScore > 0 ? 'positive' :
                            session.lastSentimentScore < -0.5 ? 'distressed' : 'neutral';
-      outcome += ` (user sentiment: ${sentimentLabel})`;
+      outcome += ` (member sentiment: ${sentimentLabel})`;
     }
 
     return outcome;
@@ -1656,7 +1775,7 @@ RESPOND WITH ONLY THIS JSON:
       enhancedResponse += "\n\n🤗 *Remember: All your feelings are valid and deserve acknowledgment. You're being incredibly brave by sharing and working through these experiences.*";
     }
 
-    // Proactive group suggestion if user seems isolated
+    // Proactive group suggestion if member seems isolated
     if (session.messageCount > 4 && this.detectIsolationPattern(session)) {
       enhancedResponse += "\n\n🌟 *I've noticed this conversation might be touching on feelings of isolation. Would connecting with others who have similar experiences be helpful? I can help you explore peer support options when you're ready.*";
     }
@@ -1716,7 +1835,7 @@ RESPOND WITH ONLY THIS JSON:
       console.log('[ProductionOrchestrator] Fallback: Insight request detected');
       return {
         primaryAgent: 'insight',
-        tools: ['analyzeUserProgress', 'generateProgressInsights', 'trackJourney'],
+        tools: ['analyzeMemberProgress', 'generateProgressInsights', 'trackJourney'],
         reasoning: 'Enhanced fallback: Detected progress/insight request',
         confidence: 0.7
       };
@@ -1802,7 +1921,7 @@ RESPOND WITH ONLY THIS JSON:
           // Execute matching-specific tools with enhanced tracking
           const matchingTools = ['searchGroups', 'rankGroupsByRelevance', 'generateGroupRecommendations', 'listAllGroups'];
           const requestedMatchingTools = decision.tools.filter(tool => matchingTools.includes(tool));
-          
+
           // Ensure comprehensive tool usage for group matching
           const matchingToolsToExecute = requestedMatchingTools.length >= 2 ? requestedMatchingTools :
                                         requestedMatchingTools.concat(matchingTools.filter(t => !requestedMatchingTools.includes(t)).slice(0, 3 - requestedMatchingTools.length));
@@ -1829,7 +1948,7 @@ RESPOND WITH ONLY THIS JSON:
 
           // Execute insight-specific tools
           for (const tool of decision.tools) {
-            if (['analyzeUserProgress', 'generateProgressInsights', 'trackJourney'].includes(tool)) {
+            if (['analyzeMemberProgress', 'generateProgressInsights', 'trackJourney'].includes(tool)) {
               toolResults.push({
                 tool,
                 agent: 'insight',
@@ -1851,9 +1970,9 @@ RESPOND WITH ONLY THIS JSON:
           // Execute facilitator-specific tools with enhanced tracking
           const facilitatorTools = ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies'];
           const requestedTools = decision.tools.filter(tool => facilitatorTools.includes(tool));
-          
+
           // Ensure at least 2-3 tools are used for comprehensive support
-          const toolsToExecute = requestedTools.length >= 2 ? requestedTools : 
+          const toolsToExecute = requestedTools.length >= 2 ? requestedTools :
                                 requestedTools.concat(facilitatorTools.filter(t => !requestedTools.includes(t)).slice(0, 3 - requestedTools.length));
 
           for (const tool of toolsToExecute) {
@@ -1910,7 +2029,7 @@ RESPOND WITH ONLY THIS JSON:
 
 
   /**
-   * Insight Agent - Analyzes user progress and provides insights
+   * Insight Agent - Analyzes member progress and provides insights
    */
   private async insightAgent(content: string, session: ProductionConversationState): Promise<{
     response: string;

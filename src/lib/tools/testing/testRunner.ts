@@ -24,13 +24,13 @@ export class ToolTestRunner {
 
   async runSuite(suite: TestSuite): Promise<TestSuiteResult> {
     console.log(`Running test suite: ${suite.name}`);
-    
+
     if (suite.setup) {
       await suite.setup();
     }
 
     const results: TestResult[] = [];
-    
+
     for (const testCase of suite.cases) {
       const result = await this.runTest(testCase);
       results.push(result);
@@ -50,14 +50,14 @@ export class ToolTestRunner {
     };
 
     this.results.set(suite.name, results);
-    
+
     return suiteResult;
   }
 
   private async runTest(testCase: TestCase): Promise<TestResult> {
     const startTime = Date.now();
     const context: ToolContext = {
-      userId: 'test_user',
+      memberId: 'test_member',
       sessionId: 'test_session',
       agentId: 'test_agent',
       timestamp: new Date(),
@@ -77,12 +77,12 @@ export class ToolTestRunner {
 
       // Execute tool
       const result = await ToolRegistry.execute(testCase.tool, testCase.args, context);
-      
+
       // Check expectations
       if (testCase.shouldFail && result.success) {
         throw new Error('Expected test to fail but it succeeded');
       }
-      
+
       if (!testCase.shouldFail && !result.success) {
         throw new Error(`Test failed: ${result.error}`);
       }
@@ -92,7 +92,7 @@ export class ToolTestRunner {
       }
 
       const duration = Date.now() - startTime;
-      
+
       return {
         testName: testCase.name,
         toolName: testCase.tool,
@@ -102,7 +102,7 @@ export class ToolTestRunner {
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       return {
         testName: testCase.name,
         toolName: testCase.tool,
@@ -144,7 +144,7 @@ export class ToolTestRunner {
 
   generateReport(): TestReport {
     const allResults = Array.from(this.results.values()).flat();
-    
+
     return {
       totalSuites: this.results.size,
       totalTests: allResults.length,

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Group, Message, User } from '@/types';
+import { Group, Message, Member } from '@/types';
 import { PeerMatchingService } from '@/services/matchingService';
 import { AIFacilitatorService } from '@/services/aiFacilitatorService';
 
@@ -13,9 +13,9 @@ interface GroupState {
   loadGroups: () => Promise<void>;
   joinGroup: (groupId: string) => Promise<void>;
   leaveGroup: (groupId: string) => Promise<void>;
-  sendMessage: (groupId: string, content: string, userId: string) => Promise<void>;
+  sendMessage: (groupId: string, content: string, memberId: string) => Promise<void>;
   setActiveGroup: (group: Group | null) => void;
-  findSuggestedGroups: (user: User) => Group[];
+  findSuggestedGroups: (member: Member) => Group[];
   createGroup: (groupData: Partial<Group>) => Promise<Group>;
 }
 
@@ -151,17 +151,17 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     console.log(`Leaving group: ${group.name}`);
   },
 
-  sendMessage: async (groupId: string, content: string, userId: string) => {
+  sendMessage: async (groupId: string, content: string, memberId: string) => {
     const { messages } = get();
     const groupMessages = messages[groupId] || [];
 
     const newMessage: Message = {
       id: Date.now().toString(),
       groupId,
-      userId,
+      memberId,
       content,
       timestamp: new Date(),
-      type: 'user',
+      type: 'member',
       reactions: [],
     };
 
@@ -186,7 +186,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           context: {
             groupType: 'recovery',
             recentMessages: updatedMessages.slice(-5),
-            activeUsers: [],
+            activeMembers: [],
             sessionLength: 30,
             lastActivity: new Date(),
           },
@@ -195,7 +195,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           groupId,
-          userId: 'ai',
+          memberId: 'ai',
           content: facilitatorResponse.message,
           timestamp: new Date(),
           type: 'ai_facilitator',
@@ -217,9 +217,9 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     set({ activeGroup: group });
   },
 
-  findSuggestedGroups: (user: User) => {
+  findSuggestedGroups: (member: Member) => {
     const { groups } = get();
-    return PeerMatchingService.suggestGroupForUser(user, groups);
+    return PeerMatchingService.suggestGroupForMember(member, groups);
   },
 
   createGroup: async (groupData: Partial<Group>) => {

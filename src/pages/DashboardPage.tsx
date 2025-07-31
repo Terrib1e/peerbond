@@ -6,7 +6,7 @@ import StatsCard from '@/components/ui/StatsCard';
 import PageHeader from '@/components/ui/PageHeader';
 
 function DashboardPage() {
-  const { user } = useAuthStore();
+  const { member } = useAuthStore();
   const [stats] = useState({
     activeGroups: 2,
     totalMessages: 47,
@@ -53,7 +53,7 @@ function DashboardPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       <PageHeader
-        title={`Welcome back, ${user?.firstName}!`}
+        title={`Welcome back, ${member?.firstName}!`}
         subtitle="Here's your support community overview"
         portalType="member"
       />

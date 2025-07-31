@@ -196,7 +196,7 @@ export const getComponentClasses = {
   },
 
   input: (hasError = false) => {
-    return hasError 
+    return hasError
       ? `${designTokens.components.input.base} ${designTokens.components.input.error}`
       : designTokens.components.input.base;
   },
@@ -205,16 +205,16 @@ export const getComponentClasses = {
 // Portal-specific styling utilities
 export const getPortalStyles = (portalType: 'member' | 'therapist' | 'admin') => {
   const theme = getPortalTheme(portalType);
-  
+
   return {
     headerBg: `bg-${theme.primary[50]}`,
-    headerBorder: `border-${theme.primary[200]}`,
+    headerBorder: `border-${theme.primary[100]}`, // Changed 200 to 100 since it's not in the type
     headerText: `text-${theme.primary[700]}`,
     accentBg: `bg-${theme.primary[600]}`,
     accentText: `text-${theme.primary[600]}`,
     accentHover: `hover:bg-${theme.primary[700]}`,
     linkColor: `text-${theme.primary[600]} hover:text-${theme.primary[700]}`,
-    badgeColor: `bg-${theme.primary[100]} text-${theme.primary[800]}`,
+    badgeColor: `bg-${theme.primary[100]} text-${theme.primary[700]}`, // Changed 800 to 700 since 800 doesn't exist
   };
 };
 

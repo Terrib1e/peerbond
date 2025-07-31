@@ -7,10 +7,10 @@ Maya's administrative tools provide therapists and administrators with powerful 
 ## Table of Contents
 
 1. [Administrative Tool Architecture](#administrative-tool-architecture)
-2. [User Onboarding System](#user-onboarding-system)
+2. [User Onboarding System](#member-onboarding-system)
 3. [Group Creation & Management](#group-creation--management)
 4. [Session Planning Tools](#session-planning-tools)
-5. [User Management System](#user-management-system)
+5. [User Management System](#member-management-system)
 6. [Crisis Assessment Tools](#crisis-assessment-tools)
 7. [Clinical Documentation](#clinical-documentation)
 8. [Integration Workflows](#integration-workflows)
@@ -25,14 +25,14 @@ Maya uses natural language processing to detect administrative intent and route 
 ```typescript
 const handleAdministrativeTask = async (content: string, sessionId: string) => {
   const lowerContent = content.toLowerCase();
-  
+
   if (lowerContent.includes('onboard')) {
     return await handleUserOnboarding(content, sessionId);
   } else if (lowerContent.includes('create group')) {
     return await handleGroupCreation(content, sessionId);
   } else if (lowerContent.includes('plan session')) {
     return await handleSessionPlanning(content, sessionId);
-  } else if (lowerContent.includes('user management')) {
+  } else if (lowerContent.includes('member management')) {
     return await handleUserManagement(content, sessionId);
   }
   // ... additional routing logic
@@ -61,7 +61,7 @@ All administrative tools use a consistent interactive form pattern:
 
 ```typescript
 interface InteractiveFormProps {
-  type: 'onboarding' | 'groupCreation' | 'groupEdit' | 'userEdit' | 'sessionPlanning';
+  type: 'onboarding' | 'groupCreation' | 'groupEdit' | 'memberEdit' | 'sessionPlanning';
   data?: any;
   onSubmit: (data: any) => void;
   onCancel: () => void;
@@ -71,14 +71,14 @@ interface InteractiveFormProps {
 ## User Onboarding System
 
 ### Purpose
-Streamlines the intake process for new platform users, ensuring comprehensive assessment and appropriate group placement.
+Streamlines the intake process for new platform members, ensuring comprehensive assessment and appropriate group placement.
 
 ### Features
 - **Comprehensive Intake**: Collects essential demographic and clinical information
 - **Goal Setting**: Recovery and wellness goal identification
-- **Experience Assessment**: Evaluates user's familiarity with therapy/support groups
+- **Experience Assessment**: Evaluates member's familiarity with therapy/support groups
 - **Automatic Group Matching**: AI-powered group recommendations
-- **Account Creation**: Automated user account setup with secure temporary passwords
+- **Account Creation**: Automated member account setup with secure temporary passwords
 
 ### Form Implementation
 
@@ -93,14 +93,14 @@ interface OnboardingFormData {
   preferredGroups: string[];
 }
 
-const OnboardingForm: React.FC<OnboardingFormProps> = ({ 
-  data, 
-  onSubmit, 
-  onCancel, 
-  isProcessing 
+const OnboardingForm: React.FC<OnboardingFormProps> = ({
+  data,
+  onSubmit,
+  onCancel,
+  isProcessing
 }) => {
   const [formData, setFormData] = useState<OnboardingFormData>(initialState);
-  
+
   // Form validation
   const validateForm = () => {
     if (!formData.firstName || !formData.lastName || !formData.email) {
@@ -109,7 +109,7 @@ const OnboardingForm: React.FC<OnboardingFormProps> = ({
     }
     return true;
   };
-  
+
   // Form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +117,7 @@ const OnboardingForm: React.FC<OnboardingFormProps> = ({
       onSubmit(formData);
     }
   };
-  
+
   // ... form JSX
 };
 ```
@@ -126,13 +126,13 @@ const OnboardingForm: React.FC<OnboardingFormProps> = ({
 
 1. **Trigger Detection**: Maya recognizes onboarding intent
    ```
-   User: "I need to onboard a new user"
+   User: "I need to onboard a new member"
    Maya: Detects 'onboard' keyword → Triggers onboarding workflow
    ```
 
 2. **Data Preparation**: System gathers available groups and resources
    ```typescript
-   const [users, groups] = await Promise.all([
+   const [members, groups] = await Promise.all([
      api.getAllUsers().catch(() => []),
      api.getAllGroups().catch(() => [])
    ]);
@@ -141,7 +141,7 @@ const OnboardingForm: React.FC<OnboardingFormProps> = ({
 3. **Form Presentation**: Interactive form modal appears
 4. **Data Collection**: User fills out comprehensive intake form
 5. **Validation**: Client-side validation with real-time feedback
-6. **Account Creation**: API call creates user account
+6. **Account Creation**: API call creates member account
 7. **Group Assignment**: Automatic assignment to selected groups
 8. **Success Feedback**: Detailed confirmation with next steps
 
@@ -150,7 +150,7 @@ const OnboardingForm: React.FC<OnboardingFormProps> = ({
 ```typescript
 const handleOnboardingSubmit = async (formData: OnboardingFormData) => {
   try {
-    // Create user account
+    // Create member account
     const response = await api.register({
       firstName: formData.firstName,
       lastName: formData.lastName,
@@ -165,7 +165,7 @@ const handleOnboardingSubmit = async (formData: OnboardingFormData) => {
     if (formData.preferredGroups.length > 0) {
       for (const groupId of formData.preferredGroups) {
         await api.post(`/therapist/groups/${groupId}/members`, {
-          userId: response.user.id,
+          memberId: response.member.id,
           role: 'member'
         });
       }
@@ -174,7 +174,7 @@ const handleOnboardingSubmit = async (formData: OnboardingFormData) => {
     // Success message with next steps
     const successMessage = generateOnboardingSuccessMessage(formData, response);
     addSystemMessage(successMessage);
-    
+
   } catch (error) {
     handleOnboardingError(error);
   }
@@ -194,7 +194,7 @@ const handleOnboardingSubmit = async (formData: OnboardingFormData) => {
 - **Wellness Goals:** Anxiety Management, Sleep Improvement
 - **Assigned Groups:** 3 groups
 
-A temporary password has been sent to the user's email. They can log in and complete their profile setup.
+A temporary password has been sent to the member's email. They can log in and complete their profile setup.
 
 **Next Steps:**
 1. Schedule an initial assessment session
@@ -249,10 +249,10 @@ interface GroupFormData {
   tags: string[];
 }
 
-const GroupCreationForm: React.FC<GroupCreationFormProps> = ({ 
-  onSubmit, 
-  onCancel, 
-  isProcessing 
+const GroupCreationForm: React.FC<GroupCreationFormProps> = ({
+  onSubmit,
+  onCancel,
+  isProcessing
 }) => {
   const [formData, setFormData] = useState<GroupFormData>(initialState);
   const [tagInput, setTagInput] = useState('');
@@ -260,18 +260,18 @@ const GroupCreationForm: React.FC<GroupCreationFormProps> = ({
   // Dynamic tag management
   const addTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
-      setFormData({ 
-        ...formData, 
-        tags: [...formData.tags, tagInput.trim()] 
+      setFormData({
+        ...formData,
+        tags: [...formData.tags, tagInput.trim()]
       });
       setTagInput('');
     }
   };
 
   const removeTag = (tag: string) => {
-    setFormData({ 
-      ...formData, 
-      tags: formData.tags.filter(t => t !== tag) 
+    setFormData({
+      ...formData,
+      tags: formData.tags.filter(t => t !== tag)
     });
   };
 
@@ -309,7 +309,7 @@ const THERAPEUTIC_GUIDELINES = {
 const handleGroupCreationSubmit = async (formData: GroupFormData) => {
   try {
     const response = await api.post('/therapist/groups', formData);
-    
+
     const successMessage = `
 **✅ Group Successfully Created!**
 
@@ -335,7 +335,7 @@ Would you like me to help you add members to this group?
 
     addSystemMessage(successMessage);
     toast.success('Group created successfully!');
-    
+
   } catch (error) {
     handleGroupCreationError(error);
   }
@@ -439,14 +439,14 @@ const SessionPlanningForm: React.FC<SessionPlanningFormProps> = ({
   isProcessing
 }) => {
   const [formData, setFormData] = useState<SessionPlanningFormData>(initialState);
-  
+
   // Dynamic objective management
   const addObjective = (objective?: string) => {
     const objToAdd = objective || objectiveInput.trim();
     if (objToAdd && !formData.objectives.includes(objToAdd)) {
-      setFormData({ 
-        ...formData, 
-        objectives: [...formData.objectives, objToAdd] 
+      setFormData({
+        ...formData,
+        objectives: [...formData.objectives, objToAdd]
       });
       setObjectiveInput('');
     }
@@ -485,7 +485,7 @@ const handleSessionPlanning = async (content: string, sessionId: string) => {
     ]);
 
     // Check for immediate planning intent
-    const wantsToStart = content.toLowerCase().includes('start') || 
+    const wantsToStart = content.toLowerCase().includes('start') ||
                         content.toLowerCase().includes('plan') ||
                         content.toLowerCase().includes('schedule');
 
@@ -512,7 +512,7 @@ const handleSessionPlanning = async (content: string, sessionId: string) => {
 
     // Provide planning guidance
     return providePlanningGuidance(clients, groups);
-    
+
   } catch (error) {
     return handlePlanningError(error);
   }
@@ -522,14 +522,14 @@ const handleSessionPlanning = async (content: string, sessionId: string) => {
 ## User Management System
 
 ### Purpose
-Comprehensive user account management with clinical consideration and platform administration capabilities.
+Comprehensive member account management with clinical consideration and platform administration capabilities.
 
 ### Management Functions
 
 ```typescript
 const USER_MANAGEMENT_FUNCTIONS = {
   profileManagement: {
-    description: 'Update user information and therapeutic goals',
+    description: 'Update member information and therapeutic goals',
     permissions: ['therapist', 'admin'],
     actions: ['edit', 'view', 'export']
   },
@@ -539,7 +539,7 @@ const USER_MANAGEMENT_FUNCTIONS = {
     actions: ['promote', 'demote', 'suspend', 'reactivate']
   },
   progressMonitoring: {
-    description: 'Review user engagement and therapeutic progress',
+    description: 'Review member engagement and therapeutic progress',
     permissions: ['therapist', 'admin'],
     actions: ['view', 'analyze', 'report']
   },
@@ -554,14 +554,14 @@ const USER_MANAGEMENT_FUNCTIONS = {
 ### User Statistics Dashboard
 
 ```typescript
-const generateUserStatistics = (users: User[]) => {
+const generateUserStatistics = (members: User[]) => {
   return {
-    totalUsers: users.length,
-    activeMembers: users.filter(u => u.role === 'member' && u.status === 'active').length,
-    facilitators: users.filter(u => u.role === 'facilitator').length,
-    therapists: users.filter(u => u.role === 'therapist').length,
-    newUsersThisMonth: users.filter(u => isWithinMonth(u.createdAt)).length,
-    engagementMetrics: calculateEngagementMetrics(users)
+    totalUsers: members.length,
+    activeMembers: members.filter(u => u.role === 'member' && u.status === 'active').length,
+    facilitators: members.filter(u => u.role === 'facilitator').length,
+    therapists: members.filter(u => u.role === 'therapist').length,
+    newUsersThisMonth: members.filter(u => isWithinMonth(u.createdAt)).length,
+    engagementMetrics: calculateEngagementMetrics(members)
   };
 };
 ```
@@ -591,37 +591,37 @@ const RISK_LEVEL_COLORS = {
 
 ```typescript
 const assessRiskLevel = (
-  messageContent: string, 
+  messageContent: string,
   clinicalInsights: ClinicalInsight[]
 ): 'low' | 'medium' | 'high' | 'critical' => {
-  
+
   const hasUrgentInsights = clinicalInsights.some(i => i.priority === 'urgent');
   const hasRiskInsights = clinicalInsights.some(i => i.type === 'risk');
   const content = messageContent.toLowerCase();
-  
+
   // Critical risk indicators
-  if (hasUrgentInsights || 
-      content.includes('suicide') || 
+  if (hasUrgentInsights ||
+      content.includes('suicide') ||
       content.includes('kill myself') ||
       content.includes('end it all')) {
     return 'critical';
   }
-  
+
   // High risk indicators
-  if (hasRiskInsights || 
+  if (hasRiskInsights ||
       content.includes('hopeless') ||
       content.includes('can\'t go on') ||
       content.includes('no point')) {
     return 'high';
   }
-  
+
   // Medium risk indicators
   if (clinicalInsights.some(i => i.priority === 'high') ||
       content.includes('depressed') ||
       content.includes('anxious')) {
     return 'medium';
   }
-  
+
   return 'low';
 };
 ```
@@ -631,27 +631,27 @@ const assessRiskLevel = (
 ```typescript
 const handleCrisisEscalation = async (
   riskLevel: string,
-  userId: string,
+  memberId: string,
   context: string
 ) => {
-  
+
   if (riskLevel === 'critical') {
     // Immediate intervention required
     await api.post('/crisis/escalate', {
-      userId,
+      memberId,
       level: 'immediate',
       context,
       timestamp: new Date().toISOString()
     });
-    
+
     // Notify on-call staff
     await notifyOnCallStaff({
       type: 'CRISIS_ALERT',
-      userId,
+      memberId,
       severity: 'CRITICAL',
       message: 'Immediate intervention required'
     });
-    
+
     // Display crisis resources
     return {
       showCrisisResources: true,
@@ -663,7 +663,7 @@ const handleCrisisEscalation = async (
       ]
     };
   }
-  
+
   // Handle other risk levels...
 };
 ```
@@ -717,19 +717,19 @@ const generateSessionDocumentation = (
     date: sessionData.date,
     duration: sessionData.duration,
     type: sessionData.sessionType,
-    
+
     plannedObjectives: sessionData.objectives,
     completedObjectives: sessionOutcome.completedObjectives,
-    
+
     interventionsUsed: sessionOutcome.interventionsImplemented,
     clientResponse: sessionOutcome.clientEngagement,
-    
+
     nextSteps: sessionOutcome.followUpActions,
     nextSessionDate: sessionOutcome.nextSessionPlanned,
-    
+
     clinicianNotes: sessionOutcome.additionalNotes,
     riskAssessment: sessionOutcome.riskLevel,
-    
+
     generatedAt: new Date().toISOString(),
     generatedBy: 'Maya AI Documentation Assistant'
   };
@@ -744,9 +744,9 @@ Maya supports complex workflows that combine multiple administrative tools:
 
 #### New Client Intake Workflow
 ```
-1. User Onboarding → Creates user account
+1. User Onboarding → Creates member account
 2. Initial Assessment → Establishes baseline
-3. Group Matching → Assigns to appropriate groups  
+3. Group Matching → Assigns to appropriate groups
 4. Session Planning → Schedules first sessions
 5. Documentation → Creates treatment plan
 ```
@@ -778,28 +778,28 @@ class WorkflowOrchestrator {
     initialData: any,
     context: WorkflowContext
   ): Promise<WorkflowResult> {
-    
+
     const workflow = this.getWorkflow(workflowType);
     const results: StepResult[] = [];
-    
+
     for (const step of workflow.steps) {
       try {
         const stepResult = await this.executeStep(step, initialData, context);
         results.push(stepResult);
-        
+
         // Update context for next step
         context = this.updateContext(context, stepResult);
-        
+
         // Check for early termination conditions
         if (stepResult.terminateWorkflow) {
           break;
         }
-        
+
       } catch (error) {
         return this.handleWorkflowError(error, step, results);
       }
     }
-    
+
     return {
       success: true,
       steps: results,
@@ -838,25 +838,25 @@ const HIPAA_SAFEGUARDS = {
 ```typescript
 const logAdministrativeAction = (
   action: string,
-  userId: string,
+  memberId: string,
   targetId: string,
   details: any
 ) => {
   const auditEntry = {
     timestamp: new Date().toISOString(),
     action,
-    performedBy: userId,
+    performedBy: memberId,
     targetResource: targetId,
     resourceType: details.resourceType,
     changes: details.changes,
     ipAddress: getClientIP(),
-    userAgent: getUserAgent(),
+    memberAgent: getUserAgent(),
     sessionId: getCurrentSessionId()
   };
-  
+
   // Log to secure audit system
   auditLogger.log('ADMINISTRATIVE_ACTION', auditEntry);
-  
+
   // Additional logging for sensitive actions
   if (SENSITIVE_ACTIONS.includes(action)) {
     secureAuditLogger.log('SENSITIVE_ACTION', auditEntry);
@@ -868,7 +868,7 @@ const logAdministrativeAction = (
 
 ```typescript
 const DATA_RETENTION_POLICIES = {
-  userProfiles: {
+  memberProfiles: {
     retentionPeriod: '7 years after last activity',
     archivalProcedure: 'Encrypted archive with restricted access',
     deletionProcedure: 'Secure deletion with verification'
@@ -912,7 +912,7 @@ const ADMINISTRATIVE_METRICS = {
   formCompletionRates: 'Track completion rates for each form type',
   processingTimes: 'Monitor API response times and processing duration',
   errorRates: 'Track validation errors and submission failures',
-  userSatisfaction: 'Collect feedback on administrative tool usability',
+  memberSatisfaction: 'Collect feedback on administrative tool usability',
   workflowEfficiency: 'Measure time savings and workflow improvements'
 };
 ```

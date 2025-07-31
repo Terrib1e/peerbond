@@ -23,7 +23,7 @@ export interface AgentConfig {
 export interface AgentSession {
   id: string;
   agentId: string;
-  userId: string;
+  memberId: string;
   messages: Message[];
   context: Record<string, any>;
   createdAt: Date;

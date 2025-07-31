@@ -34,10 +34,10 @@ export class PostMessageTool extends BaseTool<PostMessageArgs, MessageResult> {
     // 2. Check content filters
     // 3. Store in database
     // 4. Broadcast via WebSocket
-    
+
     // Mock implementation
     const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Simulate content filtering
     if (args.content.length < 1) {
       throw new Error('Message content cannot be empty');
@@ -46,7 +46,7 @@ export class PostMessageTool extends BaseTool<PostMessageArgs, MessageResult> {
     // Simulate persistence
     console.log(`Posting message to thread ${args.threadId}:`, {
       messageId,
-      userId: context.userId,
+      memberId: context.memberId,
       content: args.content.substring(0, 50) + '...',
       replyTo: args.replyToId
     });

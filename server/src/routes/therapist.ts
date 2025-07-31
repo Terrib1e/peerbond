@@ -32,7 +32,7 @@ const therapistAuth = requireRole(['therapist', 'admin']);
 // Get therapist statistics
 router.get('/stats', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
-    const therapistId = req.user!.id;
+    const therapistId = req.member!.id;
 
     // Get therapist's assigned clients and groups
     const [assignedClients, therapistGroups, criticalAlerts] = await Promise.all([
@@ -47,7 +47,7 @@ router.get('/stats', therapistAuth, asyncHandler(async (req: AuthenticatedReques
             {
               members: {
                 some: {
-                  userId: therapistId,
+                  memberId: therapistId,
                   role: 'facilitator'
                 }
               }
@@ -99,7 +99,7 @@ router.get('/stats', therapistAuth, asyncHandler(async (req: AuthenticatedReques
 router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
     const { groupId } = req.params;
-    const therapistId = req.user!.id;
+    const therapistId = req.member!.id;
 
     logger.info(`🔍 Therapist ${therapistId} requesting members for group ${groupId}`);
 
@@ -114,7 +114,7 @@ router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: A
           {
             members: {
               some: {
-                userId: therapistId,
+                memberId: therapistId,
                 role: 'facilitator'
               }
             }
@@ -124,9 +124,9 @@ router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: A
       include: {
         members: {
           select: {
-            userId: true,
+            memberId: true,
             role: true,
-            user: {
+            member: {
               select: {
                 id: true,
                 firstName: true,
@@ -168,7 +168,7 @@ router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: A
 router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
     const { limit = 10 } = req.query;
-    const therapistId = req.user!.id;
+    const therapistId = req.member!.id;
 
     logger.info(`🔍 Therapist ${therapistId} requesting groups`);
 
@@ -182,7 +182,7 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
           {
             members: {
               some: {
-                userId: therapistId,
+                memberId: therapistId,
                 role: 'facilitator'
               }
             }
@@ -194,9 +194,9 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
       include: {
         members: {
           select: {
-            userId: true,
+            memberId: true,
             role: true,
-            user: {
+            member: {
               select: {
                 id: true,
                 firstName: true,
@@ -249,15 +249,15 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
 
 // Add member to group
 router.post('/groups/:groupId/members', therapistAuth, validateRequest([
-  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('memberId').isUUID().withMessage('Vareq.member ID is required'),
   body('role').isIn(['member', 'facilitator']).withMessage('Valid role is required')
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
     const { groupId } = req.params;
-    const { userId, role } = req.body;
-    const therapistId = req.user!.id;
+    const { memberId, role } = req.body;
+    const therapistId = req.member!.id;
 
-    logger.info(`👥 Therapist ${therapistId} adding user ${userId} as ${role} to group ${groupId}`);
+    logger.info(`👥 Therapist ${therapistId} adding memberereq.memberId} as ${role} to group ${groupId}`);
 
     // Verify therapist has access to this group
     const group = await dbService.client.group.findFirst({
@@ -270,7 +270,7 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
           {
             members: {
               some: {
-                userId: therapistId,
+                memberId: therapistId,
                 role: 'facilitator'
               }
             }
@@ -287,18 +287,18 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
       });
     }
 
-    // Check if user is already a member
+    // Check if member is already a member
     const existingMember = await dbService.client.groupMember.findFirst({
       where: {
         groupId,
-        userId
+        memberId
       }
     });
 
     if (existingMember) {
       return res.status(400).json({
         success: false,
-        error: 'User is already a member of this group',
+        error: 'member is already a member of this group',
         timestamp: new Date().toISOString()
       });
     }
@@ -307,12 +307,12 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
     const newMember = await dbService.client.groupMember.create({
       data: {
         groupId,
-        userId,
+        memberId,
         role,
         joinedAt: new Date()
       },
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -323,7 +323,7 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
       }
     });
 
-    logger.info(`✅ User ${userId} added as ${role} to group ${groupId} by therapist ${therapistId}`);
+    logger.info(`✅ memberereq.memberId} added as ${role} to group ${groupId} by therapist ${therapistId}`);
 
     res.status(201).json({
       success: true,
@@ -341,12 +341,12 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
 }));
 
 // Remove member from group
-router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.delete('/groups/:groupId/members/:memberId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
-    const { groupId, userId } = req.params;
-    const therapistId = req.user!.id;
+    const { groupId, memberId } = req.params;
+    const therapistId = req.member!.id;
 
-    logger.info(`👥 Therapist ${therapistId} removing user ${userId} from group ${groupId}`);
+    logger.info(`👥 Therapist ${therapistId} removing memberereq.memberId} from group ${groupId}`);
 
     // Verify therapist has access to this group
     const group = await dbService.client.group.findFirst({
@@ -359,7 +359,7 @@ router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(as
           {
             members: {
               some: {
-                userId: therapistId,
+                memberId: therapistId,
                 role: 'facilitator'
               }
             }
@@ -376,18 +376,18 @@ router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(as
       });
     }
 
-    // Check if user is a member
+    // Check if member is a member
     const member = await dbService.client.groupMember.findFirst({
       where: {
         groupId,
-        userId
+        memberId
       }
     });
 
     if (!member) {
       return res.status(404).json({
         success: false,
-        error: 'User is not a member of this group',
+        error: 'member is not a member of this group',
         timestamp: new Date().toISOString()
       });
     }
@@ -399,7 +399,7 @@ router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(as
       }
     });
 
-    logger.info(`✅ User ${userId} removed from group ${groupId} by therapist ${therapistId}`);
+    logger.info(`✅ memberereq.memberId} removed from group ${groupId} by therapist ${therapistId}`);
 
     res.json({
       success: true,
@@ -425,7 +425,7 @@ router.post('/groups', therapistAuth, validateRequest([
   body('isPrivate').optional().isBoolean().withMessage('isPrivate must be a boolean')
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { name, description, type, maxMembers = 8, isPrivate = false } = req.body;
-  const therapistId = req.user!.id;
+  const therapistId = req.member!.id;
 
   try {
     logger.info(`🏗️ Therapist ${therapistId} creating group: ${name}`);
@@ -445,12 +445,12 @@ router.post('/groups', therapistAuth, validateRequest([
 
     // Log the group creation
     await dbService.createAuditLog({
-      userId: therapistId,
+      memberId: therapistId,
       action: 'group_created',
       resource: 'group',
       resourceId: newGroup.id,
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
       metadata: { name, type, maxMembers, isPrivate }
     });
 
@@ -476,7 +476,7 @@ router.post('/groups', therapistAuth, validateRequest([
 router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
     const { groupId } = req.params;
-    const therapistId = req.user!.id;
+    const therapistId = req.member!.id;
 
     logger.info(`🗑️ Therapist ${therapistId} attempting to delete group ${groupId}`);
 
@@ -490,7 +490,7 @@ router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: Authen
       include: {
         members: {
           select: {
-            userId: true
+            memberId: true
           }
         },
         _count: {
@@ -513,7 +513,7 @@ router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: Authen
     // Soft delete the group (mark as inactive)
     await dbService.client.group.update({
       where: { id: groupId },
-      data: { 
+      data: {
         isActive: false,
         updatedAt: new Date()
       }
@@ -521,13 +521,13 @@ router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: Authen
 
     // Log the group deletion
     await dbService.createAuditLog({
-      userId: therapistId,
+      memberId: therapistId,
       action: 'group_deleted',
       resource: 'group',
       resourceId: groupId,
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
-      metadata: { 
+      memberAgent: req.get('User-Agent') || 'unknown',
+      metadata: {
         groupName: group.name,
         memberCount: group._count.members,
         messageCount: group._count.messages
@@ -557,37 +557,39 @@ router.post('/clients', therapistAuth, validateRequest([
   body('firstName').trim().isLength({ min: 1 }).withMessage('First name is required'),
   body('lastName').trim().isLength({ min: 1 }).withMessage('Last name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('role').optional().isIn(['member', 'therapist']).withMessage('Role must be member or therapist'),
+  body('experienceLevel').optional().isIn(['beginner', 'intermediate', 'advanced']).withMessage('Invalid experience level'),
   body('phoneNumber').optional().trim(),
   body('emergencyContact').optional().isObject(),
   body('initialNotes').optional().trim()
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { firstName, lastName, email, phoneNumber, emergencyContact, initialNotes } = req.body;
-  const therapistId = req.user!.id;
+  const { firstName, lastName, email, password, role = 'member', experienceLevel = 'beginner', phoneNumber, emergencyContact, initialNotes } = req.body;
+  const therapistId = req.member!.id;
 
   try {
-    // Check if user already exists
-    const existingUser = await dbService.getUserByEmail(email);
-    if (existingUser) {
+    // Check if member already exists
+    const existingMember = await dbService.getMemberByEmail(email);
+    if (existingMember) {
       return res.status(409).json({
         success: false,
-        error: 'A user with this email already exists',
+        error: 'A member with this email already exists',
         timestamp: new Date().toISOString()
       });
     }
 
-    // Generate a temporary password
-    const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+    // Hash the provided password
     const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(tempPassword, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create the client user account
-    const newClient = await dbService.createUser({
+    // Create the client member account
+    const newClient = await dbService.createMember({
       firstName,
       lastName,
       email,
       password: hashedPassword,
-      role: 'member',
-      experienceLevel: 'beginner'
+      role: role,
+      experienceLevel: experienceLevel
     });
 
     // Create therapist-client assignment
@@ -603,24 +605,24 @@ router.post('/clients', therapistAuth, validateRequest([
     // Add initial therapist note if provided
     if (initialNotes) {
       await dbService.createAuditLog({
-        userId: newClient.id,
+        memberId: newClient.id,
         action: 'client_note_added',
         resource: 'client',
         resourceId: newClient.id,
         ipAddress: req.ip,
-        userAgent: req.get('User-Agent') || 'unknown',
+        memberAgent: req.get('User-Agent') || 'unknown',
         metadata: { note: initialNotes, addedBy: therapistId }
       });
     }
 
     // Log the client creation
     await dbService.createAuditLog({
-      userId: therapistId,
+      memberId: therapistId,
       action: 'client_created',
       resource: 'client',
       resourceId: newClient.id,
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
       metadata: { clientEmail: email, emergencyContact, phoneNumber }
     });
 
@@ -633,8 +635,7 @@ router.post('/clients', therapistAuth, validateRequest([
       success: true,
       data: {
         client: clientWithoutPassword,
-        tempPassword, // Send this once so therapist can share with client
-        message: 'Client created successfully. Please share the temporary password securely with the client.'
+        message: 'Client created successfully with the specified password.'
       },
       timestamp: new Date().toISOString()
     });
@@ -644,6 +645,145 @@ router.post('/clients', therapistAuth, validateRequest([
     res.status(500).json({
       success: false,
       error: 'Failed to create client',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Update/Edit a client
+router.put('/clients/:clientId', therapistAuth, validateRequest([
+  body('firstName').optional().trim().isLength({ min: 1 }).withMessage('First name cannot be empty'),
+  body('lastName').optional().trim().isLength({ min: 1 }).withMessage('Last name cannot be empty'),
+  body('email').optional().isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('role').optional().isIn(['member', 'therapist']).withMessage('Role must be member or therapist'),
+  body('experienceLevel').optional().isIn(['beginner', 'intermediate', 'advanced']).withMessage('Invalid experience level'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+  body('isPremium').optional().isBoolean().withMessage('isPremium must be a boolean')
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { clientId } = req.params;
+  const therapistId = req.member!.id;
+  const updates = req.body;
+
+  try {
+    // Verify the client exists and is assigned to this therapist
+    const clientAssignment = await dbService.getTherapistClientAssignment(therapistId, clientId);
+    if (!clientAssignment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found or not assigned to you',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Hash password if provided
+    if (updates.password) {
+      const saltRounds = 12;
+      updates.password = await bcrypt.hash(updates.password, saltRounds);
+    }
+
+    // Update the client
+    const updatedClient = await dbService.updateMember(clientId, updates);
+
+    // Log the client update
+    await dbService.createAuditLog({
+      memberId: therapistId,
+      action: 'client_updated',
+      resource: 'client',
+      resourceId: clientId,
+      ipAddress: req.ip,
+      memberAgent: req.get('User-Agent') || 'unknown',
+      metadata: { 
+        updatedFields: Object.keys(updates),
+        clientEmail: updatedClient.email 
+      }
+    });
+
+    logger.info(`Client updated by therapist: ${clientId} by ${therapistId}`);
+
+    // Remove password from response
+    const { password: _, ...clientWithoutPassword } = updatedClient;
+
+    res.json({
+      success: true,
+      data: {
+        client: clientWithoutPassword,
+        message: 'Client updated successfully.'
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Failed to update client:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update client',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Delete a client (soft delete - deactivate)
+router.delete('/clients/:clientId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { clientId } = req.params;
+  const therapistId = req.member!.id;
+
+  try {
+    // Verify the client exists and is assigned to this therapist
+    const clientAssignment = await dbService.getTherapistClientAssignment(therapistId, clientId);
+    if (!clientAssignment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found or not assigned to you',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Get client info before deletion for logging
+    const client = await dbService.getMemberById(clientId);
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Soft delete: deactivate the client
+    await dbService.updateMember(clientId, { isActive: false });
+
+    // Deactivate the therapist-client assignment
+    await dbService.deleteTherapistClientAssignment(therapistId, clientId);
+
+    // Log the client deletion
+    await dbService.createAuditLog({
+      memberId: therapistId,
+      action: 'client_deleted',
+      resource: 'client',
+      resourceId: clientId,
+      ipAddress: req.ip,
+      memberAgent: req.get('User-Agent') || 'unknown',
+      metadata: { 
+        clientEmail: client.email,
+        clientName: `${client.firstName} ${client.lastName}`
+      }
+    });
+
+    logger.info(`Client deleted by therapist: ${clientId} by ${therapistId}`);
+
+    res.json({
+      success: true,
+      data: {
+        message: 'Client deleted successfully.'
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Failed to delete client:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete client',
       timestamp: new Date().toISOString()
     });
   }
@@ -674,7 +814,7 @@ router.get('/clients', therapistAuth, validateRequest([
   } = req.query;
 
   // Get real clients from database (only assigned to this therapist)
-  const therapistId = req.user!.id;
+  const therapistId = req.member!.id;
 
   try {
     logger.info(`🔍 Therapist ${therapistId} requesting clients with params:`, {
@@ -893,7 +1033,7 @@ router.get('/assessments', therapistAuth, validateRequest([
       interpretation: 'Mild depression symptoms',
       severity: 'mild',
       administeredDate: new Date().toISOString(),
-      administeredBy: req.user?.firstName + ' ' + req.user?.lastName,
+      administeredBy: req.member?.firstName + ' ' + req.member?.lastName,
       followUpRequired: false,
       previousScore: 12,
       percentChange: -33.3,
@@ -910,7 +1050,7 @@ router.get('/assessments', therapistAuth, validateRequest([
       interpretation: 'Severe anxiety symptoms',
       severity: 'severe',
       administeredDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Yesterday
-      administeredBy: req.user?.firstName + ' ' + req.user?.lastName,
+      administeredBy: req.member?.firstName + ' ' + req.member?.lastName,
       followUpRequired: true,
       previousScore: 14,
       percentChange: 14.3,
@@ -942,7 +1082,7 @@ router.post('/assessments', therapistAuth, validateRequest([
     id: `assessment-${Date.now()}`,
     ...assessmentData,
     administeredDate: new Date().toISOString(),
-    administeredBy: req.user?.firstName + ' ' + req.user?.lastName,
+    administeredBy: req.member?.firstName + ' ' + req.member?.lastName,
     aiConfidence: Math.random() * 0.3 + 0.7 // Mock confidence between 0.7-1.0
   };
 
@@ -1091,7 +1231,7 @@ router.get('/crisis-alerts', therapistAuth, validateRequest([
         { name: 'Lisa Chen', phone: '+1-555-0456', relationship: 'Sister' },
         { name: 'Crisis Hotline', phone: '988', relationship: 'Crisis Support' }
       ],
-      assignedTherapist: req.user?.firstName + ' ' + req.user?.lastName,
+      assignedTherapist: req.member?.firstName + ' ' + req.member?.lastName,
       createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
       followUpRequired: true,
       escalationLevel: 5
@@ -1115,7 +1255,7 @@ router.get('/crisis-alerts', therapistAuth, validateRequest([
       emergencyContacts: [
         { name: 'John Johnson', phone: '+1-555-0123', relationship: 'Spouse' }
       ],
-      assignedTherapist: req.user?.firstName + ' ' + req.user?.lastName,
+      assignedTherapist: req.member?.firstName + ' ' + req.member?.lastName,
       createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
       acknowledgedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
       followUpRequired: true,
@@ -1165,7 +1305,7 @@ router.post('/crisis-alerts/:alertId/acknowledge', therapistAuth, validateReques
     data: {
       alertId,
       acknowledgedAt: new Date().toISOString(),
-      acknowledgedBy: req.user?.firstName + ' ' + req.user?.lastName,
+      acknowledgedBy: req.member?.firstName + ' ' + req.member?.lastName,
       notes
     },
     timestamp: new Date().toISOString()
@@ -1186,7 +1326,7 @@ router.post('/crisis-alerts/:alertId/resolve', therapistAuth, validateRequest([
     data: {
       alertId,
       resolvedAt: new Date().toISOString(),
-      resolvedBy: req.user?.firstName + ' ' + req.user?.lastName,
+      resolvedBy: req.member?.firstName + ' ' + req.member?.lastName,
       intervention,
       notes
     },
@@ -1207,7 +1347,7 @@ router.post('/crisis-alerts/:alertId/escalate', therapistAuth, validateRequest([
     data: {
       alertId,
       escalatedAt: new Date().toISOString(),
-      escalatedBy: req.user?.firstName + ' ' + req.user?.lastName,
+      escalatedBy: req.member?.firstName + ' ' + req.member?.lastName,
       reason,
       escalatedTo: 'Crisis Intervention Team'
     },
@@ -1226,7 +1366,7 @@ router.post('/clients/:clientId/notes', therapistAuth, validateRequest([
     id: `note-${Date.now()}`,
     clientId,
     content: note,
-    createdBy: req.user?.firstName + ' ' + req.user?.lastName,
+    createdBy: req.member?.firstName + ' ' + req.member?.lastName,
     createdAt: new Date().toISOString()
   };
 
@@ -1248,7 +1388,7 @@ router.post('/clients/:clientId/flag-crisis', therapistAuth, validateRequest([
     id: `crisis-flag-${Date.now()}`,
     clientId,
     reason,
-    flaggedBy: req.user?.firstName + ' ' + req.user?.lastName,
+    flaggedBy: req.member?.firstName + ' ' + req.member?.lastName,
     flaggedAt: new Date().toISOString(),
     status: 'active'
   };
@@ -1264,15 +1404,15 @@ router.post('/clients/:clientId/flag-crisis', therapistAuth, validateRequest([
 
 // Get all group assignments (therapist has access to their clients' assignments)
 router.get('/group-assignments', therapistAuth, validateRequest([
-  query('userId').optional().isUUID().withMessage('Invalid user ID'),
+  query('memberId').optional().isUUID().withMessage('Invalid member ID'),
   query('groupId').optional().isUUID().withMessage('Invalid group ID'),
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId, page = 1, limit = 50 } = req.query;
+  const { memberId, groupId, page = 1, limit = 50 } = req.query;
 
   const assignments = await dbService.getGroupAssignments({
-    userId: userId as string,
+    memberId: req.member!.id,
     groupId: groupId as string,
     page: parseInt(page as string),
     limit: parseInt(limit as string)
@@ -1285,27 +1425,27 @@ router.get('/group-assignments', therapistAuth, validateRequest([
   });
 }));
 
-// Assign group to user (therapist can assign groups to their clients)
+// Assign group to member (therapist can assign groups to their clients)
 router.post('/group-assignments', therapistAuth, validateRequest([
-  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('memberId').isUUID().withMessage('Vareq.member ID is required'),
   body('groupId').isUUID().withMessage('Valid group ID is required'),
   body('notes').optional().isString().withMessage('Notes must be a string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId, notes } = req.body;
-  const assignedBy = req.user!.id;
+  const { memberId, groupId, notes } = req.body;
+  const assignedBy = req.member!.id;
 
   // Check if assignment already exists
-  const existingAssignment = await dbService.getGroupAssignment(userId, groupId);
+  const existingAssignment = await dbService.getGroupAssignment(memberId, groupId);
   if (existingAssignment) {
     return res.status(400).json({
       success: false,
-      error: 'User is already assigned to this group',
+      error: 'member is already assigned to this group',
       timestamp: new Date().toISOString()
     });
   }
 
   const assignment = await dbService.createGroupAssignment({
-    userId,
+    memberId,
     groupId,
     assignedBy,
     notes
@@ -1313,15 +1453,15 @@ router.post('/group-assignments', therapistAuth, validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: assignedBy,
+    memberId: assignedBy,
     action: 'group_assignment_create',
     resource: 'group_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
-    metadata: { userId, groupId, notes }
+    memberAgent: req.get('User-Agent') || 'unknown',
+    metadata: { memberId, groupId, notes }
   });
 
-  logger.info(`Group assignment created by therapist: User ${userId} assigned to group ${groupId} by ${assignedBy}`);
+  logger.info(`Group assignment created by therapist: memberereq.memberId} assigned to group ${groupId} by ${assignedBy}`);
 
   res.status(201).json({
     success: true,
@@ -1331,14 +1471,14 @@ router.post('/group-assignments', therapistAuth, validateRequest([
 }));
 
 // Remove group assignment
-router.delete('/group-assignments/:userId/:groupId', therapistAuth, validateRequest([
-  query('userId').isUUID().withMessage('Invalid user ID'),
+router.delete('/group-assignments/:memberId/:groupId', therapistAuth, validateRequest([
+  query('memberId').isUUID().withMessage('Invalid member ID'),
   query('groupId').isUUID().withMessage('Invalid group ID'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId } = req.params;
-  const therapistId = req.user!.id;
+  const { memberId, groupId } = req.params;
+  const therapistId = req.member!.id;
 
-  const assignment = await dbService.getGroupAssignment(userId, groupId);
+  const assignment = await dbService.getGroupAssignment(memberId, groupId);
   if (!assignment) {
     return res.status(404).json({
       success: false,
@@ -1347,19 +1487,19 @@ router.delete('/group-assignments/:userId/:groupId', therapistAuth, validateRequ
     });
   }
 
-  await dbService.deleteGroupAssignment(userId, groupId);
+  await dbService.deleteGroupAssignment(memberId, groupId);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: therapistId,
+    memberId: therapistId,
     action: 'group_assignment_delete',
     resource: 'group_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
-    metadata: { userId, groupId }
+    memberAgent: req.get('User-Agent') || 'unknown',
+    metadata: { memberId, groupId }
   });
 
-  logger.info(`Group assignment deleted by therapist: User ${userId} unassigned from group ${groupId} by ${therapistId}`);
+  logger.info(`Group assignment deleted by therapist: memberereq.memberId} unassigned from group ${groupId} by ${therapistId}`);
 
   res.json({
     success: true,
@@ -1368,13 +1508,13 @@ router.delete('/group-assignments/:userId/:groupId', therapistAuth, validateRequ
   });
 }));
 
-// Get groups assigned to a specific user
-router.get('/users/:userId/assigned-groups', therapistAuth, validateRequest([
-  query('userId').isUUID().withMessage('Invalid user ID'),
+// Get groups assigned to a specific member
+router.get('/members/:memberId/assigned-groups', therapistAuth, validateRequest([
+  query('memberId').isUUID().withMessage('Invalid member ID'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId } = req.params;
+  const { memberId } = req.params;
 
-  const assignedGroups = await dbService.getUserAssignedGroups(userId);
+  const assignedGroups = await dbService.getMemberAssignedGroups(memberId);
 
   res.json({
     success: true,

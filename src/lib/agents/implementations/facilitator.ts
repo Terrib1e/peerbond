@@ -6,7 +6,7 @@ export class FacilitatorAgent extends BaseAgent {
   description = 'AI facilitator for mental health support groups';
   model = 'gpt-4o';
   provider = 'openai';
-  
+
   tools = [
     'postMessage',
     'logMood',
@@ -34,7 +34,7 @@ Guidelines:
 
 Available tools:
 - postMessage: Send messages to the group chat
-- logMood: Help users track their emotional state
+- logMood: Help members track their emotional state
 - escalateCrisis: Alert human therapists when crisis intervention is needed
 - suggestGroup: Recommend appropriate support groups for members
 
@@ -56,7 +56,7 @@ Remember: You are not a replacement for human therapy, but a supportive presence
   }
 
   async facilitateCheckIn(sessionId: string, participants: string[]): Promise<string> {
-    const checkInPrompt = `Start a check-in for our group session. We have ${participants.length} participants today. 
+    const checkInPrompt = `Start a check-in for our group session. We have ${participants.length} participants today.
     Guide them through sharing how they're feeling and what they'd like to focus on in today's session.`;
 
     const response = await this.processMessage(sessionId, checkInPrompt, {
@@ -72,8 +72,8 @@ Remember: You are not a replacement for human therapy, but a supportive presence
     situation: string,
     emotionalState: string
   ): Promise<string> {
-    const prompt = `A group member is dealing with: ${situation}. 
-    They're feeling: ${emotionalState}. 
+    const prompt = `A group member is dealing with: ${situation}.
+    They're feeling: ${emotionalState}.
     Please provide appropriate coping strategies and encourage group support.`;
 
     const response = await this.processMessage(sessionId, prompt, {
@@ -90,7 +90,7 @@ Remember: You are not a replacement for human therapy, but a supportive presence
     topic: string,
     participants: string[]
   ): Promise<string> {
-    const prompt = `Guide a group discussion on: ${topic}. 
+    const prompt = `Guide a group discussion on: ${topic}.
     Help ensure everyone has a chance to participate and keep the conversation supportive and therapeutic.`;
 
     const response = await this.processMessage(sessionId, prompt, {

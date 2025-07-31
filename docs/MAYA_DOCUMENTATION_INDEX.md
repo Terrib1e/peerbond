@@ -20,9 +20,9 @@ This index provides a comprehensive guide to all Maya AI system documentation, o
 3. **API Integration**: Study [API Integration - Authentication](./MAYA_API_INTEGRATION.md#authentication-system)
 
 #### For Therapists
-1. **Clinical Interface**: [Maya AI System - User Interfaces](./MAYA_AI_SYSTEM.md#user-interfaces)
+1. **Clinical Interface**: [Maya AI System - User Interfaces](./MAYA_AI_SYSTEM.md#member-interfaces)
 2. **Administrative Tools**: [Administrative Tools - Overview](./MAYA_ADMINISTRATIVE_TOOLS.md#overview)
-3. **Form System**: [Administrative Tools - User Onboarding](./MAYA_ADMINISTRATIVE_TOOLS.md#user-onboarding-system)
+3. **Form System**: [Administrative Tools - User Onboarding](./MAYA_ADMINISTRATIVE_TOOLS.md#member-onboarding-system)
 
 #### For Administrators
 1. **System Management**: [Maya AI System - System Architecture](./MAYA_AI_SYSTEM.md#system-architecture)
@@ -113,15 +113,15 @@ This index provides a comprehensive guide to all Maya AI system documentation, o
 import { MayaQuickAccess } from '@/components/ui/MayaQuickAccess';
 
 function App() {
-  const { user } = useAuthStore();
-  
+  const { member } = useAuthStore();
+
   return (
     <div className="app">
-      {user && (
-        <MayaQuickAccess 
-          user={user}
+      {member && (
+        <MayaQuickAccess
+          member={member}
           position="bottom-right"
-          theme={user.role === 'therapist' ? 'blue' : 'purple'}
+          theme={member.role === 'therapist' ? 'blue' : 'purple'}
         />
       )}
     </div>
@@ -148,7 +148,7 @@ function ClinicalDashboard() {
 #### Administrative Form Integration
 ```typescript
 // Forms are automatically triggered by Maya's conversational analysis
-// User: "I need to onboard a new user"
+// User: "I need to onboard a new member"
 // Maya: Detects intent → Triggers OnboardingForm
 // Result: Interactive form with API integration
 ```
@@ -180,7 +180,7 @@ function ClinicalDashboard() {
 ## Best Practices Summary
 
 ### 🎨 UI/UX Best Practices
-- **Consistent Theming**: Use role-based themes (purple for users, blue for therapists)
+- **Consistent Theming**: Use role-based themes (purple for members, blue for therapists)
 - **Loading States**: Always show loading indicators for async operations
 - **Error Feedback**: Provide clear, actionable error messages
 - **Accessibility**: Include proper ARIA labels and keyboard navigation
@@ -192,14 +192,14 @@ function ClinicalDashboard() {
 - **Performance**: Implement lazy loading and memoization where appropriate
 
 ### 🛡️ Security Best Practices
-- **Input Validation**: Validate and sanitize all user inputs
-- **Permission Checks**: Verify user permissions before rendering sensitive components
+- **Input Validation**: Validate and sanitize all member inputs
+- **Permission Checks**: Verify member permissions before rendering sensitive components
 - **Audit Logging**: Log all administrative actions
 - **Crisis Protocols**: Implement appropriate escalation procedures
 
 ### 📊 Monitoring Best Practices
 - **Performance Metrics**: Monitor API response times and error rates
-- **User Analytics**: Track form completion rates and user satisfaction
+- **User Analytics**: Track form completion rates and member satisfaction
 - **Error Tracking**: Implement comprehensive error logging
 - **Health Checks**: Monitor system availability and performance
 
@@ -239,8 +239,8 @@ function ClinicalDashboard() {
 
 ## Conclusion
 
-This documentation suite provides comprehensive coverage of the Maya AI system, from high-level architecture to detailed implementation guides. The modular structure allows users to find relevant information quickly while maintaining comprehensive technical depth.
+This documentation suite provides comprehensive coverage of the Maya AI system, from high-level architecture to detailed implementation guides. The modular structure allows members to find relevant information quickly while maintaining comprehensive technical depth.
 
-The Maya AI system represents a sophisticated integration of artificial intelligence, clinical workflow optimization, and user experience design, all working together to support mental health care delivery and administration.
+The Maya AI system represents a sophisticated integration of artificial intelligence, clinical workflow optimization, and member experience design, all working together to support mental health care delivery and administration.
 
 For the most current information and updates, always refer to the latest version of these documents and the codebase itself.

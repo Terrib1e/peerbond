@@ -4,19 +4,19 @@ import { DatabaseService } from '../services/database';
 import { logger } from '../utils/logger';
 
 interface JWTPayload {
-  userId: string;
+  memberId: string;
   email: string;
   iat: number;
   exp: number;
 }
 
 export interface AuthenticatedRequest extends Request {
-  user?: {
+  member?: {
     id: string;
     email: string;
     firstName: string;
     lastName: string;
-    role: 'user' | 'admin' | 'therapist';
+    role: 'member' | 'admin' | 'therapist';
   };
 }
 
@@ -51,18 +51,18 @@ export const authenticateToken = async (
 
     const decoded = jwt.verify(token, jwtSecret) as JWTPayload;
 
-    // Get user from database
-    const user = await dbService.getUserById(decoded.userId);
-    if (!user) {
+    // Get member from database
+    const member = await dbService.getMemberById(decoded.memberId);
+    if (!member) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid token - user not found',
+        error: 'Invalid token - member not found',
         timestamp: new Date().toISOString()
       });
     }
 
-    // Check if user is active
-    if (!user.isActive) {
+    // Check if member is active
+    if (!member.isActive) {
       return res.status(401).json({
         success: false,
         error: 'Account is deactivated',
@@ -71,15 +71,15 @@ export const authenticateToken = async (
     }
 
     // Update last active timestamp
-    await dbService.updateUser(user.id, { lastActive: new Date() });
+    await dbService.updateMember(member.id, { lastActive: new Date() });
 
-    // Add user to request object
-    req.user = {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
+    // Add member to request object
+    req.member = {
+      id: member.id,
+      email: member.email,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      role: member.role,
     };
 
     next();
@@ -115,7 +115,7 @@ export const requireAdmin = (
   res: Response,
   next: NextFunction
 ) => {
-  if (req.user?.role !== 'admin') {
+  if (req.member?.role !== 'admin') {
     return res.status(403).json({
       success: false,
       error: 'Admin access required',
@@ -144,21 +144,21 @@ export const optionalAuth = async (
     }
 
     const decoded = jwt.verify(token, jwtSecret) as JWTPayload;
-    const user = await dbService.getUserById(decoded.userId);
+    const member = await dbService.getMemberById(decoded.memberId);
 
-    if (user && user.isActive) {
-      req.user = {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
+    if (member && member.isActive) {
+      req.member = {
+        id: member.id,
+        email: member.email,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        role: member.role,
       };
     }
 
     next();
   } catch (error) {
-    // If optional auth fails, continue without user
+    // If optional auth fails, continue without member
     next();
   }
 
@@ -167,7 +167,7 @@ export const optionalAuth = async (
 
 export const requireRole = (allowedRoles: string[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
+    if (!req.member) {
       return res.status(401).json({
         success: false,
         error: 'Authentication required',
@@ -175,7 +175,7 @@ export const requireRole = (allowedRoles: string[]) => {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    if (!allowedRoles.includes(req.member.role)) {
       return res.status(403).json({
         success: false,
         error: `Access denied. Required roles: ${allowedRoles.join(', ')}`,

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { 
-  Users, 
-  Search, 
-  Filter, 
-  Plus, 
-  MoreVertical, 
+import {
+  Users,
+  Search,
+  Filter,
+  Plus,
+  MoreVertical,
   Calendar,
   MessageSquare,
   UserPlus,
@@ -65,7 +65,7 @@ export default function ClientList() {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (filterTrend !== 'all') params.append('progressTrend', filterTrend);
-      
+
       const response = await api.get<{ clients: Client[]; total: number }>(
         `/therapist/clients?${params.toString()}`
       );
@@ -136,7 +136,7 @@ export default function ClientList() {
                 ({clientsData?.total || 0} total)
               </span>
             </div>
-            <button 
+            <button
               onClick={() => setShowAddModal(true)}
               className="btn-primary flex items-center"
             >
@@ -156,10 +156,11 @@ export default function ClientList() {
                 className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Filter className="h-4 w-4 text-gray-400" />
               <select
+                title="Filter Clients"
                 value={filterTrend}
                 onChange={(e) => setFilterTrend(e.target.value)}
                 className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -183,7 +184,7 @@ export default function ClientList() {
             <div className="p-8 text-center text-gray-500">
               <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>No clients found</p>
-              <button 
+              <button
                 onClick={() => setShowAddModal(true)}
                 className="mt-4 text-primary-600 hover:text-primary-700"
               >
@@ -216,15 +217,15 @@ export default function ClientList() {
                           {client.progress.trend}
                         </span>
                       </div>
-                      
+
                       <div className="text-gray-500">
                         Last active: {client.progress.lastActive}
                       </div>
-                      
+
                       <div className="text-gray-500">
                         Engagement: {client.progress.engagementScore}%
                       </div>
-                      
+
                       {client.progress.riskFactors.length > 0 && (
                         <div className="flex items-center text-red-600">
                           <AlertTriangle className="h-4 w-4 mr-1" />
@@ -246,6 +247,7 @@ export default function ClientList() {
 
                   <div className="relative ml-4">
                     <button
+                      title="Open Action Menu"
                       onClick={() => setActionMenuOpen(actionMenuOpen === client.id ? null : client.id)}
                       className="p-2 hover:bg-gray-100 rounded-lg"
                     >
@@ -324,7 +326,7 @@ export default function ClientList() {
       </div>
 
       {showAddModal && (
-        <AddClientModal 
+        <AddClientModal
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);

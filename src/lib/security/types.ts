@@ -1,11 +1,11 @@
 export interface SecurityContext {
-  userId: string;
+  memberId: string;
   sessionId: string;
   agentId: string;
   roles: string[];
   permissions: string[];
   ipAddress?: string;
-  userAgent?: string;
+  memberAgent?: string;
   timestamp: Date;
 }
 
@@ -33,7 +33,7 @@ export interface SecurityCondition {
 export interface AuditLog {
   id: string;
   timestamp: Date;
-  userId: string;
+  memberId: string;
   agentId: string;
   action: string;
   resource: string;

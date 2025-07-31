@@ -4,15 +4,15 @@ exports.SuggestGroupTool = void 0;
 const zod_1 = require("zod");
 const base_1 = require("../base");
 const SuggestGroupSchema = zod_1.z.object({
-    userId: zod_1.z.string().describe('The ID of the user seeking a support group'),
-    goals: zod_1.z.array(zod_1.z.string()).optional().describe('Specific goals or topics the user wants to address'),
+    memberId: zod_1.z.string().describe('The ID of the member seeking a support group'),
+    goals: zod_1.z.array(zod_1.z.string()).optional().describe('Specific goals or topics the member wants to address'),
     language: zod_1.z.string().optional().describe('Preferred language for the group')
 });
 class SuggestGroupTool extends base_1.BaseTool {
     name = 'suggestGroup';
-    description = 'Finds the best peer-support groups for a user based on their needs and preferences';
+    description = 'Finds the best peer-support groups for a member based on their needs and preferences';
     schema = SuggestGroupSchema;
-    permissions = ['group:read', 'user:read'];
+    permissions = ['group:read', 'member:read'];
     rateLimit = { requests: 10, window: 3600 }; // 10 requests per hour
     async run(args, _context) {
         // In a real implementation, this would query a database

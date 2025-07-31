@@ -68,7 +68,7 @@ export class AnthropicProvider extends BaseProvider {
       messages: otherMessages.map(msg => {
         if (msg.role === 'tool') {
           return {
-            role: 'user',
+            role: 'member',
             content: [{
               type: 'tool_result',
               tool_use_id: msg.toolCallId,
@@ -76,7 +76,7 @@ export class AnthropicProvider extends BaseProvider {
             }]
           };
         }
-        
+
         if (msg.toolCalls) {
           return {
             role: 'assistant',

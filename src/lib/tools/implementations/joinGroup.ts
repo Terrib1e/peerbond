@@ -3,14 +3,14 @@ import { BaseTool } from '../base';
 import { ToolContext } from '../types';
 
 interface JoinGroupArgs {
-  userId: string;
+  memberId: string;
   groupId: string;
   notifyMembers: boolean;
   introMessage?: string;
 }
 
 const JoinGroupSchema = z.object({
-  userId: z.string().describe('The user who wants to join the group'),
+  memberId: z.string().describe('The member who wants to join the group'),
   groupId: z.string().describe('The ID of the group to join'),
   introMessage: z.string().optional().describe('Optional introduction message for the group'),
   notifyMembers: z.boolean().default(true).describe('Whether to notify existing members')
@@ -28,17 +28,17 @@ interface JoinGroupResult {
 
 export class JoinGroupTool extends BaseTool<JoinGroupArgs, JoinGroupResult> {
   name = 'joinGroup';
-  description = 'Allows a user to join a peer support group';
+  description = 'Allows a member to join a peer support group';
   schema = JoinGroupSchema;
-  permissions = ['group:join', 'user:update'];
+  permissions = ['group:join', 'member:update'];
   rateLimit = { requests: 5, window: 3600 }; // 5 joins per hour
 
   protected async run(args: JoinGroupArgs, context: ToolContext): Promise<JoinGroupResult> {
     // In a real implementation, this would:
     // 1. Check if group exists and is active
-    // 2. Verify user isn't already a member
+    // 2. Verify member isn't already a member
     // 3. Check group capacity
-    // 4. Add user to group members
+    // 4. Add member to group members
     // 5. Send notifications
     // 6. Create welcome materials
 
@@ -73,16 +73,16 @@ export class JoinGroupTool extends BaseTool<JoinGroupArgs, JoinGroupResult> {
     group.currentMembers += 1;
 
     // Generate welcome message
-    const welcomeMessage = `Welcome to ${group.name}! We're so glad you've joined us. 
+    const welcomeMessage = `Welcome to ${group.name}! We're so glad you've joined us.
 
 Your next meeting is ${group.nextMeeting.toLocaleDateString()} at ${group.nextMeeting.toLocaleTimeString()}.
 
 ${args.introMessage ? `Your introduction has been shared with the group: "${args.introMessage}"` : 'Feel free to introduce yourself when you\'re ready.'}`;
 
-    const facilitatorMessage = `Hi ${context.userId}, I'm ${group.facilitator}, the facilitator for ${group.name}. I wanted to personally welcome you to our group. We meet twice a week and focus on creating a safe, supportive environment for everyone. Looking forward to meeting you at our next session!`;
+    const facilitatorMessage = `Hi ${context.memberId}, I'm ${group.facilitator}, the facilitator for ${group.name}. I wanted to personally welcome you to our group. We meet twice a week and focus on creating a safe, supportive environment for everyone. Looking forward to meeting you at our next session!`;
 
-    console.log(`User ${args.userId} joined group ${args.groupId}`);
-    
+    console.log(`Member ${args.memberId} joined group ${args.groupId}`);
+
     if (args.notifyMembers) {
       console.log(`Notifying ${group.currentMembers - 1} existing members about new member`);
     }
@@ -105,10 +105,10 @@ ${args.introMessage ? `Your introduction has been shared with the group: "${args
     }
 
     // In production, check:
-    // - User eligibility
+    // - Member eligibility
     // - Group requirements
     // - Scheduling conflicts
-    
+
     return true;
   }
 }

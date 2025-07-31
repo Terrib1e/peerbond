@@ -19,7 +19,7 @@ export interface ToolAuditLog {
   id: string;
   toolName: string;
   agent: string;
-  userId: string;
+  memberId: string;
   sessionId: string;
   groupId?: string;
   parameters: any;
@@ -65,7 +65,7 @@ export class ToolExecutor {
 
       logger.info(`[ToolExecutor] Executing tool: ${toolName}`, {
         agent: validContext.agent,
-        userId: validContext.userId,
+        memberId: validContext.memberId,
         sessionId: validContext.sessionId,
         auditId
       });
@@ -82,7 +82,7 @@ export class ToolExecutor {
         id: auditId,
         toolName,
         agent: validContext.agent,
-        userId: validContext.userId,
+        memberId: validContext.memberId,
         sessionId: validContext.sessionId,
         groupId: validContext.groupId,
         parameters: validParameters,
@@ -109,7 +109,7 @@ export class ToolExecutor {
         id: auditId,
         toolName,
         agent: context.agent || 'unknown',
-        userId: context.userId,
+        memberId: context.memberId,
         sessionId: context.sessionId,
         groupId: context.groupId,
         parameters,
@@ -199,22 +199,22 @@ export class ToolExecutor {
       // =============================================================================
       case 'searchGroups':
         return this.executeSearchGroups(parameters, context);
-      
+
       case 'rankGroupsByRelevance':
         return this.executeRankGroupsByRelevance(parameters, context);
-      
+
       case 'generateGroupRecommendations':
         return this.executeGenerateGroupRecommendations(parameters, context);
 
       // =============================================================================
       // INSIGHT TOOLS
       // =============================================================================
-      case 'analyzeUserProgress':
-        return this.executeAnalyzeUserProgress(parameters, context);
-      
+      case 'analyzeMemberProgress':
+        return this.executeAnalyzeMemberProgress(parameters, context);
+
       case 'generateProgressInsights':
         return this.executeGenerateProgressInsights(parameters, context);
-      
+
       case 'identifyPatterns':
         return this.executeIdentifyPatterns(parameters, context);
 
@@ -301,7 +301,7 @@ export class ToolExecutor {
   }
 
   private async executeProvideSupportiveResponse(params: any, context: ToolContext): Promise<ToolResult> {
-    const { userMessage, emotionalState, therapeuticApproach } = params;
+    const { memberMessage, emotionalState, therapeuticApproach } = params;
 
     // Generate supportive response (would use actual therapeutic frameworks)
     const responses = {
@@ -355,7 +355,7 @@ export class ToolExecutor {
   }
 
   private async executeSuggestCopingStrategies(params: any, context: ToolContext): Promise<ToolResult> {
-    const { stressors, userStrengths, preferredApproaches, urgencyLevel } = params;
+    const { stressors, memberStrengths, preferredApproaches, urgencyLevel } = params;
 
     const strategies = [
       {
@@ -438,7 +438,7 @@ export class ToolExecutor {
   }
 
   private async executeDetectCrisis(params: any, context: ToolContext): Promise<ToolResult> {
-    const { message, userHistory, contextualCues } = params;
+    const { message, memberHistory, contextualCues } = params;
 
     // Crisis detection logic
     const crisisKeywords = ['suicide', 'kill myself', 'end it all', 'hurt myself', 'can\'t go on', 'no point', 'give up'];
@@ -526,7 +526,7 @@ export class ToolExecutor {
   }
 
   private async executeEscalateToHuman(params: any, context: ToolContext): Promise<ToolResult> {
-    const { urgencyLevel, crisisDetails, userConsent } = params;
+    const { urgencyLevel, crisisDetails, memberConsent } = params;
 
     // Simulate escalation process
     const ticketId = `CRISIS_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
@@ -538,7 +538,7 @@ export class ToolExecutor {
         ticketId,
         estimatedResponseTime: urgencyLevel === 'emergency' ? 'Immediate' : '15-30 minutes',
         emergencyProtocolActivated: urgencyLevel === 'emergency',
-        userNotificationSent: true
+        memberNotificationSent: true
       },
       confidence: 1.0,
       requiresHumanEscalation: true,
@@ -551,7 +551,7 @@ export class ToolExecutor {
   // =============================================================================
 
   private async executeSearchGroups(params: any, context: ToolContext): Promise<ToolResult> {
-    const { userGoals, experienceLevel, preferredGroupSize, supportType, location, ageRange } = params;
+    const { memberGoals, experienceLevel, preferredGroupSize, supportType, location, ageRange } = params;
 
     // Simulate group search
     const mockGroups = [
@@ -587,7 +587,7 @@ export class ToolExecutor {
         groups: mockGroups,
         totalMatches: mockGroups.length,
         searchCriteria: {
-          userGoals,
+          memberGoals,
           experienceLevel,
           preferredGroupSize,
           supportType
@@ -600,7 +600,7 @@ export class ToolExecutor {
   }
 
   private async executeRankGroupsByRelevance(params: any, context: ToolContext): Promise<ToolResult> {
-    const { userId, candidateGroups, userProfile, weightings } = params;
+    const { memberId, candidateGroups, memberProfile, weightings } = params;
 
     // Simulate ranking algorithm
     const rankedGroups = [
@@ -645,7 +645,7 @@ export class ToolExecutor {
   }
 
   private async executeGenerateGroupRecommendations(params: any, context: ToolContext): Promise<ToolResult> {
-    const { userId, currentGroups, recommendationContext, maxRecommendations, includeExplanations } = params;
+    const { memberId, currentGroups, recommendationContext, maxRecommendations, includeExplanations } = params;
 
     const recommendations = [
       {
@@ -691,8 +691,8 @@ export class ToolExecutor {
   // INSIGHT AGENT TOOL IMPLEMENTATIONS
   // =============================================================================
 
-  private async executeAnalyzeUserProgress(params: any, context: ToolContext): Promise<ToolResult> {
-    const { userId, timeframe, metrics, includeComparisons } = params;
+  private async executeAnalyzeMemberProgress(params: any, context: ToolContext): Promise<ToolResult> {
+    const { memberId, timeframe, metrics, includeComparisons } = params;
 
     return {
       success: true,
@@ -742,7 +742,7 @@ export class ToolExecutor {
   }
 
   private async executeGenerateProgressInsights(params: any, context: ToolContext): Promise<ToolResult> {
-    const { userId, groupId, focusAreas, insightType, audienceType } = params;
+    const { memberId, groupId, focusAreas, insightType, audienceType } = params;
 
     return {
       success: true,
@@ -798,7 +798,7 @@ export class ToolExecutor {
   }
 
   private async executeIdentifyPatterns(params: any, context: ToolContext): Promise<ToolResult> {
-    const { userId, dataTypes, patternTypes, lookbackPeriod, minimumConfidence } = params;
+    const { memberId, dataTypes, patternTypes, lookbackPeriod, minimumConfidence } = params;
 
     const patterns = [
       {
@@ -860,7 +860,7 @@ export class ToolExecutor {
         agent: auditLog.agent,
         success: auditLog.success,
         duration: auditLog.duration,
-        userId: auditLog.userId,
+        memberId: auditLog.memberId,
         auditId: auditLog.id
       });
 

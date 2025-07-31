@@ -15,7 +15,7 @@ router.use(requireAdmin);
 // Get dashboard overview
 router.get('/dashboard', asyncHandler(async (req: AuthenticatedRequest, res) => {
   const analytics = await dbService.getAnalytics();
-  
+
   res.json({
     success: true,
     data: {
@@ -57,7 +57,7 @@ router.get('/health', asyncHandler(async (req: AuthenticatedRequest, res) => {
 router.get('/audit-logs', validateRequest([
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
-  query('userId').optional().isUUID().withMessage('Invalid user ID format'),
+  query('memberId').optional().isUUID().withMessage('Invalid member ID format'),
   query('action').optional().trim().isLength({ min: 1 }).withMessage('Action cannot be empty'),
   query('resource').optional().trim().isLength({ min: 1 }).withMessage('Resource cannot be empty'),
   query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date'),
@@ -65,14 +65,14 @@ router.get('/audit-logs', validateRequest([
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 50;
-  const userId = req.query.userId as string;
+  const memberId = req.query.memberId as string;
   const action = req.query.action as string;
   const resource = req.query.resource as string;
   const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
 
   const filters = {
-    userId,
+    memberId,
     action,
     resource,
     startDate,
@@ -96,8 +96,8 @@ router.get('/audit-logs', validateRequest([
   });
 }));
 
-// Get users with admin filtering
-router.get('/users', validateRequest([
+// Get members with admin filtering
+router.get('/members', validateRequest([
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
   query('search').optional().trim().isLength({ min: 1 }).withMessage('Search cannot be empty'),
@@ -126,7 +126,7 @@ router.get('/users', validateRequest([
     filters.experienceLevel = experienceLevel;
   }
 
-  const result = await dbService.getUsers(page, limit, filters);
+  const result = await dbService.getMembers(page, limit, filters);
 
   res.json({
     success: true,
@@ -135,16 +135,16 @@ router.get('/users', validateRequest([
   });
 }));
 
-// Delete a user
-router.delete('/users/:id', validateRequest([
-  param('id').isLength({ min: 1 }).withMessage('User ID is required'),
+// Delete a member
+router.delete('/members/:id', validateRequest([
+  param('id').isLength({ min: 1 }).withMessage('Member ID is required'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const userId = req.params.id;
-  const adminId = req.user!.id;
+  const memberId = req.params.id;
+  const adminId = req.member!.id;
 
   try {
     // Prevent admin from deleting themselves
-    if (userId === adminId) {
+    if (memberId === adminId) {
       return res.status(400).json({
         success: false,
         error: 'Cannot delete your own account',
@@ -152,43 +152,43 @@ router.delete('/users/:id', validateRequest([
       });
     }
 
-    // Check if user exists
-    const user = await dbService.getUserById(userId);
-    if (!user) {
+    // Check if member exists
+    const member = await dbService.getMemberById(memberId);
+    if (!member) {
       return res.status(404).json({
         success: false,
-        error: 'User not found',
+        error: 'Member not found',
         timestamp: new Date().toISOString()
       });
     }
 
-    // Delete the user
-    await dbService.deleteUser(userId);
+    // Delete the member
+    await dbService.deleteMember(memberId);
 
     // Log the deletion
     await dbService.createAuditLog({
-      userId: adminId,
-      action: 'user_deleted',
-      resource: 'user',
-      resourceId: userId,
+      memberId: adminId,
+      action: 'member_deleted',
+      resource: 'member',
+      resourceId: memberId,
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
-      metadata: { deletedUser: { id: userId, email: user.email, role: user.role } }
+      memberAgent: req.get('User-Agent') || 'unknown',
+      metadata: { deletedUser: { id: memberId, email: member.email, role: member.role } }
     });
 
-    logger.info(`User ${userId} deleted by admin ${adminId}`);
+    logger.info(`Member ${memberId} deleted by admin ${adminId}`);
 
     res.json({
       success: true,
-      data: { message: 'User deleted successfully' },
+      data: { message: 'Member deleted successfully' },
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    logger.error('Failed to delete user:', error);
+    logger.error('Failed to delete member:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to delete user',
+      error: 'Failed to delete member',
       timestamp: new Date().toISOString()
     });
   }
@@ -228,8 +228,8 @@ router.get('/groups', validateRequest([
   });
 }));
 
-// Get user statistics
-router.get('/stats/users', validateRequest([
+// Get member statistics
+router.get('/stats/members', validateRequest([
   query('period').optional().isIn(['day', 'week', 'month', 'quarter', 'year']).withMessage('Invalid period'),
   query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date'),
   query('endDate').optional().isISO8601().withMessage('End date must be a valid ISO 8601 date'),
@@ -238,7 +238,7 @@ router.get('/stats/users', validateRequest([
   const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
 
-  const stats = await dbService.getUserStats(period, startDate, endDate);
+  const stats = await dbService.getMemberStats(period, startDate, endDate);
 
   res.json({
     success: true,
@@ -292,15 +292,15 @@ router.get('/stats/messages', validateRequest([
 }));
 
 // Bulk operations
-router.post('/bulk/users/activate', validateRequest([
-  body('userIds').isArray({ min: 1 }).withMessage('User IDs array is required'),
-  body('userIds.*').isLength({ min: 1 }).withMessage('Each user ID must be a non-empty string'),
+router.post('/bulk/members/activate', validateRequest([
+  body('memberIds').isArray({ min: 1 }).withMessage('Member IDs array is required'),
+  body('memberIds.*').isLength({ min: 1 }).withMessage('Each member ID must be a non-empty string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userIds } = req.body;
-  const adminId = req.user!.id;
+  const { memberIds } = req.body;
+  const adminId = req.member!.id;
 
   const results = await Promise.allSettled(
-    userIds.map((userId: string) => dbService.updateUser(userId, { isActive: true }))
+    memberIds.map((memberId: string) => dbService.updateMember(memberId, { isActive: true }))
   );
 
   const succeeded = results.filter(r => r.status === 'fulfilled').length;
@@ -308,40 +308,40 @@ router.post('/bulk/users/activate', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
-    action: 'bulk_user_activate',
-    resource: 'user',
+    memberId: adminId,
+    action: 'bulk_member_activate',
+    resource: 'member',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
-      userIds,
+      memberIds,
       succeeded,
       failed
     }
   });
 
-  logger.info(`Bulk user activation: ${succeeded} succeeded, ${failed} failed by ${adminId}`);
+  logger.info(`Bulk member activation: ${succeeded} succeeded, ${failed} failed by ${adminId}`);
 
   res.json({
     success: true,
     data: {
       succeeded,
       failed,
-      total: userIds.length
+      total: memberIds.length
     },
     timestamp: new Date().toISOString()
   });
 }));
 
-router.post('/bulk/users/deactivate', validateRequest([
-  body('userIds').isArray({ min: 1 }).withMessage('User IDs array is required'),
-  body('userIds.*').isLength({ min: 1 }).withMessage('Each user ID must be a non-empty string'),
+router.post('/bulk/members/deactivate', validateRequest([
+  body('memberIds').isArray({ min: 1 }).withMessage('Member IDs array is required'),
+  body('memberIds.*').isLength({ min: 1 }).withMessage('Each member ID must be a non-empty string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userIds } = req.body;
-  const adminId = req.user!.id;
+  const { memberIds } = req.body;
+  const adminId = req.member!.id;
 
   // Prevent admin from deactivating themselves
-  if (userIds.includes(adminId)) {
+  if (memberIds.includes(adminId)) {
     return res.status(400).json({
       success: false,
       error: 'Cannot deactivate your own account',
@@ -350,7 +350,7 @@ router.post('/bulk/users/deactivate', validateRequest([
   }
 
   const results = await Promise.allSettled(
-    userIds.map((userId: string) => dbService.updateUser(userId, { isActive: false }))
+    memberIds.map((memberId: string) => dbService.updateMember(memberId, { isActive: false }))
   );
 
   const succeeded = results.filter(r => r.status === 'fulfilled').length;
@@ -358,26 +358,26 @@ router.post('/bulk/users/deactivate', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
-    action: 'bulk_user_deactivate',
-    resource: 'user',
+    memberId: adminId,
+    action: 'bulk_member_deactivate',
+    resource: 'member',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
-      userIds,
+      memberIds,
       succeeded,
       failed
     }
   });
 
-  logger.info(`Bulk user deactivation: ${succeeded} succeeded, ${failed} failed by ${adminId}`);
+  logger.info(`Bulk member deactivation: ${succeeded} succeeded, ${failed} failed by ${adminId}`);
 
   res.json({
     success: true,
     data: {
       succeeded,
       failed,
-      total: userIds.length
+      total: memberIds.length
     },
     timestamp: new Date().toISOString()
   });
@@ -388,7 +388,7 @@ router.post('/bulk/groups/activate', validateRequest([
   body('groupIds.*').isUUID().withMessage('Invalid group ID format'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { groupIds } = req.body;
-  const adminId = req.user!.id;
+  const adminId = req.member!.id;
 
   const results = await Promise.allSettled(
     groupIds.map((groupId: string) => dbService.updateGroup(groupId, { isActive: true }))
@@ -399,11 +399,11 @@ router.post('/bulk/groups/activate', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
+    memberId: adminId,
     action: 'bulk_group_activate',
     resource: 'group',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupIds,
       succeeded,
@@ -429,7 +429,7 @@ router.post('/bulk/groups/deactivate', validateRequest([
   body('groupIds.*').isUUID().withMessage('Invalid group ID format'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { groupIds } = req.body;
-  const adminId = req.user!.id;
+  const adminId = req.member!.id;
 
   const results = await Promise.allSettled(
     groupIds.map((groupId: string) => dbService.updateGroup(groupId, { isActive: false }))
@@ -440,11 +440,11 @@ router.post('/bulk/groups/deactivate', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
+    memberId: adminId,
     action: 'bulk_group_deactivate',
     resource: 'group',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       groupIds,
       succeeded,
@@ -504,19 +504,19 @@ router.patch('/config', validateRequest([
   body('limits').optional().isObject().withMessage('Limits must be an object'),
   body('security').optional().isObject().withMessage('Security must be an object'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const adminId = req.user!.id;
+  const adminId = req.member!.id;
   const { features, limits, security } = req.body;
 
   // Note: In a real implementation, this would update environment variables
   // or a configuration database. For now, we'll just log the changes.
-  
+
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
+    memberId: adminId,
     action: 'config_update',
     resource: 'system',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       features,
       limits,
@@ -537,15 +537,15 @@ router.patch('/config', validateRequest([
 
 // Get all group assignments
 router.get('/group-assignments', validateRequest([
-  query('userId').optional().isUUID().withMessage('Invalid user ID'),
+  query('memberId').optional().isUUID().withMessage('Invalid member ID'),
   query('groupId').optional().isUUID().withMessage('Invalid group ID'),
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId, page = 1, limit = 50 } = req.query;
-  
+  const { memberId, groupId, page = 1, limit = 50 } = req.query;
+
   const assignments = await dbService.getGroupAssignments({
-    userId: userId as string,
+    memberId: memberId as string,
     groupId: groupId as string,
     page: parseInt(page as string),
     limit: parseInt(limit as string)
@@ -558,27 +558,27 @@ router.get('/group-assignments', validateRequest([
   });
 }));
 
-// Assign group to user
+// Assign group to member
 router.post('/group-assignments', validateRequest([
-  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('memberId').isUUID().withMessage('Valid member ID is required'),
   body('groupId').isUUID().withMessage('Valid group ID is required'),
   body('notes').optional().isString().withMessage('Notes must be a string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId, notes } = req.body;
-  const assignedBy = req.user!.id;
+  const { memberId, groupId, notes } = req.body;
+  const assignedBy = req.member!.id;
 
   // Check if assignment already exists
-  const existingAssignment = await dbService.getGroupAssignment(userId, groupId);
+  const existingAssignment = await dbService.getGroupAssignment(memberId, groupId);
   if (existingAssignment) {
     return res.status(400).json({
       success: false,
-      error: 'User is already assigned to this group',
+      error: 'Member is already assigned to this group',
       timestamp: new Date().toISOString()
     });
   }
 
   const assignment = await dbService.createGroupAssignment({
-    userId,
+    memberId,
     groupId,
     assignedBy,
     notes
@@ -586,15 +586,15 @@ router.post('/group-assignments', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: assignedBy,
+    memberId: assignedBy,
     action: 'group_assignment_create',
     resource: 'group_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
-    metadata: { userId, groupId, notes }
+    memberAgent: req.get('User-Agent') || 'unknown',
+    metadata: { memberId, groupId, notes }
   });
 
-  logger.info(`Group assignment created: User ${userId} assigned to group ${groupId} by ${assignedBy}`);
+  logger.info(`Group assignment created: Member ${memberId} assigned to group ${groupId} by ${assignedBy}`);
 
   res.status(201).json({
     success: true,
@@ -604,14 +604,14 @@ router.post('/group-assignments', validateRequest([
 }));
 
 // Remove group assignment
-router.delete('/group-assignments/:userId/:groupId', validateRequest([
-  param('userId').isUUID().withMessage('Invalid user ID'),
+router.delete('/group-assignments/:memberId/:groupId', validateRequest([
+  param('memberId').isUUID().withMessage('Invalid member ID'),
   param('groupId').isUUID().withMessage('Invalid group ID'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId } = req.params;
-  const adminId = req.user!.id;
+  const { memberId, groupId } = req.params;
+  const adminId = req.member!.id;
 
-  const assignment = await dbService.getGroupAssignment(userId, groupId);
+  const assignment = await dbService.getGroupAssignment(memberId, groupId);
   if (!assignment) {
     return res.status(404).json({
       success: false,
@@ -620,19 +620,19 @@ router.delete('/group-assignments/:userId/:groupId', validateRequest([
     });
   }
 
-  await dbService.deleteGroupAssignment(userId, groupId);
+  await dbService.deleteGroupAssignment(memberId, groupId);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
+    memberId: adminId,
     action: 'group_assignment_delete',
     resource: 'group_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
-    metadata: { userId, groupId }
+    memberAgent: req.get('User-Agent') || 'unknown',
+    metadata: { memberId, groupId }
   });
 
-  logger.info(`Group assignment deleted: User ${userId} unassigned from group ${groupId} by ${adminId}`);
+  logger.info(`Group assignment deleted: Member ${memberId} unassigned from group ${groupId} by ${adminId}`);
 
   res.json({
     success: true,
@@ -641,13 +641,13 @@ router.delete('/group-assignments/:userId/:groupId', validateRequest([
   });
 }));
 
-// Get groups assigned to a specific user
-router.get('/users/:userId/assigned-groups', validateRequest([
-  param('userId').isUUID().withMessage('Invalid user ID'),
+// Get groups assigned to a specific member
+router.get('/members/:memberId/assigned-groups', validateRequest([
+  param('memberId').isUUID().withMessage('Invalid member ID'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId } = req.params;
+  const { memberId } = req.params;
 
-  const assignedGroups = await dbService.getUserAssignedGroups(userId);
+  const assignedGroups = await dbService.getMemberAssignedGroups(memberId);
 
   res.json({
     success: true,
@@ -656,28 +656,28 @@ router.get('/users/:userId/assigned-groups', validateRequest([
   });
 }));
 
-// Bulk assign groups to multiple users
+// Bulk assign groups to multiple members
 router.post('/group-assignments/bulk', validateRequest([
-  body('userIds').isArray({ min: 1 }).withMessage('User IDs array is required'),
-  body('userIds.*').isLength({ min: 1 }).withMessage('Each user ID must be a non-empty string'),
+  body('memberIds').isArray({ min: 1 }).withMessage('Member IDs array is required'),
+  body('memberIds.*').isLength({ min: 1 }).withMessage('Each member ID must be a non-empty string'),
   body('groupIds').isArray({ min: 1 }).withMessage('Group IDs array is required'),
   body('groupIds.*').isLength({ min: 1 }).withMessage('Each group ID must be a non-empty string'),
   body('notes').optional().isString().withMessage('Notes must be a string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userIds, groupIds, notes } = req.body;
-  const assignedBy = req.user!.id;
+  const { memberIds, groupIds, notes } = req.body;
+  const assignedBy = req.member!.id;
 
   const assignments = [];
   const errors = [];
 
-  for (const userId of userIds) {
+  for (const memberId of memberIds) {
     for (const groupId of groupIds) {
       try {
         // Check if assignment already exists
-        const existingAssignment = await dbService.getGroupAssignment(userId, groupId);
+        const existingAssignment = await dbService.getGroupAssignment(memberId, groupId);
         if (!existingAssignment) {
           const assignment = await dbService.createGroupAssignment({
-            userId,
+            memberId,
             groupId,
             assignedBy,
             notes
@@ -685,21 +685,21 @@ router.post('/group-assignments/bulk', validateRequest([
           assignments.push(assignment);
         }
       } catch (error) {
-        errors.push({ userId, groupId, error: (error as Error).message });
+        errors.push({ memberId, groupId, error: (error as Error).message });
       }
     }
   }
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: assignedBy,
+    memberId: assignedBy,
     action: 'bulk_group_assignment',
     resource: 'group_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
-    metadata: { 
-      userIds, 
-      groupIds, 
+    memberAgent: req.get('User-Agent') || 'unknown',
+    metadata: {
+      memberIds,
+      groupIds,
       notes,
       successCount: assignments.length,
       errorCount: errors.length
@@ -730,7 +730,7 @@ router.get('/therapist-assignments', validateRequest([
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { therapistId, clientId, page = 1, limit = 50 } = req.query;
-  
+
   const assignments = await dbService.getTherapistClientAssignments({
     therapistId: therapistId as string,
     clientId: clientId as string,
@@ -752,14 +752,14 @@ router.post('/therapist-assignments', validateRequest([
   body('notes').optional().isString().withMessage('Notes must be a string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { therapistId, clientId, notes } = req.body;
-  const createdBy = req.user!.id;
+  const createdBy = req.member!.id;
 
   // Verify therapist has therapist role
-  const therapist = await dbService.getUserById(therapistId);
+  const therapist = await dbService.getMemberById(therapistId);
   if (!therapist || therapist.role !== 'therapist') {
     return res.status(400).json({
       success: false,
-      error: 'Invalid therapist ID or user is not a therapist',
+      error: 'Invalid therapist ID or member is not a therapist',
       timestamp: new Date().toISOString()
     });
   }
@@ -783,11 +783,11 @@ router.post('/therapist-assignments', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: createdBy,
+    memberId: createdBy,
     action: 'therapist_client_assignment_create',
     resource: 'therapist_client_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: { therapistId, clientId, notes }
   });
 
@@ -806,7 +806,7 @@ router.delete('/therapist-assignments/:therapistId/:clientId', validateRequest([
   param('clientId').isLength({ min: 1 }).withMessage('Invalid client ID'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { therapistId, clientId } = req.params;
-  const adminId = req.user!.id;
+  const adminId = req.member!.id;
 
   const assignment = await dbService.getTherapistClientAssignment(therapistId, clientId);
   if (!assignment) {
@@ -821,11 +821,11 @@ router.delete('/therapist-assignments/:therapistId/:clientId', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
+    memberId: adminId,
     action: 'therapist_client_assignment_delete',
     resource: 'therapist_client_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: { therapistId, clientId }
   });
 
@@ -857,14 +857,14 @@ router.post('/therapist-assignments/bulk', validateRequest([
   body('notes').optional().isString().withMessage('Notes must be a string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { therapistId, clientIds, notes } = req.body;
-  const createdBy = req.user!.id;
+  const createdBy = req.member!.id;
 
   // Verify therapist
-  const therapist = await dbService.getUserById(therapistId);
+  const therapist = await dbService.getMemberById(therapistId);
   if (!therapist || therapist.role !== 'therapist') {
     return res.status(400).json({
       success: false,
-      error: 'Invalid therapist ID or user is not a therapist',
+      error: 'Invalid therapist ID or member is not a therapist',
       timestamp: new Date().toISOString()
     });
   }
@@ -892,14 +892,14 @@ router.post('/therapist-assignments/bulk', validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: createdBy,
+    memberId: createdBy,
     action: 'bulk_therapist_client_assignment',
     resource: 'therapist_client_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
-    metadata: { 
-      therapistId, 
-      clientIds, 
+    memberAgent: req.get('User-Agent') || 'unknown',
+    metadata: {
+      therapistId,
+      clientIds,
       notes,
       successCount: assignments.length,
       errorCount: errors.length
@@ -922,7 +922,7 @@ router.post('/therapist-assignments/bulk', validateRequest([
 
 // Export data
 router.get('/export/:type', validateRequest([
-  param('type').isIn(['users', 'groups', 'messages', 'audit-logs']).withMessage('Invalid export type'),
+  param('type').isIn(['members', 'groups', 'messages', 'audit-logs']).withMessage('Invalid export type'),
   query('format').optional().isIn(['json', 'csv']).withMessage('Invalid format'),
   query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date'),
   query('endDate').optional().isISO8601().withMessage('End date must be a valid ISO 8601 date'),
@@ -931,15 +931,15 @@ router.get('/export/:type', validateRequest([
   const format = req.query.format as string || 'json';
   const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
   const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
-  const adminId = req.user!.id;
+  const adminId = req.member!.id;
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: adminId,
+    memberId: adminId,
     action: 'data_export',
     resource: 'system',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
     metadata: {
       type,
       format,
@@ -950,7 +950,7 @@ router.get('/export/:type', validateRequest([
 
   // Note: In a real implementation, this would generate and return actual export data
   // For now, we'll return a placeholder response
-  
+
   res.json({
     success: true,
     message: `Export request for ${type} data has been queued`,

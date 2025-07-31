@@ -55,10 +55,10 @@ type PlatformFormData = z.infer<typeof platformSchema>;
 
 interface TherapistOnboardingProps {
   onComplete: () => void;
-  userId: string;
+  memberId: string;
 }
 
-export default function TherapistOnboarding({ onComplete, userId }: TherapistOnboardingProps) {
+export default function TherapistOnboarding({ onComplete, memberId }: TherapistOnboardingProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [onboardingData, setOnboardingData] = useState<any>({});
@@ -134,7 +134,7 @@ export default function TherapistOnboarding({ onComplete, userId }: TherapistOnb
 
   const handleStepSubmit = async (stepData: any) => {
     setOnboardingData((prev: any) => ({ ...prev, ...stepData }));
-    
+
     if (currentStep < totalSteps) {
       setCurrentStep((prev: number) => prev + 1);
     } else {
@@ -146,7 +146,7 @@ export default function TherapistOnboarding({ onComplete, userId }: TherapistOnb
     setIsSubmitting(true);
     try {
       await api.post('/therapist/onboarding/complete', {
-        userId,
+        memberId,
         ...data,
         uploadedFiles
       });
@@ -170,7 +170,7 @@ export default function TherapistOnboarding({ onComplete, userId }: TherapistOnb
         const Icon = step.icon;
         const isActive = currentStep === step.number;
         const isCompleted = currentStep > step.number;
-        
+
         return (
           <div key={step.number} className="flex items-center">
             <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
@@ -209,20 +209,20 @@ export default function TherapistOnboarding({ onComplete, userId }: TherapistOnb
                 <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                   Thank you for joining PeerBond. Let's set up your professional profile and verify your credentials to ensure the highest quality care for our community.
                 </p>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                   <div className="text-center p-6 bg-blue-50 rounded-lg">
                     <Users className="w-12 h-12 text-blue-600 mx-auto mb-4" />
                     <h3 className="font-semibold text-gray-900">Client Management</h3>
                     <p className="text-sm text-gray-600">Oversee client progress and group dynamics</p>
                   </div>
-                  
+
                   <div className="text-center p-6 bg-green-50 rounded-lg">
                     <Brain className="w-12 h-12 text-green-600 mx-auto mb-4" />
                     <h3 className="font-semibold text-gray-900">AI Collaboration</h3>
                     <p className="text-sm text-gray-600">Work alongside AI facilitators for enhanced care</p>
                   </div>
-                  
+
                   <div className="text-center p-6 bg-purple-50 rounded-lg">
                     <Shield className="w-12 h-12 text-purple-600 mx-auto mb-4" />
                     <h3 className="font-semibold text-gray-900">HIPAA Compliant</h3>
@@ -481,7 +481,7 @@ export default function TherapistOnboarding({ onComplete, userId }: TherapistOnb
                   <Button type="button" variant="outline" onClick={() => setCurrentStep(2)}>
                     <ChevronLeft className="mr-2" size={16} /> Back
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => setCurrentStep(4)}
                     disabled={!uploadedFiles.license || !uploadedFiles.resume}
                   >
@@ -735,7 +735,7 @@ export default function TherapistOnboarding({ onComplete, userId }: TherapistOnb
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                   <Check className="w-8 h-8 text-green-600" />
                 </div>
-                
+
                 <h2 className="text-3xl font-bold text-gray-900">Application Submitted!</h2>
                 <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                   Thank you for completing your therapist onboarding. Your application is now under review by our licensing team.

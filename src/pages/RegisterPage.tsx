@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '@/store/authStore';
 import { Eye, EyeOff, User, Stethoscope, Shield } from 'lucide-react';
-import UserOnboarding from '@/components/onboarding/UserOnboarding';
+import MemberOnboarding from '@/components/onboarding/MemberOnboarding';
 import TherapistOnboarding from '@/components/onboarding/TherapistOnboarding';
 import AdminOnboarding from '@/components/onboarding/AdminOnboarding';
 
@@ -33,7 +33,7 @@ function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [registeredUser, setRegisteredUser] = useState<any>(null);
-  const { register: registerUser, isLoading, user } = useAuthStore();
+  const { register: registerUser, isLoading, member } = useAuthStore();
   const navigate = useNavigate();
 
   const {
@@ -54,7 +54,7 @@ function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     try {
       await registerUser(data);
-      setRegisteredUser({ ...(user || {}), role: data.role });
+      setRegisteredUser({ ...(member || {}), role: data.role });
       setShowOnboarding(true);
     } catch (error) {
       setError('root', { message: 'Registration failed. Please try again.' });
@@ -63,7 +63,7 @@ function RegisterPage() {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
-    
+
     // Navigate based on role
     switch (registeredUser?.role) {
       case 'therapist':
@@ -77,28 +77,28 @@ function RegisterPage() {
     }
   };
 
-  // Show onboarding flow if user just registered
+  // Show onboarding flow if member just registered
   if (showOnboarding && registeredUser) {
     switch (registeredUser.role) {
       case 'member':
         return (
-          <UserOnboarding
+          <MemberOnboarding
             onComplete={handleOnboardingComplete}
-            userId={registeredUser.id}
+            memberId={registeredUser.id}
           />
         );
       case 'therapist':
         return (
           <TherapistOnboarding
             onComplete={handleOnboardingComplete}
-            userId={registeredUser.id}
+            memberId={registeredUser.id}
           />
         );
       case 'admin':
         return (
           <AdminOnboarding
             onComplete={handleOnboardingComplete}
-            userId={registeredUser.id}
+            memberId={registeredUser.id}
           />
         );
       default:
@@ -117,7 +117,7 @@ function RegisterPage() {
             Create your account to get started
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             {/* Role Selection */}
@@ -196,7 +196,7 @@ function RegisterPage() {
                   <p className="mt-1 text-sm text-error-600">{errors.firstName.message}</p>
                 )}
               </div>
-              
+
               <div>
                 <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
                   Last Name
@@ -212,7 +212,7 @@ function RegisterPage() {
                 )}
               </div>
             </div>
-            
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
@@ -227,7 +227,7 @@ function RegisterPage() {
                 <p className="mt-1 text-sm text-error-600">{errors.email.message}</p>
               )}
             </div>
-            
+
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
@@ -251,7 +251,7 @@ function RegisterPage() {
                 <p className="mt-1 text-sm text-error-600">{errors.password.message}</p>
               )}
             </div>
-            
+
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirm Password
@@ -275,7 +275,7 @@ function RegisterPage() {
                 <p className="mt-1 text-sm text-error-600">{errors.confirmPassword.message}</p>
               )}
             </div>
-            
+
             {selectedRole === 'member' && (
               <div>
                 <label htmlFor="experienceLevel" className="block text-sm font-medium text-gray-700">

@@ -27,7 +27,9 @@
       "Bash(npm:*)",
       "Bash(git --version)",
       "Bash(taskkill:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(grep:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

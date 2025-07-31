@@ -1,9 +1,9 @@
-export interface User {
+export interface Member {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  role: 'user' | 'admin' | 'therapist';
+  role: 'member' | 'admin' | 'therapist';
   recoveryGoals: string[];
   wellnessGoals: string[];
   experienceLevel: 'beginner' | 'intermediate' | 'advanced';
@@ -31,15 +31,15 @@ export interface Group {
   description?: string;
   type: 'recovery' | 'wellness' | 'general' | 'anxiety' | 'depression'; // Keep the added types
   createdBy: string;
-  facilitators: string[]; // User IDs
-  members: string[]; // User IDs
+  facilitators: string[]; // Member IDs
+  members: string[]; // Member IDs
   maxMembers: number;
   isPrivate: boolean;
   isActive: boolean;
   tags?: string[];
   createdAt: Date;
   lastActivity: Date;
-  // Assignment-related fields (added when fetching user's available groups)
+  // Assignment-related fields (added when fetching member's available groups)
   isAssigned?: boolean;
   canJoin?: boolean;
   isMember?: boolean;
@@ -54,21 +54,21 @@ export interface Group {
   memberCount?: number;
 }
 
-// Populated version with full user objects (used by frontend components)
+// Populated version with full member objects (used by frontend components)
 export interface PopulatedGroup extends Omit<Group, 'members' | 'facilitators'> {
-  members: User[];
-  facilitators: User[];
+  members: Member[];
+  facilitators: Member[];
 }
 
 export interface Message {
   id: string;
   groupId: string;
-  userId: string;
+  memberId: string;
   content: string;
   timestamp: Date;
-  type: 'text' | 'user' | 'ai_facilitator' | 'system' | 'crisis_intervention';
-  reactions?: { emoji: string; users: string[]; count?: number }[];
-  user?: User; // Populated user object
+  type: 'text' | 'member' | 'ai_facilitator' | 'system' | 'crisis_intervention';
+  reactions?: { emoji: string; members: string[]; count?: number }[];
+  member?: Member; // Populated member object
   metadata?: {
     agentUsed?: string[];
     confidence?: number;
@@ -114,7 +114,7 @@ export interface TherapistDashboard {
   id: string;
   therapistId: string;
   connectedGroups: string[];
-  patients: User[];
+  clients: Member[];
   aggregateMetrics: {
     totalSessions: number;
     averageEngagement: number;
@@ -124,7 +124,7 @@ export interface TherapistDashboard {
 
 export interface Subscription {
   id: string;
-  userId: string;
+  memberId: string;
   type: 'free' | 'premium' | 'professional';
   status: 'active' | 'cancelled' | 'past_due';
   currentPeriodStart: Date;
