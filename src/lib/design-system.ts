@@ -208,13 +208,71 @@ export const getPortalStyles = (portalType: 'member' | 'therapist' | 'admin') =>
 
   return {
     headerBg: `bg-${theme.primary[50]}`,
-    headerBorder: `border-${theme.primary[100]}`, // Changed 200 to 100 since it's not in the type
+    headerBorder: `border-${theme.primary[100]}`,
     headerText: `text-${theme.primary[700]}`,
     accentBg: `bg-${theme.primary[600]}`,
     accentText: `text-${theme.primary[600]}`,
     accentHover: `hover:bg-${theme.primary[700]}`,
     linkColor: `text-${theme.primary[600]} hover:text-${theme.primary[700]}`,
-    badgeColor: `bg-${theme.primary[100]} text-${theme.primary[700]}`, // Changed 800 to 700 since 800 doesn't exist
+    badgeColor: `bg-${theme.primary[100]} text-${theme.primary[700]}`,
+    cardBorder: `border-${theme.primary[100]}`,
+    cardHover: `hover:border-${theme.primary[200]}`,
+    buttonPrimary: `bg-${theme.primary[600]} hover:bg-${theme.primary[700]} text-white`,
+    buttonSecondary: `bg-${theme.primary[50]} hover:bg-${theme.primary[100]} text-${theme.primary[700]}`,
+    statIcon: `bg-${theme.primary[100]} text-${theme.primary[600]}`,
+    tabActive: `border-${theme.primary[600]} text-${theme.primary[600]}`,
+    tabInactive: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+  };
+};
+
+// Enhanced component utility functions
+export const getPortalComponentClasses = (portalType: 'member' | 'therapist' | 'admin') => {
+  const styles = getPortalStyles(portalType);
+  
+  return {
+    // Enhanced card styling with portal theming
+    card: (variant: 'base' | 'hover' | 'interactive' = 'base', padding: 'sm' | 'base' | 'lg' = 'base') => {
+      const baseCard = 'bg-white rounded-lg shadow-sm border border-gray-200 transition-all duration-200';
+      const variants = {
+        base: baseCard,
+        hover: `${baseCard} hover:shadow-md`,
+        interactive: `${baseCard} ${styles.cardHover} hover:shadow-md cursor-pointer`,
+      };
+      const paddings = {
+        sm: 'p-4',
+        base: 'p-6', 
+        lg: 'p-8',
+      };
+      return `${variants[variant]} ${paddings[padding]}`;
+    },
+
+    // Portal-themed buttons
+    button: (variant: 'primary' | 'secondary' | 'outline' | 'ghost' = 'primary', size: 'sm' | 'base' | 'lg' = 'base') => {
+      const baseButton = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
+      const sizes = {
+        sm: 'px-3 py-2 text-sm',
+        base: 'px-4 py-2 text-sm',
+        lg: 'px-6 py-3 text-base',
+      };
+      const variants = {
+        primary: styles.buttonPrimary,
+        secondary: styles.buttonSecondary,
+        outline: `border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-${portalType === 'member' ? 'blue' : portalType === 'therapist' ? 'green' : 'purple'}-500`,
+        ghost: `text-gray-700 hover:bg-gray-100 focus:ring-${portalType === 'member' ? 'blue' : portalType === 'therapist' ? 'green' : 'purple'}-500`,
+      };
+      return `${baseButton} ${sizes[size]} ${variants[variant]}`;
+    },
+
+    // Portal-themed navigation tabs
+    navigationTab: (isActive: boolean) => {
+      const baseTab = 'flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2';
+      return `${baseTab} ${isActive ? styles.tabActive : styles.tabInactive}`;
+    },
+
+    // Portal-themed stats card icon
+    statsCardIcon: () => {
+      return `flex-shrink-0 p-2 rounded-full ${styles.statIcon}`;
+    },
   };
 };
 

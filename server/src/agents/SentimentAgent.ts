@@ -13,7 +13,7 @@ export class SentimentAgent extends BaseAgent {
       id: 'sentiment',
       name: 'Sentiment Agent',
       description: 'Analyzes emotional content and detects crisis indicators for safety',
-      availableTools: ['analyzeSentiment', 'detectCrisis']
+      availableTools: ['logMood', 'escalateCrisis']
     });
   }
 
@@ -24,83 +24,58 @@ export class SentimentAgent extends BaseAgent {
     const toolsUsed: string[] = [];
     const toolResults: ToolResult[] = [];
     let response = '';
-    let confidence = 0;
-    let needsCrisisIntervention = false;
+    let confidence = 0.85;
 
     try {
-      // Step 1: Analyze sentiment
-      const sentimentParams = {
-        text: message,
-        contextualFactors: {
-          timeOfDay: new Date().getHours() < 6 || new Date().getHours() > 22 ? 'late_night' : 'normal',
-          groupDynamics: undefined,
-          recentEvents: []
-        }
-      };
+      // Step 1: Analyze sentiment and emotional state
+      const emotionalAnalysis = this.analyzeEmotionalContent(message);
+      const { mood, score, primaryEmotions, riskFactors } = emotionalAnalysis;
 
-      const sentimentResult = await this.executeTool('analyzeSentiment', sentimentParams, context);
-      toolsUsed.push('analyzeSentiment');
-      toolResults.push(sentimentResult);
-
-      let emotionalScore = 0;
-      let overallSentiment = 'neutral';
-      let primaryEmotions: any[] = [];
-      let riskFactors: string[] = [];
-      let protectiveFactors: string[] = [];
-
-      if (sentimentResult.success && sentimentResult.data) {
-        const data = sentimentResult.data;
-        emotionalScore = data.emotionalScore || 0;
-        overallSentiment = data.overallSentiment || 'neutral';
-        primaryEmotions = data.primaryEmotions || [];
-        riskFactors = data.riskFactors || [];
-        protectiveFactors = data.protectiveFactors || [];
-      }
-
-      // Step 2: Detect crisis if sentiment is concerning
-      let crisisLevel = 'none';
-      let immediateActions: string[] = [];
-      
-      if (emotionalScore < -0.5 || riskFactors.length > 0) {
-        const crisisParams = {
-          message,
-          memberHistory: [],
-          contextualCues: {
-            timePattern: sentimentParams.contextualFactors.timeOfDay,
-            behavioralChanges: []
-          }
-        };
-
-        const crisisResult = await this.executeTool('detectCrisis', crisisParams, context);
-        toolsUsed.push('detectCrisis');
-        toolResults.push(crisisResult);
-
-        if (crisisResult.success && crisisResult.data) {
-          const crisisData = crisisResult.data;
-          needsCrisisIntervention = crisisData.crisisDetected || false;
-          crisisLevel = crisisData.severityLevel || 'none';
-          immediateActions = crisisData.immediateActions || [];
-          
-          // Add crisis-specific risk factors
-          if (crisisData.riskFactors) {
-            riskFactors.push(...crisisData.riskFactors);
-          }
-        }
-      }
-
-      // Build comprehensive response
-      response = this.buildSentimentAnalysisResponse({
-        overallSentiment,
-        emotionalScore,
+      logger.info(`[${this.name}] Emotional analysis:`, {
+        mood,
+        score,
         primaryEmotions,
-        riskFactors,
-        protectiveFactors,
-        crisisLevel,
-        immediateActions,
-        needsCrisisIntervention
+        riskFactors
       });
 
-      confidence = Math.max(sentimentResult.confidence || 0.8, 0.75);
+      // Step 2: Log mood for tracking
+      const logMoodParams = {
+        mood,
+        score,
+        note: message.substring(0, 200), // First 200 chars as note
+        timestamp: new Date().toISOString(),
+        memberId: context.memberId
+      };
+
+      const logResult = await this.executeTool('logMood', logMoodParams, context);
+      toolsUsed.push('logMood');
+      toolResults.push(logResult);
+
+      // Step 3: Check if crisis escalation is needed
+      const needsCrisisIntervention = this.checkCrisisIndicators(message, score, riskFactors);
+      
+      if (needsCrisisIntervention) {
+        const escalateParams = {
+          memberId: context.memberId,
+          sessionId: context.sessionId,
+          severity: this.determineCrisisSeverity(score, riskFactors),
+          triggerMessage: message,
+          riskFactors,
+          immediateThreats: this.identifyImmediateThreats(message),
+          timestamp: new Date().toISOString()
+        };
+
+        const escalateResult = await this.executeTool('escalateCrisis', escalateParams, context);
+        toolsUsed.push('escalateCrisis');
+        toolResults.push(escalateResult);
+
+        // Generate crisis response
+        response = this.generateCrisisResponse(escalateResult.success);
+        confidence = 0.95; // High confidence for crisis situations
+      } else {
+        // Generate sentiment feedback response
+        response = this.generateSentimentFeedback(emotionalAnalysis);
+      }
 
       return {
         response,
@@ -108,13 +83,12 @@ export class SentimentAgent extends BaseAgent {
         toolsUsed,
         toolResults,
         metadata: {
-          emotionalScore,
-          overallSentiment,
-          crisisLevel,
-          needsCrisisIntervention,
+          mood,
+          emotionalScore: score,
+          primaryEmotions,
           riskFactors,
-          protectiveFactors,
-          primaryEmotions: primaryEmotions.map(e => e.emotion).slice(0, 3)
+          crisisEscalated: needsCrisisIntervention,
+          moodLogged: logResult.success
         }
       };
 
@@ -128,6 +102,190 @@ export class SentimentAgent extends BaseAgent {
         metadata: { error: error.message }
       };
     }
+  }
+
+  private analyzeEmotionalContent(message: string): {
+    mood: string;
+    score: number;
+    primaryEmotions: string[];
+    riskFactors: string[];
+    protectiveFactors: string[];
+  } {
+    const lowerMessage = message.toLowerCase();
+    let score = 0;
+    const emotions: string[] = [];
+    const riskFactors: string[] = [];
+    const protectiveFactors: string[] = [];
+
+    // Analyze negative indicators
+    const negativeWords = {
+      severe: ['suicide', 'kill myself', 'end it all', 'can\'t go on', 'no point living'],
+      high: ['hopeless', 'worthless', 'hate myself', 'can\'t cope', 'give up'],
+      moderate: ['depressed', 'anxious', 'scared', 'lonely', 'overwhelmed'],
+      mild: ['sad', 'worried', 'stressed', 'tired', 'frustrated']
+    };
+
+    // Check for negative emotions
+    Object.entries(negativeWords).forEach(([severity, words]) => {
+      words.forEach(word => {
+        if (lowerMessage.includes(word)) {
+          emotions.push(word);
+          switch(severity) {
+            case 'severe': 
+              score -= 0.9;
+              riskFactors.push(`Severe distress indicator: "${word}"`);
+              break;
+            case 'high': 
+              score -= 0.6;
+              riskFactors.push(`High distress: "${word}"`);
+              break;
+            case 'moderate': score -= 0.3; break;
+            case 'mild': score -= 0.15; break;
+          }
+        }
+      });
+    });
+
+    // Analyze positive indicators
+    const positiveWords = ['better', 'happy', 'grateful', 'hopeful', 'calm', 'peaceful', 'content'];
+    positiveWords.forEach(word => {
+      if (lowerMessage.includes(word)) {
+        emotions.push(word);
+        score += 0.2;
+        protectiveFactors.push(`Positive emotion: ${word}`);
+      }
+    });
+
+    // Check for protective factors
+    if (lowerMessage.includes('support') || lowerMessage.includes('help')) {
+      protectiveFactors.push('Seeking support');
+      score += 0.1;
+    }
+    if (lowerMessage.includes('trying') || lowerMessage.includes('working on')) {
+      protectiveFactors.push('Active coping');
+      score += 0.1;
+    }
+
+    // Normalize score to -1 to 1 range
+    score = Math.max(-1, Math.min(1, score));
+
+    // Determine mood based on score
+    let mood: string;
+    if (score < -0.6) mood = 'crisis';
+    else if (score < -0.3) mood = 'distressed';
+    else if (score < 0.1) mood = 'low';
+    else if (score < 0.4) mood = 'neutral';
+    else if (score < 0.7) mood = 'positive';
+    else mood = 'very_positive';
+
+    return {
+      mood,
+      score,
+      primaryEmotions: emotions.slice(0, 3),
+      riskFactors,
+      protectiveFactors
+    };
+  }
+
+  private checkCrisisIndicators(message: string, score: number, riskFactors: string[]): boolean {
+    // Crisis threshold based on CLAUDE.md: threshold < -0.6
+    if (score < -0.6) return true;
+    
+    // Check for explicit crisis language
+    const crisisWords = ['suicide', 'kill myself', 'end it', 'die', 'harm myself'];
+    const lowerMessage = message.toLowerCase();
+    
+    return crisisWords.some(word => lowerMessage.includes(word));
+  }
+
+  private determineCrisisSeverity(score: number, riskFactors: string[]): 'low' | 'medium' | 'high' | 'critical' {
+    if (score < -0.9 || riskFactors.some(rf => rf.includes('Severe distress'))) {
+      return 'critical';
+    } else if (score < -0.7) {
+      return 'high';
+    } else if (score < -0.6) {
+      return 'medium';
+    }
+    return 'low';
+  }
+
+  private identifyImmediateThreats(message: string): string[] {
+    const threats: string[] = [];
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('plan') || lowerMessage.includes('method')) {
+      threats.push('Possible suicide plan mentioned');
+    }
+    if (lowerMessage.includes('goodbye') || lowerMessage.includes('final')) {
+      threats.push('Finality language detected');
+    }
+    if (lowerMessage.includes('pills') || lowerMessage.includes('weapon')) {
+      threats.push('Means mentioned');
+    }
+    
+    return threats;
+  }
+
+  private generateCrisisResponse(escalationSuccess: boolean): string {
+    if (escalationSuccess) {
+      return `🆘 **Crisis Support Activated**
+
+I've noticed you're going through an extremely difficult time, and I'm deeply concerned about your safety. 
+
+**Immediate help is on the way:**
+✅ Our crisis team has been notified
+✅ A trained counselor will contact you shortly
+✅ Your safety is our top priority
+
+**While you wait, please:**
+📞 Call **988** for immediate support (Suicide & Crisis Lifeline)
+💬 Text **HOME** to **741741** (Crisis Text Line)
+🆘 If in immediate danger, call **911**
+
+You are not alone. We are here for you. 💙`;
+    } else {
+      return `I'm very concerned about what you're sharing. Your safety matters deeply.
+
+**Please reach out for immediate support:**
+• National Suicide Prevention Lifeline: **988**
+• Crisis Text Line: Text **HOME** to **741741**
+• Emergency Services: **911**
+
+You deserve support and you don't have to face this alone. 💙`;
+    }
+  }
+
+  private generateSentimentFeedback(analysis: any): string {
+    const { mood, score, primaryEmotions, protectiveFactors } = analysis;
+    
+    let response = '';
+    
+    // Only provide feedback for significant emotional content
+    if (Math.abs(score) < 0.2 && primaryEmotions.length === 0) {
+      return ''; // No response for neutral messages
+    }
+    
+    if (score < -0.3) {
+      response = `I'm noticing you're experiencing some difficult emotions right now. `;
+      if (primaryEmotions.length > 0) {
+        response += `You mentioned feeling ${primaryEmotions.join(', ')}. `;
+      }
+      response += `Your feelings are valid and it's okay to not be okay sometimes.\n\n`;
+      
+      if (protectiveFactors.length > 0) {
+        response += `I'm glad to see that you're ${protectiveFactors[0].toLowerCase()}. That shows real strength. `;
+      }
+      
+      response += `Remember, support is always available when you need it.`;
+    } else if (score > 0.3) {
+      response = `It's wonderful to hear some positive notes in your message. `;
+      if (primaryEmotions.length > 0) {
+        response += `Feeling ${primaryEmotions.join(', ')} is something to celebrate. `;
+      }
+      response += `Keep nurturing these positive moments - they're important for your wellbeing.`;
+    }
+    
+    return response;
   }
 
   private buildSentimentAnalysisResponse(analysis: {

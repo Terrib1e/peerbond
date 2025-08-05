@@ -82,7 +82,7 @@ export default function MayaPage() {
       window.location.href = '/admin';
     } else {
       // Go back to main dashboard
-      window.location.href = '/dashboard';
+      window.location.href = '/app';
     }
   };
 

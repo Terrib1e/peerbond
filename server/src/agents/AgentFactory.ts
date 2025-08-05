@@ -10,12 +10,15 @@ import { SentimentAgent } from './SentimentAgent';
 import { InsightAgent } from './InsightAgent';
 import { CrisisAgent } from './CrisisAgent';
 import { logger } from '../utils/logger';
+import AIRouterAgent from './AIRouterAgent';
+import { PersonalizationAgent } from './PersonalizationAgent';
+import { VoiceAgent } from './VoiceAgent';
 
-export type AgentType = 
-  | 'matching' 
-  | 'facilitator' 
-  | 'sentiment' 
-  | 'insight' 
+export type AgentType =
+  | 'matching'
+  | 'facilitator'
+  | 'sentiment'
+  | 'insight'
   | 'crisis'
   | 'ai-router'
   | 'chat'
@@ -32,7 +35,7 @@ export type AgentType =
 export class AgentFactory {
   private static instance: AgentFactory;
   private agents: Map<string, BaseAgent>;
-  
+
   private constructor() {
     this.agents = new Map();
     this.initializeAgents();
@@ -53,11 +56,12 @@ export class AgentFactory {
     this.agents.set('facilitator', new FacilitatorAgent());
     this.agents.set('sentiment', new SentimentAgent());
     this.agents.set('insight', new InsightAgent());
-    
+    this.agents.set('ai-router', new AIRouterAgent());
     this.agents.set('crisis', new CrisisAgent());
-
+    this.agents.set('personalization', new PersonalizationAgent());
+    this.agents.set('voice', new VoiceAgent());
+    
     // TODO: Implement remaining agents
-    // this.agents.set('ai-router', new AIRouterAgent());
     // this.agents.set('chat', new ChatAgent());
     // this.agents.set('tracker', new TrackerAgent());
     // this.agents.set('action-items', new ActionItemsAgent());
@@ -101,7 +105,7 @@ export class AgentFactory {
     availableTools: string[];
   }> {
     const info: any[] = [];
-    
+
     this.agents.forEach((agent, id) => {
       info.push({
         id,

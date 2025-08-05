@@ -322,8 +322,21 @@ Your response:`;
     try {
       // Check if AI service is available
       if (!this.genAI || !this.model) {
-        console.log('Gemini AI service not available, using fallback response');
-        return 'I understand you\'re looking for support. While I\'m not able to provide a detailed response right now, please know that your feelings are valid and support is available.';
+        console.log('Gemini AI service not available, using intelligent fallback');
+        // Extract key information from the prompt to provide a more relevant response
+        const promptLower = prompt.toLowerCase();
+        
+        if (promptLower.includes('crisis') || promptLower.includes('suicide')) {
+          return "I'm deeply concerned about what you're sharing. Your life has value and there are people who want to help. Please contact the 988 Suicide & Crisis Lifeline immediately (call or text 988). You don't have to face this alone. Let's also connect you with a crisis counselor right away.";
+        } else if (promptLower.includes('anxiety') || promptLower.includes('anxious')) {
+          return "I hear the anxiety you're experiencing. Let's try a grounding technique together: Take a slow breath in for 4 counts, hold for 4, and exhale for 6. This activates your parasympathetic nervous system. What's the main source of worry right now? Breaking it down can help make it feel more manageable.";
+        } else if (promptLower.includes('depression') || promptLower.includes('sad')) {
+          return "I can feel the weight of what you're carrying. Depression makes everything feel harder, and your feelings are valid. One small step can make a difference - could you do one tiny self-care act today? Even brushing your teeth or drinking water counts. You don't have to do this alone.";
+        } else if (promptLower.includes('coping') || promptLower.includes('strategies')) {
+          return "Here are some evidence-based coping strategies you can try right now: 1) Box breathing (4-4-4-4 counts), 2) Progressive muscle relaxation - tense and release each muscle group, 3) The 5-4-3-2-1 grounding technique using your senses, 4) Write down three things you're grateful for, no matter how small. Which resonates with you?";
+        } else {
+          return "I hear you and I'm here to support you. What you're experiencing matters, and it takes courage to reach out. Let's work through this together - what feels most important to address right now? Sometimes just naming what we're feeling can be the first step toward healing.";
+        }
       }
 
       const result = await this.model.generateContent(prompt);
@@ -338,18 +351,28 @@ Your response:`;
     const lowerContent = content.toLowerCase();
 
     // Intelligent fallback responses based on content analysis
-    let message = "Thank you for sharing. How are you feeling right now?";
-
+    let message = "";
+    
+    // Detect emotional states and provide appropriate responses
     if (lowerContent.includes('anxious') || lowerContent.includes('anxiety') || lowerContent.includes('worried')) {
-      message = "I hear that you're feeling anxious. What's one small thing that might help you feel more grounded right now?";
-    } else if (lowerContent.includes('depressed') || lowerContent.includes('sad') || lowerContent.includes('down')) {
-      message = "Thank you for trusting us with how you're feeling. What support do you need from the group today?";
-    } else if (lowerContent.includes('help') || lowerContent.includes('support') || lowerContent.includes('need')) {
-      message = "What kind of support would be most helpful for you right now?";
-    } else if (lowerContent.includes('group') || lowerContent.includes('match') || lowerContent.includes('connect')) {
-      message = "I'd love to help you connect with supportive people. What type of support are you most interested in?";
-    } else if (lowerContent.includes('crisis') || lowerContent.includes('emergency') || lowerContent.includes('hurt myself')) {
-      message = "I'm concerned about you. Please reach out to a crisis helpline immediately. You deserve support and care.";
+      message = "I can hear the anxiety in what you're sharing. That feeling of worry can be so overwhelming. Let's try something together - take a deep breath in for 4 counts, hold for 4, and out for 6. This activates your parasympathetic nervous system and can help calm those anxious feelings. What specific worry is weighing on you most right now?";
+    } else if (lowerContent.includes('sad') || lowerContent.includes('depressed') || lowerContent.includes('down')) {
+      message = "I hear the sadness in your words, and I want you to know it's okay to feel this way. Depression can make everything feel heavy and dark. One small step that might help: can you name one tiny thing you could do today that might bring even a moment of relief? Sometimes starting with the smallest action can create a ripple of change.";
+    } else if (lowerContent.includes('angry') || lowerContent.includes('frustrated') || lowerContent.includes('mad')) {
+      message = "Your frustration is completely valid - anger often signals that something important to us is being threatened or violated. Let's channel that energy constructively. Try this: tense all your muscles for 5 seconds, then release. This can help discharge some of that physical tension. What boundary or need isn't being respected right now?";
+    } else if (lowerContent.includes('lonely') || lowerContent.includes('alone') || lowerContent.includes('isolated')) {
+      message = "Feeling lonely is one of the most painful human experiences, and I'm glad you're reaching out here. Connection is a basic human need. Even this moment of sharing helps break that isolation. What's one small way you could connect with someone today - even a text or a smile to a stranger?";
+    } else if (lowerContent.includes('scared') || lowerContent.includes('afraid') || lowerContent.includes('fear')) {
+      message = "Fear is your mind's way of trying to protect you, though sometimes it overprotects. Let's ground you in the present moment: Name 5 things you can see, 4 you can touch, 3 you can hear, 2 you can smell, and 1 you can taste. This helps your nervous system recognize you're safe right now. What specific fear feels biggest?";
+    } else if (lowerContent.includes('overwhelmed') || lowerContent.includes('too much') || lowerContent.includes('can\'t handle')) {
+      message = "When everything feels like too much, our nervous system gets flooded. Let's break this down together. First, just focus on your breath - you don't have to fix everything right now. Can you identify just ONE thing that needs attention today? We'll start there and take it step by step.";
+    } else if (lowerContent.includes('suicide') || lowerContent.includes('kill myself') || lowerContent.includes('end it')) {
+      message = "I'm deeply concerned about what you're sharing. Your life has value, and there are people who want to help you through this crisis. Please reach out to the 988 Suicide & Crisis Lifeline (call or text 988) right now. You don't have to face this alone. Can you tell me what's brought you to this point?";
+    } else if (lowerContent.includes('progress') || lowerContent.includes('better') || lowerContent.includes('improvement')) {
+      message = "It's wonderful to hear about your progress! Every step forward, no matter how small, is worth celebrating. Growth isn't always linear, so be proud of how far you've come. What specific change have you noticed that feels most meaningful to you?";
+    } else {
+      // Default supportive response
+      message = "Thank you for sharing that with me. It takes courage to open up about what you're experiencing. I'm here to support you through this. Can you tell me more about what this feels like for you right now?";
     }
 
     return {

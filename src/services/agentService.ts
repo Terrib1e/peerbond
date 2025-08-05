@@ -1,7 +1,20 @@
 /**
  * Agent Service - Easy interface for calling agents and listing tools
  * Provides a simple way to interact with the PeerBond agent system
+ * Includes role-based access control and security validation
  */
+
+import { 
+  UserRole, 
+  AgentType,
+  ToolName,
+  getAllowedAgents, 
+  getAllowedTools, 
+  canAccessTool, 
+  canAccessAgent,
+  getAlternativeTool,
+  getAccessDeniedMessage
+} from '@/lib/access-control';
 
 export interface Agent {
   id: string;
@@ -34,11 +47,27 @@ export interface AgentsAndToolsResponse {
 
 class AgentService {
   private baseUrl = '/api/orchestration';
+  private currentUserRole: UserRole | null = null;
 
   /**
-   * Get all available agents and their tools
+   * Set the current user role for access control
    */
-  async getAvailableAgentsAndTools(): Promise<AgentsAndToolsResponse> {
+  setUserRole(role: UserRole): void {
+    this.currentUserRole = role;
+  }
+
+  /**
+   * Get the current user role
+   */
+  getUserRole(): UserRole | null {
+    return this.currentUserRole;
+  }
+
+  /**
+   * Get all available agents and their tools (filtered by role)
+   */
+  async getAvailableAgentsAndTools(userRole?: UserRole): Promise<AgentsAndToolsResponse> {
+    const role = userRole || this.currentUserRole || 'member';
     try {
       const token = localStorage.getItem('peerbond_token');
       const headers: Record<string, string> = {
@@ -79,7 +108,25 @@ class AgentService {
         throw new Error(result.error || 'Failed to retrieve agent information');
       }
 
-      return result.data;
+      // Filter agents and tools based on user role
+      const allowedAgents = getAllowedAgents(role);
+      const allowedTools = getAllowedTools(role);
+
+      const filteredAgents = result.data.agents.filter((agent: Agent) => 
+        allowedAgents.includes(agent.id as AgentType)
+      ).map((agent: Agent) => ({
+        ...agent,
+        tools: agent.tools.filter(tool => allowedTools.includes(tool as ToolName))
+      }));
+
+      const filteredTools = result.data.tools.filter((tool: Tool) => 
+        allowedTools.includes(tool.name as ToolName)
+      );
+
+      return {
+        agents: filteredAgents,
+        tools: filteredTools
+      };
     } catch (error) {
       console.error('Error fetching agents and tools:', error);
 
@@ -93,7 +140,7 @@ class AgentService {
   }
 
   /**
-   * Call a specific agent directly with a message
+   * Call a specific agent directly with a message (with role validation)
    */
   async callAgent(
     agentId: string,
@@ -101,7 +148,33 @@ class AgentService {
     sessionId: string,
     toolName?: string
   ): Promise<AgentCallResponse> {
+    const userRole = this.currentUserRole || 'member';
+    
     try {
+      // Validate agent access
+      if (!canAccessAgent(userRole, agentId as AgentType)) {
+        const allowedAgents = getAllowedAgents(userRole);
+        if (allowedAgents.length > 0) {
+          // Use fallback agent
+          const fallbackAgent = allowedAgents.includes('facilitator') ? 'facilitator' : allowedAgents[0];
+          console.warn(`Access denied to ${agentId}. Using fallback agent: ${fallbackAgent}`);
+          agentId = fallbackAgent;
+        } else {
+          throw new Error(`Access denied to ${agentId} agent. ${getAccessDeniedMessage(userRole, agentId as ToolName)}`);
+        }
+      }
+
+      // Validate tool access if specified
+      if (toolName && !canAccessTool(userRole, toolName as ToolName)) {
+        const alternative = getAlternativeTool(userRole, toolName as ToolName);
+        if (alternative) {
+          console.warn(`Access denied to ${toolName}. Using alternative: ${alternative}`);
+          toolName = alternative;
+        } else {
+          console.warn(`Access denied to ${toolName}. Proceeding without specific tool.`);
+          toolName = undefined;
+        }
+      }
       const token = localStorage.getItem('peerbond_token');
 
       if (!token) {
@@ -167,19 +240,51 @@ class AgentService {
   }
 
   /**
-   * Get available agents as a simple list
+   * Get available agents as a simple list (filtered by role)
    */
-  async getAgentsList(): Promise<Agent[]> {
-    const data = await this.getAvailableAgentsAndTools();
+  async getAgentsList(userRole?: UserRole): Promise<Agent[]> {
+    const data = await this.getAvailableAgentsAndTools(userRole);
     return data.agents;
   }
 
   /**
-   * Get available tools as a simple list
+   * Get available tools as a simple list (filtered by role)
    */
-  async getToolsList(): Promise<Tool[]> {
-    const data = await this.getAvailableAgentsAndTools();
+  async getToolsList(userRole?: UserRole): Promise<Tool[]> {
+    const data = await this.getAvailableAgentsAndTools(userRole);
     return data.tools;
+  }
+
+  /**
+   * Get tools available to current user role for specific agent
+   */
+  getAvailableToolsForAgent(agentId: string): ToolName[] {
+    const userRole = this.currentUserRole || 'member';
+    return getAllowedTools(userRole, agentId as AgentType);
+  }
+
+  /**
+   * Check if user can access a specific tool
+   */
+  canUserAccessTool(tool: string): boolean {
+    const userRole = this.currentUserRole || 'member';
+    return canAccessTool(userRole, tool as ToolName);
+  }
+
+  /**
+   * Check if user can access a specific agent
+   */
+  canUserAccessAgent(agent: string): boolean {
+    const userRole = this.currentUserRole || 'member';
+    return canAccessAgent(userRole, agent as AgentType);
+  }
+
+  /**
+   * Get alternative tool for restricted access
+   */
+  getAlternativeForTool(tool: string): string | null {
+    const userRole = this.currentUserRole || 'member';
+    return getAlternativeTool(userRole, tool as ToolName);
   }
 
   /**
@@ -258,15 +363,37 @@ class AgentService {
 
   /**
    * Helper method to get quick agent recommendations based on member intent
+   * Updated to use only available agents: matching, facilitator, sentiment, insight, ai-router, crisis
    */
   getAgentRecommendations(memberMessage: string): string[] {
     const message = memberMessage.toLowerCase();
     const recommendations: string[] = [];
 
+    // Mood tracking requests - Use sentiment agent for mood analysis
+    if (message.includes('mood') || message.includes('feeling') || 
+        message.includes('track') || message.includes('log my') ||
+        message.includes('how i feel') || message.includes('emotions')) {
+      recommendations.push('sentiment');
+    }
+
+    // Goal setting requests - Use facilitator for action items and goals 
+    if (message.includes('goal') || message.includes('want to') ||
+        message.includes('need to') || message.includes('action item') ||
+        message.includes('improve') || message.includes('work on')) {
+      recommendations.push('facilitator');
+    }
+
     // Group-related requests
     if (message.includes('group') || message.includes('connect') ||
         message.includes('community') || message.includes('others')) {
       recommendations.push('matching');
+    }
+
+    // Progress/insight requests
+    if (message.includes('progress') || message.includes('how am i') ||
+        message.includes('journey') || message.includes('growth') ||
+        message.includes('insight') || message.includes('milestone')) {
+      recommendations.push('insight');
     }
 
     // Emotional support requests
@@ -281,15 +408,8 @@ class AgentService {
       recommendations.push('crisis');
     }
 
-    // Progress/insight requests
-    if (message.includes('progress') || message.includes('journey') ||
-        message.includes('growth') || message.includes('insight')) {
-      recommendations.push('insight');
-    }
-
     // Sentiment analysis requests
-    if (message.includes('analyze') || message.includes('sentiment') ||
-        message.includes('mood') || message.includes('emotion')) {
+    if (message.includes('analyze') || message.includes('sentiment')) {
       recommendations.push('sentiment');
     }
 

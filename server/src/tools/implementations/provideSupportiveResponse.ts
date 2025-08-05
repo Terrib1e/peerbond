@@ -3,7 +3,7 @@
  * Generates therapeutic, empathetic responses based on evidence-based practices
  */
 
-import { ToolContext, ToolResult } from '../types';
+import { ToolContext, ToolResult } from '../schemas';
 import { DatabaseService } from '../../services/database';
 import { GeminiService } from '../../services/geminiService';
 
@@ -29,10 +29,12 @@ export async function provideSupportiveResponse(
     const emotionalState = params.emotionalState || 'neutral';
     const therapeuticApproach = params.therapeuticApproach || 'validation';
 
-    // Get member context from database
-    const member = await dbService.getMemberById(context.memberId);
-    if (!member) {
-      throw new Error('Member not found');
+    // Get member context from database (graceful fallback if not found)
+    let member = null;
+    try {
+      member = await dbService.getMemberById(context.memberId);
+    } catch (error) {
+      console.warn('[ProvideSupportiveResponse] Member not found in database, using anonymous mode:', context.memberId);
     }
 
     // Build therapeutic prompt based on approach
@@ -47,7 +49,7 @@ export async function provideSupportiveResponse(
     const systemPrompt = `You are Maya, a compassionate AI mental health facilitator. ${therapeuticPrompts[therapeuticApproach]}
 
 Member's current emotional state: ${emotionalState}
-Member's name: ${member.firstName}
+Member's name: ${member?.firstName || 'there'}
 Session context: ${params.previousContext || 'Individual support session'}
 
 Guidelines:
@@ -89,7 +91,7 @@ Your goal is to give them helpful, practical support they can use immediately. R
         response: response.trim(),
         therapeuticApproach,
         emotionalState,
-        memberName: member.firstName
+        memberName: member?.firstName || 'there'
       },
       metadata: {
         toolName: 'provideSupportiveResponse',

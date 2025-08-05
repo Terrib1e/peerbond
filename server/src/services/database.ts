@@ -124,34 +124,87 @@ export class DatabaseService {
           }
         });
 
-        // Create sample groups
+        // Create sample groups with diverse mental health support options
         const sampleGroups = [
           {
             id: 'group-1',
             name: 'Recovery Support Circle',
-            description: 'A supportive group for individuals in recovery',
+            description: 'A safe space for individuals in recovery from addiction to share experiences, celebrate milestones, and support each other through challenges.',
             type: 'recovery',
             maxMembers: 8,
             isPrivate: false,
-            isActive: true
+            isActive: true,
+            tags: JSON.stringify(['recovery', 'addiction', 'sobriety', 'peer-support'])
           },
           {
             id: 'group-2',
             name: 'Anxiety & Stress Management',
-            description: 'Learn coping strategies and connect with others managing anxiety and stress',
+            description: 'Learn evidence-based coping strategies and connect with others who understand anxiety, stress, and related challenges. Weekly check-ins and mindfulness practices.',
             type: 'wellness',
-            maxMembers: 8,
+            maxMembers: 10,
             isPrivate: false,
-            isActive: true
+            isActive: true,
+            tags: JSON.stringify(['anxiety', 'stress', 'mindfulness', 'coping-strategies'])
           },
           {
             id: 'group-3',
-            name: 'General Support Community',
-            description: 'Open discussion for life challenges, personal growth, and peer support',
+            name: 'Depression Support Network',
+            description: 'A compassionate community for those experiencing depression. Share coping strategies, celebrate small victories, and find understanding.',
+            type: 'wellness',
+            maxMembers: 8,
+            isPrivate: false,
+            isActive: true,
+            tags: JSON.stringify(['depression', 'mental-health', 'support', 'self-care'])
+          },
+          {
+            id: 'group-4',
+            name: 'Trauma Recovery Group',
+            description: 'A safe, confidential space for trauma survivors to heal together using trauma-informed approaches and peer support.',
+            type: 'wellness',
+            maxMembers: 6,
+            isPrivate: true,
+            isActive: true,
+            tags: JSON.stringify(['trauma', 'ptsd', 'healing', 'therapy'])
+          },
+          {
+            id: 'group-5',
+            name: 'Young Adults Mental Health',
+            description: 'Peer support for young adults (18-30) navigating mental health challenges, career stress, relationships, and life transitions.',
+            type: 'general',
+            maxMembers: 12,
+            isPrivate: false,
+            isActive: true,
+            tags: JSON.stringify(['young-adults', 'life-transitions', 'career-stress', 'relationships'])
+          },
+          {
+            id: 'group-6',
+            name: 'Mindfulness & Meditation Circle',
+            description: 'Practice mindfulness and meditation together. Weekly guided sessions, sharing experiences, and building a sustainable practice.',
+            type: 'wellness',
+            maxMembers: 10,
+            isPrivate: false,
+            isActive: true,
+            tags: JSON.stringify(['mindfulness', 'meditation', 'wellness', 'self-care'])
+          },
+          {
+            id: 'group-7',
+            name: 'Grief & Loss Support',
+            description: 'Compassionate support for those dealing with loss of loved ones, relationships, jobs, or life changes. Process grief in a safe environment.',
+            type: 'general',
+            maxMembers: 8,
+            isPrivate: false,
+            isActive: true,
+            tags: JSON.stringify(['grief', 'loss', 'bereavement', 'healing'])
+          },
+          {
+            id: 'group-8',
+            name: 'LGBTQ+ Wellness Community',
+            description: 'A supportive space for LGBTQ+ individuals to discuss mental health, identity, coming out, family relationships, and community building.',
             type: 'general',
             maxMembers: 10,
             isPrivate: false,
-            isActive: true
+            isActive: true,
+            tags: JSON.stringify(['lgbtq', 'identity', 'community', 'inclusion'])
           }
         ];
 
@@ -439,6 +492,7 @@ export class DatabaseService {
       type?: string;
       status?: boolean;
       privacy?: boolean;
+      publicOnly?: boolean;
       memberId?: string;
     } = {}
   ): Promise<{ groups: any[]; total: number }> {
@@ -446,8 +500,8 @@ export class DatabaseService {
 
     if (filters.search) {
       where.OR = [
-        { name: { contains: filters.search, mode: 'insensitive' } },
-        { description: { contains: filters.search, mode: 'insensitive' } }
+        { name: { contains: filters.search } },
+        { description: { contains: filters.search } }
       ];
     }
 
@@ -461,6 +515,10 @@ export class DatabaseService {
 
     if (filters.privacy !== undefined) {
       where.isPrivate = !filters.privacy;
+    }
+    
+    if (filters.publicOnly !== undefined) {
+      where.isPrivate = filters.publicOnly ? false : true; // publicOnly: true means isPrivate: false
     }
 
     if (filters.memberId) {
@@ -1586,4 +1644,16 @@ export class DatabaseService {
   get client(): PrismaClient {
     return this.prisma;
   }
+
+  async getMoodEntries(memberId: string, days: number): Promise<any[]> {
+    return await this.prisma.moodEntry.findMany({
+      where: {
+        memberId: memberId,
+        createdAt: {
+          gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+        }
+      }
+    });
+  }
+
 }

@@ -55,6 +55,9 @@ interface AdminStats {
 }
 
 export default function AdminDashboard() {
+  const portalType = 'admin';
+  const portalClasses = getPortalComponentClasses(portalType);
+  
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'groups' | 'analytics' | 'ai' | 'system' | 'audit'>('overview');
   const [showCreateMemberDialog, setShowCreateMemberDialog] = useState(false);
   const [showCreateGroupDialog, setShowCreateGroupDialog] = useState(false);
@@ -184,78 +187,101 @@ export default function AdminDashboard() {
     >
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Stats Cards */}
+          {/* Stats Cards - Enhanced with unified design */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatsCard
               title="Total Members"
               value={stats.totalMembers}
               icon={Users}
               trend={{ value: stats.monthlyGrowth, label: 'this month', isPositive: true }}
-              portalType="admin"
+              portalType={portalType}
               isLoading={statsLoading}
+              variant="interactive"
             />
             <StatsCard
               title="Active Groups"
               value={stats.activeGroups}
               icon={MessageSquare}
-              portalType="admin"
+              portalType={portalType}
               isLoading={statsLoading}
+              variant="interactive"
             />
             <StatsCard
               title="Total Messages"
               value={stats.totalMessages}
               icon={TrendingUp}
-              portalType="admin"
+              portalType={portalType}
               isLoading={statsLoading}
+              variant="interactive"
             />
             <StatsCard
               title="Premium Members"
               value={stats.premiumMembers}
               icon={Shield}
-              portalType="admin"
+              portalType={portalType}
               isLoading={statsLoading}
+              variant="interactive"
             />
           </div>
 
-          {/* Quick Actions */}
+          {/* Quick Actions - Enhanced with unified design */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
+            <Card className={portalClasses.card('hover')}>
               <CardHeader>
-                <CardTitle>Member Management</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-600" />
+                  Member Management
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-gray-600 mb-4">Manage members and their permissions</p>
-                <Button onClick={() => setShowCreateMemberDialog(true)} className="w-full">
+                <Button 
+                  onClick={() => setShowCreateMemberDialog(true)} 
+                  className="w-full"
+                  variant="primary"
+                  portalType={portalType}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Create Member
                 </Button>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={portalClasses.card('hover')}>
               <CardHeader>
-                <CardTitle>Group Management</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-600" />
+                  Group Management
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-gray-600 mb-4">Create and manage therapeutic groups</p>
-                <Button onClick={() => setShowCreateGroupDialog(true)} className="w-full">
+                <Button 
+                  onClick={() => setShowCreateGroupDialog(true)} 
+                  className="w-full"
+                  variant="primary"
+                  portalType={portalType}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Create Group
                 </Button>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={portalClasses.card('hover')}>
               <CardHeader>
-                <CardTitle>System Health</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Server className="w-5 h-5 text-purple-600" />
+                  System Health
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {Object.entries(systemStatus).map(([system, status]) => (
-                    <div key={system} className="flex justify-between items-center">
-                      <span className="text-sm">{system}</span>
+                    <div key={system} className="flex justify-between items-center p-2 rounded-lg bg-purple-50/50 border border-purple-100">
+                      <span className="text-sm font-medium capitalize">{system}</span>
                       <div className={cn(
-                        'px-2 py-1 text-xs rounded-full',
+                        'px-3 py-1 text-xs rounded-full font-medium',
                         status === 'healthy' && 'bg-green-100 text-green-800',
                         status === 'error' && 'bg-red-100 text-red-800',
                         status === 'checking' && 'bg-yellow-100 text-yellow-800'
@@ -276,33 +302,45 @@ export default function AdminDashboard() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-gray-900">Groups</h2>
-            <Button onClick={() => setShowCreateGroupDialog(true)}>
+            <Button 
+              onClick={() => setShowCreateGroupDialog(true)}
+              variant="primary"
+              portalType={portalType}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Create Group
             </Button>
           </div>
 
           {groupsLoading ? (
-            <div className="text-center py-8">Loading groups...</div>
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+              <p className="text-gray-500 mt-2">Loading groups...</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {groups?.map((group) => (
-                <Card key={group.id}>
+                <Card key={group.id} className={portalClasses.card('hover')}>
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-lg font-semibold">{group.name}</h3>
-                        <p className="text-gray-600">{group.description}</p>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                          <span>{group.members?.length || 0} members</span>
-                          <span>Created {new Date(group.createdAt).toLocaleDateString()}</span>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{group.name}</h3>
+                        <p className="text-gray-600 mb-3">{group.description}</p>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full border border-purple-200">
+                            {group.members?.length || 0} members
+                          </span>
+                          <span className="text-gray-500">
+                            Created {new Date(group.createdAt).toLocaleDateString()}
+                          </span>
                         </div>
                       </div>
                       <Button
-                        variant="outline"
+                        variant="destructive"
                         size="sm"
                         onClick={() => deleteGroupMutation.mutate(group.id)}
-                        className="text-red-600 hover:text-red-700"
+                        disabled={deleteGroupMutation.isPending}
+                        className="ml-4"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -433,10 +471,20 @@ export default function AdminDashboard() {
               </select>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <Button type="button" variant="outline" onClick={() => setShowCreateMemberDialog(false)}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowCreateMemberDialog(false)}
+                portalType={portalType}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMemberMutation.isPending}>
+              <Button 
+                type="submit" 
+                disabled={createMemberMutation.isPending}
+                variant="primary"
+                portalType={portalType}
+              >
                 {createMemberMutation.isPending ? 'Creating...' : 'Create Member'}
               </Button>
             </div>
@@ -482,10 +530,20 @@ export default function AdminDashboard() {
               </label>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <Button type="button" variant="outline" onClick={() => setShowCreateGroupDialog(false)}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowCreateGroupDialog(false)}
+                portalType={portalType}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createGroupMutation.isPending}>
+              <Button 
+                type="submit" 
+                disabled={createGroupMutation.isPending}
+                variant="primary"
+                portalType={portalType}
+              >
                 {createGroupMutation.isPending ? 'Creating...' : 'Create Group'}
               </Button>
             </div>

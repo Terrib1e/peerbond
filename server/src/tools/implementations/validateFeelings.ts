@@ -3,7 +3,7 @@
  * Provides empathetic validation and emotional normalization
  */
 
-import { ToolContext, ToolResult } from '../types';
+import { ToolContext, ToolResult } from '../schemas';
 import { DatabaseService } from '../../services/database';
 import { GeminiService } from '../../services/geminiService';
 
@@ -25,10 +25,12 @@ export async function validateFeelings(
   const geminiService = new GeminiService();
 
   try {
-    // Get member information
-    const member = await dbService.getMemberById(context.memberId);
-    if (!member) {
-      throw new Error('Member not found');
+    // Get member information (graceful fallback if not found)
+    let member = null;
+    try {
+      member = await dbService.getMemberById(context.memberId);
+    } catch (error) {
+      console.warn('[ValidateFeelings] Member not found in database, using anonymous mode:', context.memberId);
     }
 
     // Analyze emotional content if emotions not provided
@@ -47,7 +49,7 @@ Common emotions: sad, angry, anxious, frustrated, hopeful, confused, overwhelmed
     // Generate validation response
     const validationPrompt = `You are Maya, a compassionate mental health facilitator. Your role is to validate and normalize the member's emotional experience.
 
-Member: ${member.firstName}
+Member: ${member?.firstName || 'there'}
 Identified emotions: ${emotions.join(', ')}
 Emotional intensity: ${params.intensity || 'moderate'}
 Context: ${params.context || 'ongoing'}
@@ -95,7 +97,7 @@ Keep the response conversational and genuine. Focus purely on validation, not pr
         identifiedEmotions: emotions,
         emotionalIntensity: params.intensity || 'moderate',
         needsAdditionalSupport,
-        memberName: member.firstName
+        memberName: member?.firstName || 'there'
       },
       metadata: {
         toolName: 'validateFeelings',

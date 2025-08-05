@@ -3,7 +3,7 @@
  * Provides personalized, evidence-based coping strategies
  */
 
-import { ToolContext, ToolResult } from '../types';
+import { ToolContext, ToolResult } from '../schemas';
 import { DatabaseService } from '../../services/database';
 import { GeminiService } from '../../services/geminiService';
 
@@ -26,10 +26,12 @@ export async function suggestCopingStrategies(
   const geminiService = new GeminiService();
 
   try {
-    // Get member information and preferences
-    const member = await dbService.getMemberById(context.memberId);
-    if (!member) {
-      throw new Error('Member not found');
+    // Get member information and preferences (graceful fallback if not found)
+    let member = null;
+    try {
+      member = await dbService.getMemberById(context.memberId);
+    } catch (error) {
+      console.warn('[SuggestCopingStrategies] Member not found in database, using anonymous mode:', context.memberId);
     }
 
     // Analyze the situation to determine best coping approaches
@@ -59,8 +61,8 @@ Recommended approach: [problem_focused/emotion_focused/meaning_focused/social_su
     // Generate personalized coping strategies
     const strategiesPrompt = `You are Maya, a mental health facilitator. Suggest specific, actionable coping strategies for this member.
 
-Member: ${member.firstName}
-Member's experience level: ${member.experienceLevel}
+Member: ${member?.firstName || 'there'}
+Member's experience level: ${member?.experienceLevel || 'beginner'}
 Current situation: "${params.memberMessage}"
 Analysis: ${analysis}
 
@@ -114,7 +116,7 @@ Be encouraging and specific. Avoid generic advice.`;
         environment,
         strategyCategories,
         needsCrisisResources,
-        memberExperienceLevel: member.experienceLevel
+        memberExperienceLevel: member?.experienceLevel || 'beginner'
       }
     });
 
@@ -127,7 +129,7 @@ Be encouraging and specific. Avoid generic advice.`;
         environment,
         strategyCategories,
         needsCrisisResources,
-        memberName: member.firstName,
+        memberName: member?.firstName || 'there',
         analysisInsight: analysis
       },
       metadata: {

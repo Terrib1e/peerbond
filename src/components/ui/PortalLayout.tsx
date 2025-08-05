@@ -150,16 +150,18 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({
                   }
                 };
 
+                const tabClasses = cn(
+                  'flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2',
+                  isActive
+                    ? `border-${colors.primary}-600 text-${colors.primary}-600`
+                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                );
+
                 const content = (
                   <button
                     key={item.key}
                     onClick={handleClick}
-                    className={cn(
-                      'flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2',
-                      isActive
-                        ? `border-${colors.primary}-600 text-${colors.primary}-600`
-                        : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
-                    )}
+                    className={tabClasses}
                   >
                     <Icon size={20} />
                     {item.label}

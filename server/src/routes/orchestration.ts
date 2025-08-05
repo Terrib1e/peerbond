@@ -2,8 +2,13 @@ import express from 'express';
 import { ProductionOrchestratorService } from '../orchestration/orchestrator';
 import { authenticateToken } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
-import { body, param } from 'express-validator';
+import { body, param, query } from 'express-validator';
 import rateLimit from 'express-rate-limit';
+import { requireRole } from '../middleware/auth';
+import { AccessControlService } from '../lib/access-control';
+import type { UserRole, AgentType, ToolName } from '../lib/access-control';
+import type { AuthenticatedRequest } from '../middleware/auth';
+import { auditLogger } from '../services/auditLogger';
 
 const router = express.Router();
 const orchestratorService = new ProductionOrchestratorService();
@@ -40,7 +45,7 @@ router.post('/session/start',
     body('groupId').optional().isString().withMessage('GroupId must be a string'),
     body('memberProfile').optional().isObject().withMessage('MemberProfile must be an object')
   ]),
-  async (req, res) => {
+  async (req: AuthenticatedRequest, res) => {
     console.log('[ProductionOrchestration] 🚀 Session start endpoint hit');
     const startTime = Date.now();
 
@@ -50,8 +55,9 @@ router.post('/session/start',
       console.log('[ProductionOrchestration] Request body:', { groupId, memberProfile });
 
       console.log('[ProductionOrchestration] 👤 Getting member from request...');
-      const memberId = req.member.id;
-      console.log(`[ProductionOrchestration] Member ID: ${memberId}`);
+      const memberId = req.member!.id;
+      const userRole = req.member?.role as UserRole || 'member';
+      console.log(`[ProductionOrchestration] Member ID: ${memberId}, Role: ${userRole}`);
 
       console.log(`[ProductionOrchestration] 🔄 Calling orchestratorService.startSession...`);
       const result = await orchestratorService.startSession(memberId, groupId, memberProfile);
@@ -109,14 +115,15 @@ router.post('/message',
       .isIn(['member', 'system'])
       .withMessage('MessageType must be member or system')
   ]),
-  async (req, res) => {
+  async (req: AuthenticatedRequest, res) => {
     const startTime = Date.now();
 
     try {
       const { content, sessionId, messageType = 'member' } = req.body;
-      const memberId = req.member.id;
+      const memberId = req.member!.id;
+      const userRole = req.member?.role as UserRole || 'member';
 
-      console.log(`[ProductionOrchestration] Processing message for session ${sessionId}`);
+      console.log(`[ProductionOrchestration] Processing message for session ${sessionId} by ${userRole}`);
 
       const result = await orchestratorService.processMessage({
         memberId,
@@ -138,15 +145,12 @@ router.post('/message',
 
       res.json({
         success: result.success,
-        data: {
-          response: result.response,
-          sessionId,
-          agentUsed: result.agentUsed,
-          confidence: result.confidence,
-          needsCrisisIntervention: result.needsCrisisIntervention,
-          suggestGroupMatching: result.suggestGroupMatching,
-          metadata: result.metadata
-        },
+        response: result.response,
+        sessionId,
+        agentUsed: result.agentUsed,
+        confidence: result.confidence,
+        needsCrisisIntervention: result.needsCrisisIntervention,
+        metadata: result.metadata,
         timestamp: new Date().toISOString(),
         performance: {
           duration_ms: duration,
@@ -187,7 +191,7 @@ router.get('/session/:sessionId/analytics',
       .matches(/^session_\d+_[a-f0-9\-]{36}$/)
       .withMessage('Invalid session ID format')
   ]),
-  async (req, res) => {
+  async (req: AuthenticatedRequest, res) => {
     const startTime = Date.now();
 
     try {
@@ -240,7 +244,7 @@ router.post('/session/:sessionId/end',
       .matches(/^session_\d+_[a-f0-9\-]{36}$/)
       .withMessage('Invalid session ID format')
   ]),
-  async (req, res) => {
+  async (req: AuthenticatedRequest, res) => {
     const startTime = Date.now();
 
     try {
@@ -313,7 +317,7 @@ router.get('/health',
       };
 
       // Set appropriate status code based on health
-      const statusCode = healthStatus.status === 'healthy' ? 200 :
+      const statusCode = healthStatus.status === 'healthy' ? 200 : 
                         healthStatus.status === 'degraded' ? 200 : 503;
 
       res.status(statusCode).json({
@@ -341,15 +345,54 @@ router.get('/health',
 
 /**
  * GET /api/orchestration/agents
- * List all available agents and their tools
+ * List all available agents and their tools (filtered by user role)
  */
 router.get('/agents',
-  async (req, res) => {
+  authenticateToken,
+  async (req: AuthenticatedRequest, res) => {
     const startTime = Date.now();
 
     try {
-      const agentsAndTools = orchestratorService.getAvailableAgentsAndTools();
+      // Get user role from authenticated request
+      const userRole = req.member?.role as UserRole || 'member';
+      
+      // Get base agents
+      const agents = orchestratorService.getAvailableAgents();
+      
+      // Filter agents based on user role
+      const allowedAgents = AccessControlService.getAllowedAgents(userRole);
+      const allowedTools = AccessControlService.getAllowedTools(userRole);
+      
+      const filteredAgents = agents
+        .filter(agent => allowedAgents.includes(agent.id as AgentType))
+        .map(agent => ({
+          id: agent.id,
+          name: agent.name,
+          description: agent.description,
+          capabilities: agent.availableTools.filter(tool => allowedTools.includes(tool as ToolName)),
+          tools: agent.availableTools.filter(tool => allowedTools.includes(tool as ToolName))
+        }));
+
+      const filteredTools = agents.flatMap(agent => 
+        agent.availableTools
+          .filter(tool => allowedTools.includes(tool as ToolName))
+          .map(tool => ({
+            name: tool,
+            description: `${tool} functionality for ${agent.name}`,
+            agent: agent.id,
+            parameters: {}
+          }))
+      );
+      
+      // Transform agents data to include tools in expected format
+      const agentsAndTools = {
+        agents: filteredAgents,
+        tools: filteredTools
+      };
+
       const duration = Date.now() - startTime;
+
+      console.log(`[ProductionOrchestration] Filtered agents for ${userRole}: ${filteredAgents.length} agents, ${filteredTools.length} tools`);
 
       res.json({
         success: true,
@@ -389,7 +432,7 @@ router.post('/agent/call',
     body('agentId')
       .notEmpty()
       .withMessage('Agent ID is required')
-      .isIn(['ai-router', 'sentiment', 'crisis', 'facilitator', 'matching', 'insight', 'chat', 'tracker', 'action-items', 'analytics', 'voice', 'orchestration', 'personalization', 'safety', 'knowledge', 'context'])
+      .isIn(['matching', 'facilitator', 'sentiment', 'insight', 'ai-router', 'crisis'])
       .withMessage('Invalid agent ID'),
     body('message')
       .notEmpty()
@@ -406,24 +449,91 @@ router.post('/agent/call',
       .isString()
       .withMessage('Tool name must be a string')
   ]),
-  async (req, res) => {
+  async (req: AuthenticatedRequest, res) => {
     const startTime = Date.now();
 
     try {
       const { agentId, message, sessionId, toolName } = req.body;
-      const memberId = req.member.id;
+      const memberId = req.member!.id;
+      const userRole = req.member?.role as UserRole || 'member';
 
-      console.log(`[ProductionOrchestration] Direct agent call: ${agentId} for session ${sessionId}`);
+      console.log(`[ProductionOrchestration] Direct agent call: ${agentId} for session ${sessionId} by ${userRole}`);
+
+      // Validate agent access
+      const agentAccess = AccessControlService.validateAgentAccess(userRole, agentId as AgentType);
+      if (!agentAccess.allowed) {
+        console.warn(`[ProductionOrchestration] Agent access denied:`, agentAccess.violation);
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied to requested agent',
+          message: agentAccess.violation?.message || 'Insufficient privileges',
+          violation: {
+            type: agentAccess.violation?.type,
+            userRole,
+            requestedResource: agentId,
+            requiredRole: agentAccess.violation?.requiredRole
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Validate tool access if specified
+      if (toolName) {
+        const toolAccess = AccessControlService.validateToolAccess(userRole, toolName as ToolName);
+        if (!toolAccess.allowed) {
+          console.warn(`[ProductionOrchestration] Tool access denied:`, toolAccess.violation);
+          
+          // Check if there's an alternative tool
+          if (toolAccess.alternative) {
+            console.log(`[ProductionOrchestration] Using alternative tool: ${toolAccess.alternative}`);
+            req.body.toolName = toolAccess.alternative;
+          } else {
+            return res.status(403).json({
+              success: false,
+              error: 'Access denied to requested tool',
+              message: toolAccess.violation?.message || 'Insufficient privileges for this tool',
+              violation: {
+                type: toolAccess.violation?.type,
+                userRole,
+                requestedResource: toolName,
+                requiredRole: toolAccess.violation?.requiredRole,
+                alternative: toolAccess.alternative
+              },
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+        
+        // Generate security context for audit logging
+        const securityContext = AccessControlService.generateSecurityContext(userRole, toolName as ToolName, memberId);
+        console.log(`[ProductionOrchestration] Security context:`, securityContext);
+      }
 
       const result = await orchestratorService.callAgentDirectly(
         agentId,
         message,
         sessionId,
         memberId,
-        toolName
+        req.body.toolName // Use potentially modified toolName
       );
 
       const duration = Date.now() - startTime;
+
+      // Log successful agent call for audit trail
+      if (result.success) {
+        auditLogger.logAgentCall({
+          userId: memberId,
+          userRole,
+          agent: agentId as AgentType,
+          tool: req.body.toolName as ToolName,
+          sessionId,
+          requestData: { message, toolName: req.body.toolName },
+          responseData: { response: result.response, confidence: result.confidence, toolsUsed: result.toolsUsed },
+          duration,
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      }
 
       res.json({
         success: result.success,
@@ -503,6 +613,94 @@ peerbond_orchestration_status ${healthStatus.status === 'healthy' ? 2 : healthSt
     } catch (error) {
       console.error('[ProductionOrchestration] Metrics endpoint failed:', error);
       res.status(500).send('# Metrics unavailable\n');
+    }
+  }
+);
+
+/**
+ * GET /api/orchestration/audit
+ * Get audit logs (admin only)
+ */
+router.get('/audit',
+  authenticateToken,
+  requireRole(['admin', 'therapist']),
+  validateRequest([
+    query('userId').optional().isString().withMessage('User ID must be a string'),
+    query('sessionId').optional().isString().withMessage('Session ID must be a string'),
+    query('action').optional().isString().withMessage('Action must be a string'),
+    query('tool').optional().isString().withMessage('Tool must be a string'),
+    query('agent').optional().isString().withMessage('Agent must be a string'),
+    query('startDate').optional().isISO8601().withMessage('Start date must be valid ISO 8601'),
+    query('endDate').optional().isISO8601().withMessage('End date must be valid ISO 8601'),
+    query('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('Limit must be between 1 and 1000')
+  ]),
+  async (req: AuthenticatedRequest, res) => {
+    const startTime = Date.now();
+
+    try {
+      const {
+        userId,
+        sessionId,
+        action,
+        tool,
+        agent,
+        startDate,
+        endDate,
+        limit
+      } = req.query;
+
+      const filters: any = {};
+      if (userId) filters.userId = userId as string;
+      if (sessionId) filters.sessionId = sessionId as string;
+      if (action) filters.action = action as string;
+      if (tool) filters.tool = tool as ToolName;
+      if (agent) filters.agent = agent as AgentType;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+      if (limit) filters.limit = parseInt(limit as string, 10);
+
+      const auditLogs = auditLogger.getAuditLogs(filters);
+      const auditStats = auditLogger.getAuditStats(
+        filters.startDate && filters.endDate 
+          ? { startDate: filters.startDate, endDate: filters.endDate }
+          : undefined
+      );
+
+      const duration = Date.now() - startTime;
+
+      console.log(`[ProductionOrchestration] Retrieved ${auditLogs.length} audit logs for admin review`);
+
+      res.json({
+        success: true,
+        data: {
+          logs: auditLogs,
+          stats: auditStats,
+          pagination: {
+            total: auditStats.totalLogs,
+            returned: auditLogs.length,
+            hasMore: filters.limit && auditLogs.length === filters.limit
+          }
+        },
+        timestamp: new Date().toISOString(),
+        performance: {
+          duration_ms: duration
+        }
+      });
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      console.error('[ProductionOrchestration] Error retrieving audit logs:', error);
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve audit logs',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        performance: {
+          duration_ms: duration
+        }
+      });
     }
   }
 );

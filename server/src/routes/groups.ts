@@ -105,6 +105,53 @@ router.get('/assigned', authenticateToken, asyncHandler(async (req: Authenticate
   });
 }));
 
+// Get groups for current member (both assigned and joined)
+router.get('/member', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const memberId = req.member!.id;
+
+  // Get both assigned groups and groups the member has joined
+  const [assignedGroups, memberGroups] = await Promise.all([
+    dbService.getMemberAssignedGroups(memberId),
+    dbService.getGroups(1, 100, { memberId }) // Get groups member is part of
+  ]);
+
+  // Combine and deduplicate groups
+  const allGroupIds = new Set();
+  const combinedGroups = [];
+
+  // Add assigned groups first
+  for (const group of assignedGroups) {
+    if (!allGroupIds.has(group.id)) {
+      allGroupIds.add(group.id);
+      combinedGroups.push({
+        ...group,
+        memberCount: group.members?.length || 0,
+        unreadCount: 0, // TODO: Implement unread message count
+        lastMessage: group.lastMessage || null
+      });
+    }
+  }
+
+  // Add other groups member is part of
+  for (const group of memberGroups.groups) {
+    if (!allGroupIds.has(group.id)) {
+      allGroupIds.add(group.id);
+      combinedGroups.push({
+        ...group,
+        memberCount: group.members?.length || 0,
+        unreadCount: 0, // TODO: Implement unread message count
+        lastMessage: group.lastMessage || null
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    data: combinedGroups,
+    timestamp: new Date().toISOString()
+  });
+}));
+
 // Get group by ID
 router.get('/:id', authenticateToken, validateRequest(groupIdValidation), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const groupId = req.params.id;

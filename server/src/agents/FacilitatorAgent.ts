@@ -13,7 +13,7 @@ export class FacilitatorAgent extends BaseAgent {
       id: 'facilitator',
       name: 'Facilitator Agent (Maya)',
       description: 'Primary therapeutic conversation handler providing empathetic support',
-      availableTools: ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies']
+      availableTools: ['provideSupportiveResponse', 'validateFeelings', 'suggestCopingStrategies', 'postMessage', 'createActionItem', 'summarizeSession']
     });
   }
 
@@ -24,93 +24,133 @@ export class FacilitatorAgent extends BaseAgent {
     const toolsUsed: string[] = [];
     const toolResults: ToolResult[] = [];
     let response = '';
-    let confidence = 0;
+    let confidence = 0.85;
 
     try {
-      // Step 1: Analyze emotional content
+      // Step 1: Analyze emotional content and context
       const emotionalState = this.analyzeEmotionalState(message);
       const therapeuticApproach = this.selectTherapeuticApproach(message, emotionalState);
+      const needsActionItem = this.checkIfActionItemNeeded(message, emotionalState);
 
-      logger.info(`[${this.name}] Emotional analysis:`, { 
+      logger.info(`[${this.name}] Processing message:`, { 
         emotionalState, 
-        therapeuticApproach 
+        therapeuticApproach,
+        needsActionItem
       });
 
-      // Step 2: Generate supportive response
+      // Step 2: Generate sophisticated therapeutic response using tools
+      let therapeuticResponses: string[] = [];
+
+      // Use provideSupportiveResponse tool for main therapeutic response
       const supportParams = {
         memberMessage: message,
         emotionalState,
         therapeuticApproach,
-        sessionContext: {
-          isFirstMessage: context.messageId ? false : true,
-          previousTopics: [],
-          memberGoals: []
-        }
+        previousContext: context.metadata?.sessionContext || 'Individual support session'
       };
 
       const supportResult = await this.executeTool('provideSupportiveResponse', supportParams, context);
       toolsUsed.push('provideSupportiveResponse');
       toolResults.push(supportResult);
-
-      if (supportResult.success && supportResult.data) {
-        response = supportResult.data.response;
-        confidence = supportResult.confidence || 0.85;
-
-        // Add follow-up suggestions if provided
-        if (supportResult.data.followUpSuggestions && supportResult.data.followUpSuggestions.length > 0) {
-          response += '\n\n' + this.formatFollowUpQuestion(supportResult.data.followUpSuggestions[0]);
-        }
+      
+      if (supportResult.success && supportResult.data?.response) {
+        therapeuticResponses.push(supportResult.data.response);
       }
 
-      // Step 3: Validate feelings if strong emotions detected
-      if (this.needsEmotionalValidation(emotionalState, message)) {
-        const emotionExpressed = this.extractPrimaryEmotion(message);
-        const intensityLevel = this.assessEmotionalIntensity(message);
+      // Use validateFeelings tool for emotional validation
+      const validationParams = {
+        memberMessage: message,
+        identifiedEmotions: this.extractEmotionsFromMessage(message),
+        intensity: this.assessEmotionalIntensity(message),
+        context: emotionalState
+      };
 
-        const validationParams = {
-          emotionExpressed,
-          intensityLevel,
-          context: message,
-          validationType: this.determineValidationType(emotionalState)
-        };
+      const validationResult = await this.executeTool('validateFeelings', validationParams, context);
+      toolsUsed.push('validateFeelings');
+      toolResults.push(validationResult);
 
-        const validationResult = await this.executeTool('validateFeelings', validationParams, context);
-        toolsUsed.push('validateFeelings');
-        toolResults.push(validationResult);
-
-        if (validationResult.success && validationResult.data) {
-          // Prepend validation to response
-          response = validationResult.data.validationResponse + '\n\n' + response;
-          confidence = Math.max(confidence, validationResult.confidence || 0.9);
-        }
+      if (validationResult.success && validationResult.data?.validationResponse) {
+        therapeuticResponses.push(validationResult.data.validationResponse);
       }
 
-      // Step 4: Suggest coping strategies if distress is high
-      if (emotionalState === 'distressed' || emotionalState === 'crisis') {
-        const stressors = this.identifyStressors(message);
+      // Use suggestCopingStrategies tool for practical help
+      const copingParams = {
+        memberMessage: message,
+        stressors: this.identifyStressors(message),
+        urgencyLevel: emotionalState === 'crisis' ? 'crisis_management' : 'standard'
+      };
+
+      const copingResult = await this.executeTool('suggestCopingStrategies', copingParams, context);
+      toolsUsed.push('suggestCopingStrategies');
+      toolResults.push(copingResult);
+
+      if (copingResult.success && copingResult.data?.response) {
+        therapeuticResponses.push(copingResult.data.response);
+      }
+
+      // Combine all therapeutic responses into a cohesive message
+      response = this.combineTherapeuticResponses(therapeuticResponses, emotionalState);
+      
+      // Step 3: Post message to the thread
+      const postMessageParams = {
+        groupId: context.groupId || 'default_group',
+        memberId: context.memberId,
+        content: response,
+        messageType: 'text' as const,
+        threadId: context.sessionId,
+        metadata: {
+          emotionalState,
+          therapeuticApproach,
+          agentId: this.id
+        }
+      };
+
+      const postResult = await this.executeTool('postMessage', postMessageParams, context);
+      toolsUsed.push('postMessage');
+      toolResults.push(postResult);
+
+      // Step 4: Create action item if needed
+      if (needsActionItem) {
+        const actionItems = this.identifyActionItems(message, emotionalState);
         
-        const copingParams = {
-          stressors,
-          memberStrengths: [],
-          preferredApproaches: ['cognitive', 'mindfulness'],
-          urgencyLevel: emotionalState === 'crisis' ? 'crisis_management' : 'active_coping'
-        };
+        for (const item of actionItems) {
+          const actionParams = {
+            groupId: context.groupId || 'default_group',
+            assigneeId: context.memberId,
+            title: item.title,
+            description: item.description,
+            priority: item.priority,
+            dueDate: item.dueDate,
+            category: item.category,
+            createdBy: this.id
+          };
 
-        const copingResult = await this.executeTool('suggestCopingStrategies', copingParams, context);
-        toolsUsed.push('suggestCopingStrategies');
-        toolResults.push(copingResult);
+          const actionResult = await this.executeTool('createActionItem', actionParams, context);
+          toolsUsed.push('createActionItem');
+          toolResults.push(actionResult);
 
-        if (copingResult.success && copingResult.data) {
-          // Add coping strategy to response
-          const strategy = copingResult.data.strategies[0];
-          if (strategy) {
-            response += `\n\n💙 **Quick Support**: ${strategy.description}`;
+          if (actionResult.success) {
+            response += `\n\n📋 I've created an action item for you: "${item.title}"`;
           }
         }
       }
 
-      // Add warmth and connection
-      response = this.addTherapeuticWarmth(response, emotionalState);
+      // Step 5: Summarize session if it's ending or significant
+      if (this.shouldSummarizeSession(message, context)) {
+        const summaryParams = {
+          groupId: context.groupId || 'default_group',
+          sessionId: context.sessionId,
+          includeParticipants: true,
+          includeKeyTopics: true,
+          includeActionItems: needsActionItem,
+          summaryType: 'detailed' as const,
+          audienceType: 'therapist' as const
+        };
+
+        const summaryResult = await this.executeTool('summarizeSession', summaryParams, context);
+        toolsUsed.push('summarizeSession');
+        toolResults.push(summaryResult);
+      }
 
       return {
         response,
@@ -120,8 +160,8 @@ export class FacilitatorAgent extends BaseAgent {
         metadata: {
           emotionalState,
           therapeuticApproach,
-          validationProvided: toolsUsed.includes('validateFeelings'),
-          copingStrategiesOffered: toolsUsed.includes('suggestCopingStrategies')
+          actionItemsCreated: needsActionItem,
+          messagePersisted: toolsUsed.includes('postMessage')
         }
       };
 
@@ -129,7 +169,7 @@ export class FacilitatorAgent extends BaseAgent {
       logger.error(`[${this.name}] Error in processMessage:`, error);
       return {
         response: this.getErrorResponse(),
-        confidence: 0.7,
+        confidence: 0.5,
         toolsUsed,
         toolResults,
         metadata: { error: error.message }
@@ -229,6 +269,62 @@ export class FacilitatorAgent extends BaseAgent {
     return 'distress';
   }
 
+  private extractEmotionsFromMessage(message: string): string[] {
+    const lowerMessage = message.toLowerCase();
+    const emotions: string[] = [];
+    
+    const emotionMap = {
+      'anxiety': ['anxious', 'worried', 'nervous', 'scared', 'panic', 'overwhelming'],
+      'sadness': ['sad', 'depressed', 'down', 'hopeless', 'empty', 'grief'],
+      'anger': ['angry', 'mad', 'frustrated', 'irritated', 'annoyed', 'furious'],
+      'shame': ['ashamed', 'guilty', 'worthless', 'failure', 'stupid', 'embarrassed'],
+      'loneliness': ['lonely', 'alone', 'isolated', 'disconnected', 'abandoned'],
+      'fear': ['afraid', 'terrified', 'fearful', 'scared', 'worried'],
+      'stress': ['stressed', 'overwhelmed', 'pressure', 'burnout', 'exhausted']
+    };
+
+    for (const [emotion, keywords] of Object.entries(emotionMap)) {
+      if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+        emotions.push(emotion);
+      }
+    }
+
+    return emotions.length > 0 ? emotions : ['general distress'];
+  }
+
+  private combineTherapeuticResponses(responses: string[], emotionalState: string): string {
+    if (responses.length === 0) {
+      return this.getErrorResponse();
+    }
+
+    // Filter out empty responses
+    const validResponses = responses.filter(r => r && r.trim().length > 0);
+    
+    if (validResponses.length === 0) {
+      return this.getErrorResponse();
+    }
+
+    // If only one response, return it with warmth
+    if (validResponses.length === 1) {
+      return this.addTherapeuticWarmth(validResponses[0], emotionalState);
+    }
+
+    // Combine multiple responses thoughtfully
+    let combinedResponse = '';
+    
+    // Start with supportive/validation response if available
+    if (validResponses.length >= 2) {
+      combinedResponse = validResponses[0] + '\n\n' + validResponses[1];
+    }
+    
+    // Add coping strategies as a separate section if available
+    if (validResponses.length >= 3) {
+      combinedResponse += '\n\n**Here are some strategies that might help:**\n\n' + validResponses[2];
+    }
+
+    return this.addTherapeuticWarmth(combinedResponse, emotionalState);
+  }
+
   private assessEmotionalIntensity(message: string): number {
     const lowerMessage = message.toLowerCase();
     
@@ -297,6 +393,208 @@ export class FacilitatorAgent extends BaseAgent {
     ];
     
     return frames[Math.floor(Math.random() * frames.length)];
+  }
+
+  private generateTherapeuticResponse(
+    message: string, 
+    emotionalState: string, 
+    approach: string
+  ): string {
+    let response = '';
+
+    // Start with validation if needed
+    if (this.needsEmotionalValidation(emotionalState, message)) {
+      const emotion = this.extractPrimaryEmotion(message);
+      response += this.getValidationResponse(emotion, emotionalState);
+    }
+
+    // Add therapeutic content based on approach
+    switch (approach) {
+      case 'cbt':
+        response += this.getCBTResponse(message);
+        break;
+      case 'dbt':
+        response += this.getDBTResponse(message);
+        break;
+      case 'mindfulness':
+        response += this.getMindfulnessResponse(message);
+        break;
+      case 'motivational':
+        response += this.getMotivationalResponse(message);
+        break;
+      default:
+        response += this.getValidationFocusedResponse(message);
+    }
+
+    // Add coping suggestions for distressed states
+    if (emotionalState === 'distressed' || emotionalState === 'crisis') {
+      response += '\n\n' + this.getCopingSuggestion(emotionalState);
+    }
+
+    // Add warmth and connection
+    response = this.addTherapeuticWarmth(response, emotionalState);
+
+    return response;
+  }
+
+  private getValidationResponse(emotion: string, emotionalState: string): string {
+    const validations = {
+      'anxiety': "I can hear how anxious you're feeling right now. That must be really overwhelming.",
+      'sadness': "I hear the sadness in your words. It's okay to feel this way.",
+      'anger': "I can sense your frustration. It's completely valid to feel angry about this.",
+      'shame': "I hear how hard you're being on yourself. These feelings are difficult to carry.",
+      'loneliness': "I can feel how isolated you're feeling. You're not alone in this moment.",
+      'distress': "I can tell you're going through something really difficult right now."
+    };
+
+    return (validations[emotion] || validations.distress) + '\n\n';
+  }
+
+  private getCBTResponse(message: string): string {
+    const cognitiveDistortions = this.identifyCognitiveDistortions(message);
+    if (cognitiveDistortions.length > 0) {
+      return `I notice you mentioned "${cognitiveDistortions[0]}". Sometimes our thoughts can feel very real and absolute, but they might not tell the whole story. What evidence do you have for and against this thought?`;
+    }
+    return "Let's explore this thought together. What specific situation triggered these feelings?";
+  }
+
+  private getDBTResponse(message: string): string {
+    return "It sounds like you're experiencing some intense emotions. Let's try a DBT skill called TIPP - have you tried splashing cold water on your face or taking slow, deep breaths? These can help regulate intense emotions in the moment.";
+  }
+
+  private getMindfulnessResponse(message: string): string {
+    return "When anxiety feels overwhelming, grounding ourselves in the present can help. Try this with me: Name 5 things you can see, 4 things you can touch, 3 things you can hear, 2 things you can smell, and 1 thing you can taste. This can help anchor you to the here and now.";
+  }
+
+  private getMotivationalResponse(message: string): string {
+    return "I hear some uncertainty in what you're sharing. On a scale of 1-10, how important is making this change to you? And how confident do you feel about being able to do it?";
+  }
+
+  private getValidationFocusedResponse(message: string): string {
+    return "Thank you for sharing this with me. It takes courage to open up about what you're experiencing. How are you taking care of yourself through this?";
+  }
+
+  private getCopingSuggestion(emotionalState: string): string {
+    if (emotionalState === 'crisis') {
+      return "💙 **Immediate Support**: Please consider reaching out to a crisis helpline (988) or your therapist. Your safety is the top priority.";
+    }
+    return "💙 **Quick Coping**: Try the 4-7-8 breathing technique: Breathe in for 4 counts, hold for 7, exhale for 8. This activates your body's relaxation response.";
+  }
+
+  private identifyCognitiveDistortions(message: string): string[] {
+    const distortions: string[] = [];
+    const lowerMessage = message.toLowerCase();
+
+    // All-or-nothing thinking
+    const absoluteWords = ['always', 'never', 'everyone', 'no one', 'everything', 'nothing'];
+    absoluteWords.forEach(word => {
+      if (lowerMessage.includes(word)) {
+        const index = lowerMessage.indexOf(word);
+        const context = message.substring(Math.max(0, index - 20), Math.min(message.length, index + 30));
+        distortions.push(context.trim());
+      }
+    });
+
+    return distortions;
+  }
+
+  private checkIfActionItemNeeded(message: string, emotionalState: string): boolean {
+    const lowerMessage = message.toLowerCase();
+    
+    // Check for commitment language
+    const commitmentWords = ['will try', 'going to', 'plan to', 'want to', 'need to', 'should'];
+    const hasCommitment = commitmentWords.some(word => lowerMessage.includes(word));
+    
+    // Check for specific goals or tasks
+    const taskWords = ['exercise', 'meditate', 'journal', 'call', 'schedule', 'practice'];
+    const hasTask = taskWords.some(word => lowerMessage.includes(word));
+    
+    return hasCommitment && hasTask;
+  }
+
+  private identifyActionItems(message: string, emotionalState: string): Array<any> {
+    const items: Array<any> = [];
+    const lowerMessage = message.toLowerCase();
+
+    // Exercise-related
+    if (lowerMessage.includes('exercise') || lowerMessage.includes('walk')) {
+      items.push({
+        title: 'Daily Movement Practice',
+        description: 'Take a 15-minute walk or do light exercise',
+        priority: 'medium',
+        dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+        category: 'self_care'
+      });
+    }
+
+    // Meditation/mindfulness
+    if (lowerMessage.includes('meditate') || lowerMessage.includes('mindfulness')) {
+      items.push({
+        title: 'Mindfulness Practice',
+        description: 'Practice 5-10 minutes of meditation or mindful breathing',
+        priority: 'medium',
+        dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        category: 'therapeutic'
+      });
+    }
+
+    // Journaling
+    if (lowerMessage.includes('journal') || lowerMessage.includes('write')) {
+      items.push({
+        title: 'Reflection Journal',
+        description: 'Write about your thoughts and feelings for 10 minutes',
+        priority: emotionalState === 'distressed' ? 'high' : 'medium',
+        dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        category: 'therapeutic'
+      });
+    }
+
+    return items;
+  }
+
+  private shouldSummarizeSession(message: string, context: ToolContext): boolean {
+    const lowerMessage = message.toLowerCase();
+    
+    // Check for session ending indicators
+    const endingWords = ['goodbye', 'bye', 'thank you', 'thanks', 'see you', 'talk later'];
+    const isEnding = endingWords.some(word => lowerMessage.includes(word));
+    
+    // TODO: Check if session has been long enough (would need message count from context)
+    
+    return isEnding;
+  }
+
+  private extractKeyThemes(message: string): string[] {
+    const themes: string[] = [];
+    const lowerMessage = message.toLowerCase();
+
+    const themePatterns = {
+      'anxiety': ['anxiety', 'anxious', 'worry', 'panic'],
+      'depression': ['depressed', 'sad', 'hopeless'],
+      'relationships': ['relationship', 'partner', 'family'],
+      'work-stress': ['work', 'job', 'career'],
+      'self-esteem': ['confidence', 'self-worth', 'failure'],
+      'trauma': ['trauma', 'ptsd', 'triggered']
+    };
+
+    Object.entries(themePatterns).forEach(([theme, keywords]) => {
+      if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+        themes.push(theme);
+      }
+    });
+
+    return themes;
+  }
+
+  private calculateOverallSentiment(emotionalState: string): number {
+    const sentimentMap = {
+      'crisis': -1.0,
+      'distressed': -0.6,
+      'neutral': 0.0,
+      'positive': 0.8
+    };
+    
+    return sentimentMap[emotionalState] || 0.0;
   }
 
   private addTherapeuticWarmth(response: string, emotionalState: string): string {

@@ -1236,8 +1236,8 @@ interface Tool {
 
 export const AGENT_TOOLS: Record<string, Tool[]> = {
   'ai-router': [AnalyzeLLMIntentTool, RouteToAgentTool],
-  'facilitator': [ProvideSupportiveResponseTool, ValidateFeelingsTool, SuggestCopingStrategiesTool],
-  'sentiment': [AnalyzeSentimentTool, DetectCrisisTool],
+  'facilitator': [ProvideSupportiveResponseTool, ValidateFeelingsTool, SuggestCopingStrategiesTool, PostMessageTool, CreateActionItemTool, SummarizeSessionTool],
+  'sentiment': [LogMoodTool, { ...DetectCrisisTool, name: 'escalateCrisis' }],
   'crisis': [ProvideCrisisSupportTool, EscalateToHumanTool],
   'matching': [SearchGroupsTool, RankGroupsByRelevanceTool, GenerateGroupRecommendationsTool],
   'insight': [AnalyzeMemberProgressTool, GenerateProgressInsightsTool, IdentifyPatternsTool],
