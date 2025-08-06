@@ -36,6 +36,16 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/utils/cn';
 
+interface OrchestrationResponse {
+  success: boolean;
+  response: string;
+  agentUsed: string[];
+  confidence: number;
+  metadata: any;
+  needsCrisisIntervention?: boolean;
+  error?: string;
+}
+
 interface TherapistMessage {
   id: string;
   content: string;
@@ -957,27 +967,63 @@ export default function MayaTherapistInterface({
   }, [messages]);
 
   const initializeTherapistSession = async () => {
-    const newSessionId = propSessionId || `therapist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    setSessionId(newSessionId);
+    try {
+      // Use orchestration API to start a therapist session
+      const response: any = await api.post('/orchestration/session/start', {
+        memberProfile: { 
+          memberId: therapistId,
+          role: 'therapist',
+          clientId: activeClientId
+        }
+      });
 
-    const contextSuffix = activeClientId ? ` for client ${activeClientId}` : '';
-    const modeDescription = {
-      'consultation': 'professional consultation and clinical guidance',
-      'client-focused': `focused support for your work with${contextSuffix}`,
-      'general': 'therapeutic guidance and professional support'
-    };
+      const sessionData = response.data as any;
+      console.log('[Therapist] Session start response:', sessionData);
 
-    const welcomeMessage: TherapistMessage = {
-      id: `welcome-${Date.now()}`,
-      content: `Hello Dr. ${therapistId}! I'm Maya, your AI clinical assistant. I'm here to provide ${modeDescription[mode]}.\n\n**Available Support:**\n• Clinical assessments and risk evaluation\n• Evidence-based treatment planning\n• Crisis intervention guidance\n• Progress analysis and insights\n• Group dynamics assessment\n• Documentation assistance\n• Current research and best practices\n\n**Professional Standards:**\n• All guidance follows evidence-based practices\n• HIPAA-compliant interactions\n• Crisis situations escalated appropriately\n• Licensed professional oversight recommended\n\nHow can I assist with your clinical work today?`,
-      type: 'maya',
-      timestamp: new Date(),
-      agentUsed: ['facilitator', 'insight'],
-      confidence: 1.0,
-      clientId: activeClientId
-    };
+      let sessionId = null;
+      
+      // Check for sessionId at various possible locations
+      if (sessionData.success && sessionData.data?.sessionId) {
+        sessionId = sessionData.data.sessionId;
+      } else if (sessionData.success && sessionData.sessionId) {
+        sessionId = sessionData.sessionId;
+      } else if (sessionData.data?.sessionId) {
+        sessionId = sessionData.data.sessionId;
+      }
+      
+      if (sessionId) {
+        setSessionId(sessionId);
+        setMayaAvailable(true);
+      } else {
+        // Fallback to local session ID
+        const newSessionId = propSessionId || `therapist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        setSessionId(newSessionId);
+        console.warn('[Therapist] Using fallback session ID:', newSessionId);
+      }
 
-    setMessages([welcomeMessage]);
+      const contextSuffix = activeClientId ? ` for client ${activeClientId}` : '';
+      const modeDescription = {
+        'consultation': 'professional consultation and clinical guidance',
+        'client-focused': `focused support for your work with${contextSuffix}`,
+        'general': 'therapeutic guidance and professional support'
+      };
+
+      const welcomeMessage: TherapistMessage = {
+        id: `welcome-${Date.now()}`,
+        content: `Hello Dr. ${therapistId}! I'm Maya, your AI clinical assistant. I'm here to provide ${modeDescription[mode]}.\n\n**Available Support:**\n• Clinical assessments and risk evaluation\n• Evidence-based treatment planning\n• Crisis intervention guidance\n• Progress analysis and insights\n• Group dynamics assessment\n• Documentation assistance\n• Current research and best practices\n\n**Professional Standards:**\n• All guidance follows evidence-based practices\n• HIPAA-compliant interactions\n• Crisis situations escalated appropriately\n• Licensed professional oversight recommended\n\nHow can I assist with your clinical work today?`,
+        type: 'maya',
+        timestamp: new Date(),
+        agentUsed: ['facilitator', 'insight'],
+        confidence: 1.0,
+        clientId: activeClientId
+      };
+
+      setMessages([welcomeMessage]);
+    } catch (error: any) {
+      console.error('[Therapist] Failed to initialize session:', error);
+      setMayaAvailable(false);
+      toast.error('Unable to connect to Maya. Please try again.');
+    }
   };
 
   const scrollToBottom = () => {
@@ -1621,48 +1667,68 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
     setIsLoading(true);
 
     try {
-      let response: AgentCallResponse;
-
       // Check if this is an administrative tool call
       const adminToolKeywords = ['onboard', 'create group', 'manage group', 'member management', 'session planning', 'plan session'];
       const isAdminTool = adminToolKeywords.some(keyword =>
         content.toLowerCase().includes(keyword.toLowerCase())
       );
 
+      let response: AgentCallResponse;
+      let clinicalInsights: ClinicalInsight[] = [];
+      
       if (isAdminTool) {
         // Handle administrative functions with enhanced context
         response = await handleAdministrativeTask(contextualContent, sessionId);
       } else {
-        // Use multiple agents for comprehensive clinical assessment
-        response = await agentService.callAgent(
-          'facilitator', // Primary agent for therapeutic guidance
-          contextualContent,
-          sessionId
-        );
-      }
-
-      // Get additional insights from other agents
-      let clinicalInsights: ClinicalInsight[] = [];
-
-      if (activeClientId || isToolCall) {
+        // Use orchestration API for intelligent agent routing
         try {
-          // Run sentiment analysis for emotional assessment
-          const sentimentResponse = await agentService.callAgent(
-            'sentiment',
+          const orchestrationResponse: any = await api.post('/orchestration/message', {
+            content: contextualContent,
+            sessionId,
+            messageType: 'therapist'
+          });
+
+          // The API returns data directly, not nested in a .data property
+          const responseData = orchestrationResponse as OrchestrationResponse;
+
+          console.log('[Therapist] Orchestration response received:', {
+            success: responseData?.success,
+            hasResponse: !!responseData?.response,
+            agentUsed: responseData?.agentUsed
+          });
+
+          if (!responseData) {
+            throw new Error('No data received from server');
+          }
+          
+          if (responseData.success === false) {
+            throw new Error(responseData.error || 'Failed to process message');
+          }
+          
+          // Convert orchestration response to AgentCallResponse format
+          response = {
+            success: true,
+            response: responseData.response || 'I received your message. How can I help you with your clinical work?',
+            agentUsed: Array.isArray(responseData.agentUsed) 
+              ? responseData.agentUsed.join(', ') 
+              : (responseData.agentUsed || 'facilitator'),
+            confidence: responseData.confidence || 0.85,
+            metadata: responseData.metadata || {}
+          };
+          
+          // Extract clinical insights from the response metadata if available
+          if (responseData.metadata?.clinicalInsights) {
+            clinicalInsights = responseData.metadata.clinicalInsights;
+          }
+          
+        } catch (error: any) {
+          console.error('[Therapist] Orchestration API error:', error);
+          // Fallback to direct agent call
+          response = await agentService.callAgent(
+            'facilitator',
             contextualContent,
             sessionId
           );
-
-          // Run insight agent for progress analysis
-          const insightResponse = await agentService.callAgent(
-            'insight',
-            contextualContent,
-            sessionId
-          );
-
-          clinicalInsights = extractClinicalInsights([response, sentimentResponse, insightResponse]);
-        } catch (insightError) {
-          console.warn('Additional clinical insights unavailable:', insightError);
         }
       }
 

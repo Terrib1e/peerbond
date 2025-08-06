@@ -18,16 +18,29 @@ import {
   Users,
   BookOpen,
   Target,
-  BarChart3
+  BarChart3,
+  Command
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 
 import { agentService, AgentCallResponse } from '@/services/agentService';
+
+interface OrchestrationResponse {
+  success: boolean;
+  response: string;
+  agentUsed: string[];
+  confidence: number;
+  metadata: any;
+  needsCrisisIntervention?: boolean;
+  error?: string;
+}
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/utils/cn';
+import CommandPalette from './CommandPalette';
+import { parseCommand, SlashCommand } from '@/utils/slashCommands';
 
 interface MayaMessage {
   id: string;
@@ -128,9 +141,11 @@ export default function MayaInterfaceRedesigned({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [mayaAvailable, setMayaAvailable] = useState(true);
   const [showCrisisConfirm, setShowCrisisConfirm] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     initializeSession();
@@ -153,21 +168,38 @@ export default function MayaInterfaceRedesigned({
       token: api.getCurrentToken() ? 'TOKEN_EXISTS' : 'NO_TOKEN'
     });
     try {
-      const response = await api.post('/orchestration/session/start', {
+      const response: any = await api.post('/orchestration/session/start', {
         memberProfile: { memberId }
       });
 
-      console.log('Session start response:', response.data);
+      const sessionData = response.data as any;
+      console.log('Session start response full structure:', {
+        topLevel: Object.keys(sessionData),
+        success: sessionData.success,
+        data: sessionData.data,
+        dataKeys: sessionData.data ? Object.keys(sessionData.data) : 'no data',
+        sessionId: sessionData.sessionId,
+        dataSessionId: sessionData.data?.sessionId
+      });
 
-      if (response.data.success && response.data.sessionId) {
-        const newSessionId = response.data.sessionId;
-        console.log('Session ID created:', newSessionId);
-        setSessionId(newSessionId);
-
-        // Use the welcome message from the server if provided, otherwise use default
-        const serverWelcomeMessage = response.data.welcomeMessage;
-        const welcomeContent = serverWelcomeMessage || 
-          `Hi there! I'm Maya, your AI companion. I'm here to support you through whatever you're experiencing.\n\nHow are you feeling today? I'm here to listen and help in any way I can.`;
+      let sessionId = null;
+      let welcomeContent = `Hi there! I'm Maya, your AI companion. I'm here to support you through whatever you're experiencing.\n\nHow are you feeling today? I'm here to listen and help in any way I can.\n\n💡 **Tip:** Type "/" to see all available quick commands like /help, /crisis, /groups, and more!`;
+      
+      // Check for sessionId at various possible locations
+      if (sessionData.success && sessionData.data?.sessionId) {
+        sessionId = sessionData.data.sessionId;
+        console.log('Session ID found in data.sessionId:', sessionId);
+        welcomeContent = sessionData.data.welcomeMessage || welcomeContent;
+      } else if (sessionData.success && sessionData.sessionId) {
+        sessionId = sessionData.sessionId;
+        console.log('Session ID found in sessionId:', sessionId);
+      } else if (sessionData.data?.sessionId) {
+        sessionId = sessionData.data.sessionId;
+        console.log('Session ID found in data.sessionId (no success check):', sessionId);
+      }
+      
+      if (sessionId) {
+        setSessionId(sessionId);
 
         const welcomeMessage: MayaMessage = {
           id: `welcome-${Date.now()}`,
@@ -182,12 +214,12 @@ export default function MayaInterfaceRedesigned({
 
         console.log('Setting welcome message:', welcomeMessage);
         setMessages([welcomeMessage]);
-        setMayaAvailable(true); // Make sure Maya is available after successful session
+        setMayaAvailable(true);
       } else {
-        console.error('Failed to get session ID from response:', response.data);
+        console.error('Failed to get session ID from response:', sessionData);
         setMayaAvailable(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to initialize session:', error);
       setMayaAvailable(false);
       toast.error('Unable to connect to Maya. Please try again in a moment.');
@@ -235,13 +267,72 @@ export default function MayaInterfaceRedesigned({
       return;
     }
 
-    console.log('Sending message:', inputMessage.trim());
-    await sendMessage(inputMessage.trim());
+    const message = inputMessage.trim();
+    
+    // Check if this is a slash command
+    const { command, args } = parseCommand(message);
+    if (command) {
+      handleSlashCommand(command, args);
+      setInputMessage('');
+      return;
+    }
+
+    console.log('Sending message:', message);
+    await sendMessage(message);
     setInputMessage('');
   };
 
   const handleContextualAction = async (action: ContextualAction) => {
     await sendMessage(action.prompt);
+  };
+
+  const handleSlashCommand = async (command: SlashCommand, args: string = '') => {
+    let prompt = command.prompt;
+    
+    // Enhance prompt with user input for commands that require it
+    if (command.requiresInput && args) {
+      prompt = `${command.prompt}: ${args}`;
+    }
+    
+    // Add visual feedback for command execution
+    const commandMessage: MayaMessage = {
+      id: `command-${Date.now()}`,
+      content: `${command.command} ${args}`.trim(),
+      type: 'member',
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, commandMessage]);
+    await sendMessage(prompt);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputMessage(value);
+    
+    // Show command palette when user types "/"
+    if (value === '/' || (value.startsWith('/') && !value.includes(' '))) {
+      setShowCommandPalette(true);
+    } else {
+      setShowCommandPalette(false);
+    }
+  };
+
+  const handleCommandSelect = (command: SlashCommand, args?: string) => {
+    if (command.requiresInput && args) {
+      setInputMessage(`${command.command} ${args}`);
+    } else {
+      setInputMessage(command.command);
+    }
+    setShowCommandPalette(false);
+    
+    // Auto-submit simple commands that don't require additional input
+    if (!command.requiresInput) {
+      setTimeout(() => {
+        handleSlashCommand(command, args);
+        setInputMessage('');
+      }, 100);
+    }
   };
 
   const sendMessage = async (content: string, agentHint?: string) => {
@@ -286,71 +377,54 @@ export default function MayaInterfaceRedesigned({
             hasToken: !!api.getCurrentToken()
           });
           
-          const orchestrationResponse = await api.post('/orchestration/message', {
+          const orchestrationResponse: any = await api.post('/orchestration/message', {
             content,
             sessionId,
             messageType: 'member'
           });
 
+          // The API returns data directly, not nested in a .data property
+          const responseData = orchestrationResponse as OrchestrationResponse;
+
           console.log('🔧 Orchestration response received:', {
-            status: orchestrationResponse.status,
-            data: orchestrationResponse.data,
-            success: orchestrationResponse.data?.success,
-            dataKeys: Object.keys(orchestrationResponse.data || {}),
-            hasResponse: !!orchestrationResponse.data?.response,
-            responseType: typeof orchestrationResponse.data?.response
+            fullResponse: orchestrationResponse,
+            success: responseData?.success,
+            hasResponse: !!responseData?.response,
+            responseType: typeof responseData?.response,
+            agentUsed: responseData?.agentUsed
           });
 
-          // The orchestration endpoint returns a flat structure:
+          // The orchestration endpoint returns a flat structure directly:
           // { success: true, response: "...", agentUsed: [...], ... }
-          if (!orchestrationResponse.data) {
+          if (!responseData) {
             console.error('🔥 No data in response:', orchestrationResponse);
             throw new Error('No data received from server');
-          } else if (orchestrationResponse.data?.success === false) {
-            // Handle explicit failure
-            console.error('🔥 Server returned success=false:', {
-              fullResponse: orchestrationResponse,
-              dataSuccess: orchestrationResponse.data.success,
-              dataError: orchestrationResponse.data.error,
-              completeData: orchestrationResponse.data
-            });
-            throw new Error(orchestrationResponse.data.error || 'Failed to process message');
-          } else if (orchestrationResponse.data?.response !== undefined) {
-            // Direct response format - this is the expected format
-            // Check if response is a string or object
-            response = orchestrationResponse.data;
-            console.log('API returned response:', response);
-          } else if (orchestrationResponse.response !== undefined) {
-            // Response might be at top level (without data wrapper)
-            response = orchestrationResponse;
-            console.log('API returned top-level response:', response);
-          } else if (orchestrationResponse.data && typeof orchestrationResponse.data === 'object') {
-            // Try to use the data as is
-            console.warn('⚠️ Response format not standard, using data as-is:', orchestrationResponse.data);
-            response = {
-              response: orchestrationResponse.data.message || orchestrationResponse.data.text || 'I received your message. How can I help you further?',
-              agentUsed: orchestrationResponse.data.agentUsed || ['facilitator'],
-              confidence: orchestrationResponse.data.confidence || 0.7,
-              metadata: orchestrationResponse.data.metadata || {}
-            };
-          } else {
-            // Unexpected format - log full details
-            console.error('🔥 Unexpected response format:', {
-              hasData: !!orchestrationResponse.data,
-              dataKeys: Object.keys(orchestrationResponse.data || {}),
-              fullData: orchestrationResponse.data,
-              dataType: typeof orchestrationResponse.data,
-              stringified: JSON.stringify(orchestrationResponse.data)
-            });
-            throw new Error('Unexpected response format from server');
           }
+          
+          if (responseData.success === false) {
+            console.error('🔥 Server returned success=false:', responseData);
+            throw new Error(responseData.error || 'Failed to process message');
+          }
+          
+          // Use the response data directly (it's already in the correct format)
+          response = {
+            success: true,
+            response: responseData.response || 'I received your message. How can I help you further?',
+            agentUsed: Array.isArray(responseData.agentUsed) 
+              ? responseData.agentUsed.join(', ') 
+              : (responseData.agentUsed || 'facilitator'),
+            confidence: responseData.confidence || 0.7,
+            metadata: responseData.metadata || {}
+          };
+          
+          console.log('✅ Successfully parsed orchestration response:', response);
           
           // Check if response has the expected structure
           if (!response || typeof response !== 'object') {
             console.error('Invalid response structure:', response);
             throw new Error('Invalid response from server');
           }
-        } catch (apiError) {
+        } catch (apiError: any) {
           console.error('🔥 API call failed with full details:', {
             error: apiError,
             message: apiError?.message,
@@ -403,7 +477,7 @@ export default function MayaInterfaceRedesigned({
         });
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ COMPLETE ERROR DETAILS:', error);
       console.error('❌ Error message:', error?.message);
       console.error('❌ Error stack:', error?.stack);
@@ -640,13 +714,13 @@ export default function MayaInterfaceRedesigned({
           </div>
           <div>
             <h2 className="font-semibold text-gray-900">Maya</h2>
-            <p className="text-sm text-gray-600 flex items-center gap-2">
+            <div className="text-sm text-gray-600 flex items-center gap-2">
               <div className={cn(
                 'w-2 h-2 rounded-full',
                 mayaAvailable ? 'bg-green-500' : 'bg-gray-300'
               )} />
               Your AI companion
-            </p>
+            </div>
           </div>
         </div>
 
@@ -663,7 +737,6 @@ export default function MayaInterfaceRedesigned({
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 scroll-smooth" ref={scrollAreaRef}>
-        {console.log('Current messages:', messages)}
         {messages.length === 0 ? (
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
@@ -674,9 +747,7 @@ export default function MayaInterfaceRedesigned({
           </div>
         ) : (
           <div className="space-y-6">
-            {console.log('Rendering messages:', messages.length)}
             {messages.map((message, index) => {
-              console.log(`Rendering message ${index}:`, message);
               return renderMessage(message);
             })}
             <div ref={messagesEndRef} className="h-4" />
@@ -686,25 +757,42 @@ export default function MayaInterfaceRedesigned({
 
       {/* Input Area */}
       <div className="flex-shrink-0 border-t bg-white p-4">
-        {console.log('Input state:', { 
-          inputMessage, 
-          inputTrimmed: inputMessage.trim(), 
-          isLoading, 
-          mayaAvailable, 
-          sessionId,
-          buttonDisabled: !inputMessage.trim() || isLoading || !mayaAvailable
-        })}
-        <form onSubmit={handleInputSubmit} className="flex gap-3">
-          <Input
-            value={inputMessage}
-            onChange={(e) => {
-              console.log('Input changed to:', e.target.value);
-              setInputMessage(e.target.value);
-            }}
-            placeholder={isLoading ? "Maya is responding..." : "Share what's on your mind..."}
-            disabled={isLoading || !mayaAvailable}
-            className="flex-1 text-base"
-          />
+        <form onSubmit={handleInputSubmit} className="flex gap-3 relative">
+          <div className="flex-1 relative">
+            <Input
+              ref={inputRef}
+              value={inputMessage}
+              onChange={handleInputChange}
+              placeholder={
+                isLoading 
+                  ? "Maya is responding..." 
+                  : "Share what's on your mind... (Type / for commands)"
+              }
+              disabled={isLoading || !mayaAvailable}
+              className="text-base pr-12"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && showCommandPalette) {
+                  setShowCommandPalette(false);
+                }
+              }}
+            />
+            
+            {/* Command indicator */}
+            {inputMessage.startsWith('/') && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <Command className="w-4 h-4 text-gray-400" />
+              </div>
+            )}
+            
+            {/* Command Palette */}
+            <CommandPalette
+              isOpen={showCommandPalette}
+              onClose={() => setShowCommandPalette(false)}
+              onSelectCommand={handleCommandSelect}
+              searchQuery={inputMessage}
+              position="above"
+            />
+          </div>
           <Button
             type="submit"
             disabled={!inputMessage.trim() || isLoading || !mayaAvailable}

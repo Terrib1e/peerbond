@@ -37,6 +37,7 @@ import AIChatInterface from '@/components/chat/AIChatInterface';
 import AIToolsPanel from '@/components/ai/AIToolsPanel';
 import AgentTester from '@/components/ai/AgentTester';
 import PortalLayout from '@/components/ui/PortalLayout';
+import { getPortalComponentClasses } from '@/lib/design-system';
 import StatsCard from '@/components/ui/StatsCard';
 import { OrchestrationSystem } from '@/lib/api';
 import { motion } from 'framer-motion';
