@@ -88,7 +88,7 @@ router.post('/ai-response/:groupId', async (req, res) => {
     logger.error('❌ Test AI response error:', error);
     res.status(500).json({
       error: 'Test failed',
-      details: (error as Error).message
+      details: error.message
     });
   }
 });
