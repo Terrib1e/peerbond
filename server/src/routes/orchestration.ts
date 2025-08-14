@@ -113,17 +113,37 @@ router.post('/message',
     body('messageType')
       .optional()
       .isIn(['member', 'system'])
-      .withMessage('MessageType must be member or system')
+      .withMessage('MessageType must be member or system'),
+    body('groupId')
+      .optional()
+      .isString()
+      .withMessage('GroupId must be a string')
   ]),
   async (req: AuthenticatedRequest, res) => {
     const startTime = Date.now();
 
     try {
-      const { content, sessionId, messageType = 'member' } = req.body;
+      const { content, sessionId, messageType = 'member', groupId } = req.body;
       const memberId = req.member!.id;
       const userRole = req.member?.role as UserRole || 'member';
 
       console.log(`[ProductionOrchestration] Processing message for session ${sessionId} by ${userRole}`);
+
+      // Import DatabaseService
+      const { DatabaseService } = await import('../services/database');
+      const dbService = new DatabaseService();
+
+      // Save the user's message to the database if groupId is provided
+      let userMessage = null;
+      if (groupId) {
+        userMessage = await dbService.createMessage({
+          groupId,
+          memberId,
+          content,
+          type: messageType
+        });
+        console.log(`[ProductionOrchestration] User message saved to database with ID: ${userMessage.id}`);
+      }
 
       const result = await orchestratorService.processMessage({
         memberId,
@@ -143,6 +163,46 @@ router.post('/message',
         agentUsedStringified: JSON.stringify(result.agentUsed)
       });
 
+      // Save the AI's response to the database if groupId is provided
+      let aiMessage = null;
+      if (groupId && result.response) {
+        aiMessage = await dbService.createMessage({
+          groupId,
+          memberId: 'ai-facilitator',
+          content: result.response,
+          type: 'ai_facilitator'
+        });
+        console.log(`[ProductionOrchestration] AI response saved to database with ID: ${aiMessage.id}`);
+
+        // Broadcast WebSocket event to notify all group members
+        const { WebSocketService } = await import('../services/websocket');
+        const wsService = WebSocketService.getInstance();
+        if (wsService) {
+          // Broadcast user message
+          if (userMessage) {
+            wsService.broadcastToGroup(groupId, 'new_message', {
+              ...userMessage,
+              member: req.member
+            });
+          }
+          
+          // Broadcast AI message (with slight delay for natural feel)
+          setTimeout(() => {
+            wsService.broadcastToGroup(groupId, 'new_message', {
+              ...aiMessage,
+              member: {
+                id: 'ai-facilitator',
+                firstName: 'Maya',
+                lastName: '(AI Facilitator)',
+                profilePicture: null,
+                email: 'maya@peerbond.ai',
+                role: 'ai_facilitator'
+              }
+            });
+          }, 500);
+        }
+      }
+
       res.json({
         success: result.success,
         response: result.response,
@@ -151,6 +211,8 @@ router.post('/message',
         confidence: result.confidence,
         needsCrisisIntervention: result.needsCrisisIntervention,
         metadata: result.metadata,
+        userMessageId: userMessage?.id,
+        aiMessageId: aiMessage?.id,
         timestamp: new Date().toISOString(),
         performance: {
           duration_ms: duration,

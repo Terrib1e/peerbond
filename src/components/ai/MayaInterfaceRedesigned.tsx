@@ -68,6 +68,7 @@ interface MayaInterfaceProps {
   memberId: string;
   className?: string;
   onCrisisAlert?: () => void;
+  hideHeader?: boolean; // Add prop to hide header when used in modal
 }
 
 // Contextual actions that appear inline with chat based on Maya's responses
@@ -133,7 +134,8 @@ const CONTEXTUAL_ACTIONS = {
 export default function MayaInterfaceRedesigned({ 
   memberId, 
   className,
-  onCrisisAlert 
+  onCrisisAlert,
+  hideHeader = false 
 }: MayaInterfaceProps) {
   const [messages, setMessages] = useState<MayaMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -706,34 +708,36 @@ export default function MayaInterfaceRedesigned({
 
   return (
     <div className={cn('flex flex-col h-full bg-white', className)}>
-      {/* Simplified Header with Prominent Crisis Button */}
-      <div className="flex-shrink-0 flex items-center justify-between p-4 border-b bg-gradient-to-r from-purple-50 to-pink-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
-            <Heart className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-gray-900">Maya</h2>
-            <div className="text-sm text-gray-600 flex items-center gap-2">
-              <div className={cn(
-                'w-2 h-2 rounded-full',
-                mayaAvailable ? 'bg-green-500' : 'bg-gray-300'
-              )} />
-              Your AI companion
+      {/* Simplified Header with Prominent Crisis Button - Only show if not hidden */}
+      {!hideHeader && (
+        <div className="flex-shrink-0 flex items-center justify-between p-4 border-b bg-gradient-to-r from-purple-50 to-pink-50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+              <Heart className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-gray-900">Maya</h2>
+              <div className="text-sm text-gray-600 flex items-center gap-2">
+                <div className={cn(
+                  'w-2 h-2 rounded-full',
+                  mayaAvailable ? 'bg-green-500' : 'bg-gray-300'
+                )} />
+                Your AI companion
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Prominent Crisis Button */}
-        <Button
-          onClick={handleCrisisHelp}
-          className="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-2 shadow-lg"
-          size="sm"
-        >
-          <LifeBuoy className="w-4 h-4 mr-2" />
-          I need immediate help
-        </Button>
-      </div>
+          {/* Prominent Crisis Button */}
+          <Button
+            onClick={handleCrisisHelp}
+            className="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-2 shadow-lg"
+            size="sm"
+          >
+            <LifeBuoy className="w-4 h-4 mr-2" />
+            I need immediate help
+          </Button>
+        </div>
+      )}
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 scroll-smooth" ref={scrollAreaRef}>

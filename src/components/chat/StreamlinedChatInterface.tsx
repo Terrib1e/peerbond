@@ -119,16 +119,17 @@ export default function StreamlinedChatInterface({
         setThinkingMessage('Maya is analyzing your message...');
         setAiThinking(true);
 
-        // Send through orchestration for AI processing
+        // Send through orchestration for AI processing with groupId
         const orchestrationResponse = await api.sendOrchestrationMessage({
           content,
           sessionId: currentSessionId,
-          messageType: 'member'
+          messageType: 'member',
+          groupId // Pass groupId so messages get persisted
         });
 
         // Update thinking message based on agents used
-        if (orchestrationResponse.data.agentUsed && orchestrationResponse.data.agentUsed.length > 0) {
-          const agentNames = orchestrationResponse.data.agentUsed.map(agent => {
+        if (orchestrationResponse.agentUsed && orchestrationResponse.agentUsed.length > 0) {
+          const agentNames = orchestrationResponse.agentUsed.map(agent => {
             switch(agent) {
               case 'facilitator': return 'Maya (Therapeutic Support)';
               case 'matching': return 'Group Matching';
@@ -141,34 +142,13 @@ export default function StreamlinedChatInterface({
           setThinkingMessage(`Processing with: ${agentNames}`);
         }
 
-        // Remove temp message and add both member and AI messages
+        // Remove temp message - messages are now persisted to database
         queryClient.setQueryData<ChatMessage[]>(['messages', groupId], (old = []) => {
-          const filtered = old.filter(msg => !msg.isLoading && !msg.id.startsWith('temp-'));
-
-          const memberMessage: ChatMessage = {
-            ...tempMessage,
-            isLoading: false,
-            id: `member-${Date.now()}`
-          };
-
-          // Add AI response if we got one
-          const aiMessage: ChatMessage = {
-            id: `ai-${Date.now()}`,
-            groupId,
-            memberId: 'ai-facilitator',
-            content: orchestrationResponse.data.response,
-            type: 'ai_facilitator',
-            timestamp: new Date(),
-            reactions: [],
-            aiContext: {
-              agentUsed: orchestrationResponse.data.agentUsed || [],
-              confidence: orchestrationResponse.data.confidence || 0,
-              interventionType: orchestrationResponse.data.needsCrisisIntervention ? 'crisis' : 'support'
-            }
-          };
-
-          return [...filtered, memberMessage, aiMessage];
+          return old.filter(msg => !msg.isLoading && !msg.id.startsWith('temp-'));
         });
+        
+        // Refetch messages to get the persisted ones from database
+        queryClient.invalidateQueries({ queryKey: ['messages', groupId] });
 
         // Clear AI thinking state
         setAiThinking(false);

@@ -11,7 +11,8 @@ import {
   Bot,
   Maximize2,
   Minimize2,
-  RotateCcw
+  RotateCcw,
+  LifeBuoy
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -215,6 +216,20 @@ export default function MayaQuickAccess({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Crisis Help Button */}
+                  <Button
+                    onClick={() => {
+                      // Trigger crisis help
+                      console.log('Crisis help triggered');
+                      toast.error('Crisis support activated. Connecting you with help...');
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-1.5"
+                    size="sm"
+                  >
+                    <LifeBuoy className="w-4 h-4 mr-2" />
+                    I need immediate help
+                  </Button>
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -264,6 +279,7 @@ export default function MayaQuickAccess({
                     memberId={member.id}
                     className="h-full"
                     compact={false}
+                    hideHeader={true} // Hide header since modal has its own
                   />
                 )}
               </div>

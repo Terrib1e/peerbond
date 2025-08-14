@@ -48,7 +48,7 @@ export class AIRouterAgent extends BaseAgent {
 
       if (intentResult.success && intentResult.data) {
         const { primaryIntent, suggestedAgent, reasoning, urgency: detectedUrgency } = intentResult.data;
-        
+
         selectedAgent = suggestedAgent;
         routingReason = reasoning;
         urgency = detectedUrgency;
@@ -64,7 +64,7 @@ export class AIRouterAgent extends BaseAgent {
 
       // Step 2: Route to the selected agent
       const routingParams = {
-        targetAgent: selectedAgent as 'facilitator' | 'sentiment' | 'crisis' | 'matching' | 'insight',
+        targetAgent: selectedAgent as 'facilitator' | 'sentiment' | 'crisis' | 'matching' | 'insight' | 'other' | 'none',
         message,
         routingReason,
         priority: this.mapUrgencyToPriority(urgency)
@@ -76,7 +76,7 @@ export class AIRouterAgent extends BaseAgent {
 
       if (routingResult.success && routingResult.data) {
         const { routingSuccess, agentResponse, fallbackAgent } = routingResult.data;
-        
+
         if (routingSuccess && agentResponse) {
           response = agentResponse;
         } else if (fallbackAgent) {
@@ -125,7 +125,7 @@ export class AIRouterAgent extends BaseAgent {
       'high': 'high',
       'critical': 'urgent'
     };
-    
+
     return urgencyMap[urgency] || 'medium';
   }
 
@@ -142,9 +142,9 @@ export class AIRouterAgent extends BaseAgent {
   }
 
   protected getErrorResponse(): string {
-    return `I'm having trouble understanding your message right now, but I want to make sure you get the support you need. 
+    return `I'm having trouble understanding your message right now, but I want to make sure you get the support you need.
 
-Let me route you to our main therapeutic assistant who can help with a wide range of concerns. 
+Let me route you to our main therapeutic assistant who can help with a wide range of concerns.
 
 If this is an emergency, please call 988 (Suicide & Crisis Lifeline) or 911 immediately.`;
   }
