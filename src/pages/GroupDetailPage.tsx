@@ -10,7 +10,7 @@ import StreamlinedChatInterface from '@/components/chat/StreamlinedChatInterface
 function GroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'chat'>('overview');
-  const { user } = useAuthStore();
+  const { member } = useAuthStore();
 
   const { data: groups = [], isLoading } = useQuery<Group[]>({
     queryKey: ['groups'],
@@ -160,7 +160,7 @@ function GroupDetailPage() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Group Members</h3>
-              {user?.role === 'therapist' && (
+              {member?.role === 'therapist' && (
                 <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
                   Therapist View
                 </span>
@@ -168,38 +168,38 @@ function GroupDetailPage() {
             </div>
             <div className="space-y-3">
               {group.members.map((memberId, index) => {
-                const isCurrentUser = user && memberId === user.id;
-                const displayRole = isCurrentUser ? 
-                  (user.role === 'therapist' ? 'Therapist/Facilitator' : 
-                   user.role === 'admin' ? 'Administrator' : 'Member') : 
+                const isCurrentUser = member && memberId === member.id;
+                const displayRole = isCurrentUser ?
+                  (member.role === 'therapist' ? 'Therapist/Facilitator' :
+                   member.role === 'admin' ? 'Administrator' : 'Member') :
                   'Member';
-                
+
                 return (
                   <div key={memberId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        isCurrentUser && user.role === 'therapist' 
-                          ? 'bg-blue-100 text-blue-600' 
+                        isCurrentUser && member.role === 'therapist'
+                          ? 'bg-blue-100 text-blue-600'
                           : 'bg-primary-100 text-primary-600'
                       }`}>
                         <span className="font-medium text-sm">
-                          {isCurrentUser ? user.firstName[0] : 'M'}
+                          {isCurrentUser ? member.firstName[0] : 'M'}
                         </span>
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">
-                          {isCurrentUser ? `${user.firstName} ${user.lastName}` : `Member ${index + 1}`}
-                          {isCurrentUser && user.role === 'therapist' && (
+                          {isCurrentUser ? `${member.firstName} ${member.lastName}` : `Member ${index + 1}`}
+                          {isCurrentUser && member.role === 'therapist' && (
                             <span className="ml-2 text-xs text-blue-600">(You)</span>
                           )}
                         </p>
                         <p className="text-sm text-gray-500">
-                          {isCurrentUser ? user.email : 'member@example.com'}
+                          {isCurrentUser ? member.email : 'member@example.com'}
                         </p>
                       </div>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      displayRole.includes('Therapist') 
+                      displayRole.includes('Therapist')
                         ? 'bg-blue-100 text-blue-800'
                         : displayRole.includes('Admin')
                         ? 'bg-purple-100 text-purple-800'
@@ -211,11 +211,11 @@ function GroupDetailPage() {
                 );
               })}
             </div>
-            
-            {user?.role === 'therapist' && (
+
+            {member?.role === 'therapist' && (
               <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-700">
-                  <strong>Note:</strong> As a therapist, you can view all group activities and chat messages 
+                  <strong>Note:</strong> As a therapist, you can view all group activities and chat messages
                   for clinical oversight and support purposes.
                 </p>
               </div>
@@ -223,11 +223,11 @@ function GroupDetailPage() {
           </div>
         )}
 
-        {activeTab === 'chat' && user && (
+        {activeTab === 'chat' && member && (
           <div className="h-[600px] border border-gray-200 rounded-lg overflow-hidden shadow-sm">
             <StreamlinedChatInterface
               groupId={groupId!}
-              currentUser={user}
+              currentMember={member}
               group={group}
             />
           </div>

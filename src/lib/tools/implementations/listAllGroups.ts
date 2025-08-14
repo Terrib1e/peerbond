@@ -3,7 +3,7 @@ import { BaseTool } from '../base';
 import { ToolContext } from '../types';
 
 const ListAllGroupsSchema = z.object({
-  userId: z.string().describe('The user requesting to list all groups'),
+  memberId: z.string().describe('The member requesting to list all groups'),
   limit: z.number().optional().describe('Maximum number of groups to return'),
   includeInactive: z.boolean().optional().describe('Include inactive groups in the results')
 });
@@ -28,7 +28,7 @@ interface GroupInfo {
 
 export class ListAllGroupsTool extends BaseTool<ListAllGroupsArgs, GroupInfo[]> {
   name = 'listAllGroups';
-  description = 'Lists all available peer support groups that a user can join';
+  description = 'Lists all available peer support groups that a member can join';
   schema = ListAllGroupsSchema;
   permissions = ['group:read'];
   rateLimit = { requests: 20, window: 3600 }; // 20 requests per hour
@@ -36,10 +36,10 @@ export class ListAllGroupsTool extends BaseTool<ListAllGroupsArgs, GroupInfo[]> 
   protected async run(args: ListAllGroupsArgs, _context: ToolContext): Promise<GroupInfo[]> {
     // In a real implementation, this would query your database
     // For now, return mock data that matches your system
-    
+
     const limit = args.limit ?? 50;
     const includeInactive = args.includeInactive ?? false;
-    
+
     const mockGroups: GroupInfo[] = [
       {
         groupId: 'grp_anxiety_001',
@@ -153,7 +153,7 @@ export class ListAllGroupsTool extends BaseTool<ListAllGroupsArgs, GroupInfo[]> 
       return a.name.localeCompare(b.name);
     });
 
-    console.log(`Listed ${filteredGroups.length} groups for user ${args.userId}`);
+    console.log(`Listed ${filteredGroups.length} groups for member ${args.memberId}`);
 
     return filteredGroups;
   }

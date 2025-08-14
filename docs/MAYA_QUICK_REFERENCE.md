@@ -6,7 +6,7 @@
 ```typescript
 import { MayaQuickAccess } from '@/components/ui/MayaQuickAccess';
 
-<MayaQuickAccess user={currentUser} position="bottom-right" />
+<MayaQuickAccess member={currentUser} position="bottom-right" />
 ```
 
 ### Authentication Check
@@ -24,16 +24,16 @@ const response = await agentService.callAgent('facilitator', message, sessionId)
 
 | Component | Purpose | Props |
 |-----------|---------|-------|
-| `MayaQuickAccess` | Floating access button | `user`, `position`, `theme` |
-| `MayaInterface` | User interface | `userId`, `className`, `compact` |
+| `MayaQuickAccess` | Floating access button | `member`, `position`, `theme` |
+| `MayaInterface` | User interface | `memberId`, `className`, `compact` |
 | `MayaTherapistInterface` | Clinical interface | `therapistId`, `clientId`, `mode` |
-| `MayaHub` | Route to appropriate interface | `user`, `context`, `defaultMode` |
+| `MayaHub` | Route to appropriate interface | `member`, `context`, `defaultMode` |
 
 ## 🔧 Administrative Tools
 
 | Tool | Trigger Phrase | Form Component |
 |------|----------------|----------------|
-| User Onboarding | "onboard user" | `OnboardingForm` |
+| User Onboarding | "onboard member" | `OnboardingForm` |
 | Group Creation | "create group" | `GroupCreationForm` |
 | Session Planning | "plan session" | `SessionPlanningForm` |
 
@@ -50,14 +50,14 @@ const response = await agentService.callAgent('facilitator', message, sessionId)
 
 ### User Management
 ```typescript
-// Create user
+// Create member
 POST /api/auth/register
 
-// Get users  
-GET /api/admin/users
+// Get members
+GET /api/admin/members
 
-// Update user
-PUT /api/admin/users/:id
+// Update member
+PUT /api/admin/members/:id
 ```
 
 ### Group Management
@@ -88,13 +88,13 @@ PUT /api/therapist/sessions/:id
 
 ### Role-Based Access
 ```typescript
-const hasPermission = (userRole: string, action: string) => {
+const hasPermission = (memberRole: string, action: string) => {
   const permissions = {
     member: ['read:own', 'create:messages'],
     therapist: ['read:clients', 'create:assessments', 'manage:groups'],
     admin: ['*']
   };
-  return permissions[userRole]?.includes(action) || permissions[userRole]?.includes('*');
+  return permissions[memberRole]?.includes(action) || permissions[memberRole]?.includes('*');
 };
 ```
 
@@ -125,14 +125,14 @@ interface FormProps {
 
 const MyForm: React.FC<FormProps> = ({ data, onSubmit, onCancel, isProcessing }) => {
   const [formData, setFormData] = useState(initialState);
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm(formData)) {
       onSubmit(formData);
     }
   };
-  
+
   return <form onSubmit={handleSubmit}>/* form fields */</form>;
 };
 ```
@@ -141,15 +141,15 @@ const MyForm: React.FC<FormProps> = ({ data, onSubmit, onCancel, isProcessing })
 ```typescript
 const validateForm = (data: any) => {
   const errors: Record<string, string> = {};
-  
+
   if (!data.requiredField) {
     errors.requiredField = 'This field is required';
   }
-  
+
   if (data.email && !isValidEmail(data.email)) {
     errors.email = 'Invalid email format';
   }
-  
+
   return { isValid: Object.keys(errors).length === 0, errors };
 };
 ```
@@ -185,8 +185,8 @@ const RISK_COLORS = {
 
 ### Debug Tools
 ```typescript
-// Log user context
-console.log('User context:', { user, role, permissions });
+// Log member context
+console.log('User context:', { member, role, permissions });
 
 // Log API calls
 console.log('API call:', { endpoint, method, data, response });
@@ -227,7 +227,7 @@ const cachedCall = await cachedApiCall(
 ### Detection Patterns
 ```typescript
 const CRISIS_KEYWORDS = [
-  'suicide', 'kill myself', 'end it all', 'hopeless', 
+  'suicide', 'kill myself', 'end it all', 'hopeless',
   'can\'t go on', 'no point', 'harm myself'
 ];
 
@@ -240,7 +240,7 @@ const detectCrisis = (message: string) => {
 ### Escalation
 ```typescript
 if (riskLevel === 'critical') {
-  await api.post('/crisis/escalate', { userId, context });
+  await api.post('/crisis/escalate', { memberId, context });
   toast.error('🚨 Crisis Alert: Immediate attention required', {
     duration: 30000,
     position: 'top-center'
@@ -280,14 +280,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MayaInterface } from './MayaInterface';
 
 test('renders Maya interface', () => {
-  render(<MayaInterface userId="123" />);
+  render(<MayaInterface memberId="123" />);
   expect(screen.getByText('Maya AI')).toBeInTheDocument();
 });
 
 test('handles form submission', async () => {
   const mockSubmit = jest.fn();
   render(<OnboardingForm onSubmit={mockSubmit} />);
-  
+
   fireEvent.click(screen.getByText('Submit'));
   await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
 });
@@ -314,7 +314,7 @@ expect(result).toEqual(expectedData);
 - [ ] Include loading states
 - [ ] Add accessibility labels
 - [ ] Test responsive design
-- [ ] Validate user permissions
+- [ ] Validate member permissions
 
 ### Form Development
 - [ ] Client-side validation

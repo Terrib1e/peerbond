@@ -20,19 +20,19 @@ import { Button } from '@/components/ui/Button';
 
 interface AnalyticsData {
   overview: {
-    totalUsers: number;
-    activeUsers: number;
+    totalMembers: number;
+    activeMembers: number;
     totalGroups: number;
     activeGroups: number;
     totalMessages: number;
     todayMessages: number;
     avgSessionDuration: number;
-    userGrowthRate: number;
+    memberGrowthRate: number;
   };
-  userAnalytics: {
-    newUsersToday: number;
-    newUsersThisWeek: number;
-    activeUsersToday: number;
+  memberAnalytics: {
+    newMembersToday: number;
+    newMembersThisWeek: number;
+    activeMembersToday: number;
     retentionRate: number;
     churnRate: number;
   };
@@ -71,26 +71,26 @@ export default function AnalyticsDashboard() {
     queryFn: async (): Promise<AnalyticsData> => {
       const [overview, , , health] = await Promise.all([
         api.get<any>('/admin/dashboard'),
-        api.get<any>(`/admin/stats/users?period=${timeRange}`),
+        api.get<any>(`/admin/stats/members?period=${timeRange}`),
         api.get<any>(`/admin/stats/groups?period=${timeRange}`),
         api.get<any>('/admin/health')
       ]);
 
       const analyticsData: AnalyticsData = {
         overview: overview?.analytics || {
-          totalUsers: 0,
-          activeUsers: 0,
+          totalMembers: 0,
+          activeMembers: 0,
           totalGroups: 0,
           activeGroups: 0,
           totalMessages: 0,
           todayMessages: 0,
           avgSessionDuration: 0,
-          userGrowthRate: 0
+          memberGrowthRate: 0
         },
-        userAnalytics: {
-          newUsersToday: Math.floor(Math.random() * 50),
-          newUsersThisWeek: Math.floor(Math.random() * 200),
-          activeUsersToday: overview.analytics?.activeUsers || 0,
+        memberAnalytics: {
+          newMembersToday: Math.floor(Math.random() * 50),
+          newMembersThisWeek: Math.floor(Math.random() * 200),
+          activeMembersToday: overview.analytics?.activeMembers || 0,
           retentionRate: 0.75,
           churnRate: 0.05
         },
@@ -166,7 +166,7 @@ export default function AnalyticsDashboard() {
           <h2 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h2>
           <p className="text-gray-600 mt-1">Real-time platform insights and metrics</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <select
             title="Time Range"
@@ -179,12 +179,12 @@ export default function AnalyticsDashboard() {
             <option value="30d">Last 30 Days</option>
             <option value="90d">Last 90 Days</option>
           </select>
-          
+
           <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
-          
+
           <Button variant="outline">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -198,11 +198,11 @@ export default function AnalyticsDashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm">Total Users</p>
-                <p className="text-3xl font-bold">{formatNumber(analyticsData?.overview?.totalUsers || 0)}</p>
+                <p className="text-blue-100 text-sm">Total Members</p>
+                <p className="text-3xl font-bold">{formatNumber(analyticsData?.overview?.totalMembers || 0)}</p>
                 <div className="flex items-center mt-2">
                   <TrendingUp className="w-4 h-4 mr-1" />
-                  <span className="text-sm">+{formatPercentage(analyticsData?.overview?.userGrowthRate || 0)} growth</span>
+                  <span className="text-sm">+{formatPercentage(analyticsData?.overview?.memberGrowthRate || 0)} growth</span>
                 </div>
               </div>
               <Users className="w-8 h-8 text-blue-200" />
@@ -259,37 +259,37 @@ export default function AnalyticsDashboard() {
         </Card>
       </div>
 
-      {/* User Analytics */}
+      {/* Member Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-500" />
-              User Analytics
+              Member Analytics
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                 <div>
-                  <p className="text-sm text-gray-600">New Users Today</p>
-                  <p className="text-2xl font-bold text-blue-600">{analyticsData?.userAnalytics?.newUsersToday || 0}</p>
+                  <p className="text-sm text-gray-600">New Members Today</p>
+                  <p className="text-2xl font-bold text-blue-600">{analyticsData?.memberAnalytics?.newMembersToday || 0}</p>
                 </div>
                 <TrendingUp className="w-6 h-6 text-blue-500" />
               </div>
-              
+
               <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                 <div>
                   <p className="text-sm text-gray-600">Retention Rate</p>
-                  <p className="text-2xl font-bold text-green-600">{formatPercentage(analyticsData?.userAnalytics?.retentionRate || 0)}</p>
+                  <p className="text-2xl font-bold text-green-600">{formatPercentage(analyticsData?.memberAnalytics?.retentionRate || 0)}</p>
                 </div>
                 <CheckCircle className="w-6 h-6 text-green-500" />
               </div>
-              
+
               <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                 <div>
                   <p className="text-sm text-gray-600">Churn Rate</p>
-                  <p className="text-2xl font-bold text-red-600">{formatPercentage(analyticsData?.userAnalytics?.churnRate || 0)}</p>
+                  <p className="text-2xl font-bold text-red-600">{formatPercentage(analyticsData?.memberAnalytics?.churnRate || 0)}</p>
                 </div>
                 <TrendingDown className="w-6 h-6 text-red-500" />
               </div>
@@ -345,14 +345,14 @@ export default function AnalyticsDashboard() {
                   {formatPercentage(analyticsData?.aiAnalytics?.aiAccuracyScore || 0)}
                 </span>
               </div>
-              
+
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-purple-600 h-2 rounded-full" 
+                <div
+                  className="bg-purple-600 h-2 rounded-full"
                   style={{ width: `${(analyticsData?.aiAnalytics?.aiAccuracyScore || 0) * 100}%` }}
                 ></div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4 pt-4">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-orange-600">{analyticsData?.aiAnalytics?.crisisDetections || 0}</p>
@@ -385,7 +385,7 @@ export default function AnalyticsDashboard() {
                   {analyticsData?.performance?.databaseHealth || 'healthy'}
                 </span>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
                   <p className="text-lg font-bold text-gray-900">
@@ -400,7 +400,7 @@ export default function AnalyticsDashboard() {
                   <p className="text-sm text-gray-600">Avg Response</p>
                 </div>
               </div>
-              
+
               <div className="text-center p-3 bg-green-50 rounded-lg">
                 <p className="text-lg font-bold text-green-600">
                   {formatPercentage(1 - (analyticsData?.performance?.errorRate || 0))}
@@ -423,10 +423,10 @@ export default function AnalyticsDashboard() {
         <CardContent>
           <div className="space-y-3">
             {[
-              { type: 'user', message: 'New user registered: Sarah M.', time: '2 minutes ago', color: 'text-green-600' },
+              { type: 'member', message: 'New member registered: Sarah M.', time: '2 minutes ago', color: 'text-green-600' },
               { type: 'group', message: 'New group created: Mindfulness Circle', time: '5 minutes ago', color: 'text-blue-600' },
               { type: 'ai', message: 'AI intervention in Recovery Warriors group', time: '8 minutes ago', color: 'text-purple-600' },
-              { type: 'crisis', message: 'Crisis alert resolved for user John D.', time: '15 minutes ago', color: 'text-orange-600' },
+              { type: 'crisis', message: 'Crisis alert resolved for member John D.', time: '15 minutes ago', color: 'text-orange-600' },
               { type: 'system', message: 'Database backup completed successfully', time: '30 minutes ago', color: 'text-gray-600' }
             ].map((activity, index) => (
               <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">

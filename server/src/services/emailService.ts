@@ -69,7 +69,7 @@ export class EmailService {
 
     try {
       const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5174'}/reset-password?token=${resetToken}`;
-      
+
       if (this.provider === 'sendgrid') {
         const msg = {
           to: email,
@@ -104,7 +104,7 @@ export class EmailService {
 
     } catch (error) {
       logger.error('❌ Failed to send password reset email:', error);
-      
+
       // Fallback: log token if email fails
       console.log(`📧 Email failed - Reset Token for ${email}: ${resetToken}`);
       return false;
@@ -177,18 +177,18 @@ export class EmailService {
         <div class="header">
           <h1>🔐 Password Reset Request</h1>
         </div>
-        
+
         <div class="content">
           <p>Hello,</p>
-          
+
           <p>We received a request to reset your PeerBond password. Use the code below to reset your password:</p>
-          
+
           <div class="reset-code">${resetToken}</div>
-          
+
           <p>Or click this button to reset your password automatically:</p>
-          
+
           <a href="${resetUrl}" class="button">Reset My Password</a>
-          
+
           <div class="warning">
             <strong>⚠️ Important:</strong>
             <ul>
@@ -197,11 +197,11 @@ export class EmailService {
               <li>Never share this code with anyone</li>
             </ul>
           </div>
-          
+
           <p>If you're having trouble with the button above, copy and paste this link into your browser:</p>
           <p style="word-break: break-all; color: #3B82F6;">${resetUrl}</p>
         </div>
-        
+
         <div class="footer">
           <p>This email was sent by PeerBond. If you have questions, please contact our support team.</p>
           <p>© 2025 PeerBond. All rights reserved.</p>
@@ -254,12 +254,12 @@ If you have questions, please contact our support team.
         <div class="header">
           <h1>🌟 Welcome to PeerBond!</h1>
         </div>
-        
+
         <div class="content">
           <p>Hi ${firstName},</p>
-          
+
           <p>Welcome to PeerBond! We're excited to have you join our supportive community where people connect, share experiences, and grow together.</p>
-          
+
           <p>Here's what you can do next:</p>
           <ul>
             <li>🏠 <strong>Explore your dashboard</strong> - Get familiar with your personal space</li>
@@ -267,17 +267,17 @@ If you have questions, please contact our support team.
             <li>💬 <strong>Start conversations</strong> - Share your thoughts and support others</li>
             <li>📊 <strong>Track your progress</strong> - Monitor your journey and celebrate milestones</li>
           </ul>
-          
+
           <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/app" class="button">Get Started</a>
-          
+
           <p>Remember, you're not alone on this journey. Our community is here to support you every step of the way.</p>
-          
+
           <p>If you have any questions or need help getting started, don't hesitate to reach out to our support team.</p>
-          
+
           <p>Welcome aboard!</p>
           <p><strong>The PeerBond Team</strong></p>
         </div>
-        
+
         <div class="footer">
           <p>This email was sent by PeerBond. If you have questions, please contact our support team.</p>
           <p>© 2025 PeerBond. All rights reserved.</p>

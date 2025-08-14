@@ -1,4 +1,4 @@
-import { User, Group, Message } from '@/types';
+import { Member, Group, Message } from '@/types';
 
 export interface AITool {
   name: string;
@@ -12,7 +12,7 @@ export interface AITool {
 }
 
 export interface AIContext {
-  user: User;
+  member: Member;
   group?: Group;
   messages?: Message[];
   sessionData?: Record<string, any>;
@@ -31,7 +31,7 @@ export interface AIAgent {
 // Crisis Assessment Tool
 export const crisisAssessmentTool: AITool = {
   name: 'assess_crisis_risk',
-  description: 'Assess if a user is in crisis and needs immediate intervention',
+  description: 'Assess if a member is in crisis and needs immediate intervention',
   parameters: {
     type: 'object',
     properties: {
@@ -82,13 +82,13 @@ export const crisisAssessmentTool: AITool = {
 // Goal Setting Tool
 export const goalSettingTool: AITool = {
   name: 'create_smart_goal',
-  description: 'Help users create SMART (Specific, Measurable, Achievable, Relevant, Time-bound) goals',
+  description: 'Help members create SMART (Specific, Measurable, Achievable, Relevant, Time-bound) goals',
   parameters: {
     type: 'object',
     properties: {
       goalDescription: {
         type: 'string',
-        description: 'The user\'s goal description'
+        description: 'The member\'s goal description'
       },
       category: {
         type: 'string',
@@ -110,7 +110,7 @@ export const goalSettingTool: AITool = {
   execute: async (params, context) => {
     const goal = {
       id: `goal-${Date.now()}`,
-      userId: context.user.id,
+      memberId: context.member.id,
       description: params.goalDescription,
       category: params.category,
       timeframe: params.timeframe,
@@ -120,7 +120,7 @@ export const goalSettingTool: AITool = {
       progress: 0
     };
 
-    // Store goal in user's profile
+    // Store goal in member's profile
     return {
       action: 'goal_created',
       goal,
@@ -136,7 +136,7 @@ export const goalSettingTool: AITool = {
 // Mood Check Tool
 export const moodCheckTool: AITool = {
   name: 'track_mood',
-  description: 'Record and analyze user mood patterns',
+  description: 'Record and analyze member mood patterns',
   parameters: {
     type: 'object',
     properties: {
@@ -167,7 +167,7 @@ export const moodCheckTool: AITool = {
   execute: async (params, context) => {
     const moodEntry = {
       id: `mood-${Date.now()}`,
-      userId: context.user.id,
+      memberId: context.member.id,
       score: params.moodScore,
       emotions: params.emotions || [],
       triggers: params.triggers || [],
@@ -176,7 +176,7 @@ export const moodCheckTool: AITool = {
     };
 
     // Analyze patterns and provide insights
-    const insights = analyzeMoodPatterns(context.user.id, moodEntry);
+    const insights = analyzeMoodPatterns(context.member.id, moodEntry);
 
     return {
       action: 'mood_tracked',
@@ -221,7 +221,7 @@ export const resourceRecommendationTool: AITool = {
     return {
       action: 'resources_recommended',
       resources,
-      customizedTips: getPersonalizedTips(params.issueType, context.user),
+      customizedTips: getPersonalizedTips(params.issueType, context.member),
       followUpActions: [
         'Check in after trying resources',
         'Track effectiveness',
@@ -240,23 +240,23 @@ export const therapeuticFacilitatorAgent: AIAgent = {
 
 1. FACILITATE GROUP DISCUSSIONS: Guide conversations in a therapeutic direction, encourage participation, and maintain a safe space
 2. PROVIDE EVIDENCE-BASED SUPPORT: Use CBT, DBT, mindfulness, and other therapeutic approaches appropriately
-3. MONITOR WELLBEING: Watch for signs of distress, crisis, or concerning patterns in users
-4. ENCOURAGE PEER SUPPORT: Help users connect with and support each other
+3. MONITOR WELLBEING: Watch for signs of distress, crisis, or concerning patterns in members
+4. ENCOURAGE PEER SUPPORT: Help members connect with and support each other
 5. MAINTAIN BOUNDARIES: You are not a replacement for professional therapy - know when to refer to human professionals
 
 Key Guidelines:
 - Always prioritize safety and crisis intervention when needed
 - Use warm, empathetic, and non-judgmental language
-- Encourage users to share their experiences and support each other
+- Encourage members to share their experiences and support each other
 - Provide practical tools and exercises when appropriate
 - Respect confidentiality and privacy
 - Be culturally sensitive and inclusive
 
 When using tools:
 - Use crisis assessment for any concerning messages
-- Suggest goal setting when users express wanting to change
+- Suggest goal setting when members express wanting to change
 - Recommend mood tracking for emotional awareness
-- Provide resources when users need additional support
+- Provide resources when members need additional support
 
 Remember: You are here to support, not diagnose or replace professional treatment.`,
   tools: [crisisAssessmentTool, goalSettingTool, moodCheckTool, resourceRecommendationTool],
@@ -276,7 +276,7 @@ Remember: You are here to support, not diagnose or replace professional treatmen
 };
 
 // Helper functions
-function analyzeMoodPatterns(_userId: string, _newEntry: any) {
+function analyzeMoodPatterns(_memberId: string, _newEntry: any) {
   // Analyze mood trends, triggers, and patterns
   return {
     trend: 'improving', // or 'declining', 'stable'
@@ -329,10 +329,10 @@ function getResourcesForIssue(issueType: string, _urgency?: string) {
   return baseResources[issueType] || [];
 }
 
-function getPersonalizedTips(_issueType: string, user: User) {
-  // Generate personalized tips based on user's profile and history
+function getPersonalizedTips(_issueType: string, member: Member) {
+  // Generate personalized tips based on member's profile and history
   return [
-    `Based on your experience level (${user.experienceLevel}), try starting with basic techniques`,
+    `Based on your experience level (${member.experienceLevel}), try starting with basic techniques`,
     'Consider discussing these strategies in your support groups',
     'Track your progress and adjust approaches as needed'
   ];

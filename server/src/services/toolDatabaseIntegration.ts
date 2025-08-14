@@ -40,7 +40,7 @@ export class ToolDatabaseIntegrationService {
       // TODO: Re-implement when tools are moved to shared directory
       // Create database-integrated tools
       // const dbTools = new DatabaseIntegratedTools(this.databaseService);
-      
+
       // Register the database versions
       // dbTools.registerDatabaseTools();
 
@@ -74,13 +74,13 @@ export class ToolDatabaseIntegrationService {
   /**
    * Execute a tool with database context
    */
-  async executeTool(toolName: string, args: any, userId: string, sessionId: string): Promise<any> {
+  async executeTool(toolName: string, args: any, memberId: string, sessionId: string): Promise<any> {
     if (!this.isInitialized) {
       throw new Error('Tool database integration not initialized');
     }
 
     const toolContext = {
-      userId,
+      memberId,
       sessionId,
       agentId: 'orchestrator',
       timestamp: new Date()

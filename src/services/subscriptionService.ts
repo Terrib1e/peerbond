@@ -1,4 +1,4 @@
-import { Subscription, User } from '@/types';
+import { Subscription, Member } from '@/types';
 
 export interface SubscriptionPlan {
   id: string;
@@ -76,36 +76,36 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
 ];
 
 export class SubscriptionService {
-  static async getCurrentSubscription(userId: string): Promise<Subscription | null> {
+  static async getCurrentSubscription(memberId: string): Promise<Subscription | null> {
     const mockSubscription: Subscription = {
       id: '1',
-      userId,
+      memberId,
       type: 'free',
       status: 'active',
       currentPeriodStart: new Date(),
       currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       priceId: 'free',
     };
-    
+
     return mockSubscription;
   }
 
-  static async upgradeSubscription(userId: string, planId: string, paymentMethodId: string): Promise<Subscription> {
+  static async upgradeSubscription(memberId: string, planId: string, paymentMethodId: string): Promise<Subscription> {
     const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
     if (!plan) throw new Error('Invalid subscription plan');
-    
+
     const newSubscription: Subscription = {
       id: Date.now().toString(),
-      userId,
+      memberId,
       type: plan.id as any,
       status: 'active',
       currentPeriodStart: new Date(),
       currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       priceId: planId,
     };
-    
+
     await this.processPayment(plan.price, paymentMethodId);
-    
+
     return newSubscription;
   }
 
@@ -117,7 +117,7 @@ export class SubscriptionService {
     console.log(`Resuming subscription: ${subscriptionId}`);
   }
 
-  static async getPaymentMethods(_userId: string): Promise<PaymentMethod[]> {
+  static async getPaymentMethods(_memberId: string): Promise<PaymentMethod[]> {
     const mockPaymentMethods: PaymentMethod[] = [
       {
         id: '1',
@@ -128,11 +128,11 @@ export class SubscriptionService {
         isDefault: true,
       },
     ];
-    
+
     return mockPaymentMethods;
   }
 
-  static async addPaymentMethod(_userId: string, paymentData: any): Promise<PaymentMethod> {
+  static async addPaymentMethod(_memberId: string, paymentData: any): Promise<PaymentMethod> {
     const newPaymentMethod: PaymentMethod = {
       id: Date.now().toString(),
       type: paymentData.type,
@@ -141,7 +141,7 @@ export class SubscriptionService {
       expiryYear: paymentData.expiryYear,
       isDefault: false,
     };
-    
+
     return newPaymentMethod;
   }
 
@@ -151,9 +151,9 @@ export class SubscriptionService {
 
   static async processPayment(amount: number, paymentMethodId: string): Promise<void> {
     console.log(`Processing payment of $${amount} with method ${paymentMethodId}`);
-    
+
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     if (Math.random() > 0.9) {
       throw new Error('Payment failed. Please try again.');
     }
@@ -163,15 +163,15 @@ export class SubscriptionService {
     return `invoice-${subscriptionId}-${periodStart.getTime()}`;
   }
 
-  static async getUsageLimits(user: User): Promise<{
+  static async getUsageLimits(member: Member): Promise<{
     maxGroups: number;
     currentGroups: number;
     aiInsightsEnabled: boolean;
     prioritySupport: boolean;
   }> {
-    const subscription = await this.getCurrentSubscription(user.id);
+    const subscription = await this.getCurrentSubscription(member.id);
     const plan = SUBSCRIPTION_PLANS.find(p => p.id === subscription?.type) || SUBSCRIPTION_PLANS[0];
-    
+
     return {
       maxGroups: plan.maxGroups,
       currentGroups: 2,
@@ -180,10 +180,10 @@ export class SubscriptionService {
     };
   }
 
-  static canUserJoinGroup(user: User, currentGroupCount: number): boolean {
-    const plan = SUBSCRIPTION_PLANS.find(p => p.id === (user.isPremium ? 'premium' : 'free'));
+  static canMemberJoinGroup(member: Member, currentGroupCount: number): boolean {
+    const plan = SUBSCRIPTION_PLANS.find(p => p.id === (member.isPremium ? 'premium' : 'free'));
     if (!plan) return false;
-    
+
     return plan.maxGroups === -1 || currentGroupCount < plan.maxGroups;
   }
 
@@ -191,11 +191,11 @@ export class SubscriptionService {
     console.log(`Refund requested for subscription ${subscriptionId}: ${reason}`);
   }
 
-  static async updateBillingAddress(userId: string, _address: any): Promise<void> {
-    console.log(`Updating billing address for user ${userId}`);
+  static async updateBillingAddress(memberId: string, _address: any): Promise<void> {
+    console.log(`Updating billing address for member ${memberId}`);
   }
 
-  static async getSubscriptionAnalytics(_userId: string): Promise<{
+  static async getSubscriptionAnalytics(_memberId: string): Promise<{
     totalRevenue: number;
     activeSubscriptions: number;
     churnRate: number;

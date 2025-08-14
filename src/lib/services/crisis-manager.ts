@@ -3,13 +3,13 @@ import { auditService } from '../security/audit';
 
 export interface CrisisEvent {
   id: string;
-  userId: string;
+  memberId: string;
   severity: 'moderate' | 'high' | 'critical';
   indicators: string[];
   timestamp: Date;
   sessionId: string;
   agentId: string;
-  userMessage: string;
+  memberMessage: string;
   escalationPath: string[];
 }
 
@@ -34,20 +34,20 @@ export class CrisisManager extends EventEmitter {
    * Trigger crisis escalation
    */
   async escalateCrisis(params: {
-    userId: string;
+    memberId: string;
     severity: 'moderate' | 'high' | 'critical';
     indicators: string[];
     sessionId: string;
     agentId: string;
-    userMessage: string;
+    memberMessage: string;
   }): Promise<{
     crisisId: string;
     therapistAssigned: string;
     estimatedResponseTime: number;
     immediateActions: string[];
   }> {
-    const crisisId = `crisis_${Date.now()}_${params.userId}`;
-    
+    const crisisId = `crisis_${Date.now()}_${params.memberId}`;
+
     const crisis: CrisisEvent = {
       id: crisisId,
       ...params,
@@ -64,13 +64,13 @@ export class CrisisManager extends EventEmitter {
 
     // Get available therapist based on severity
     const therapist = await this.assignTherapist(crisis);
-    
+
     // Send notifications
     await this.sendNotifications(crisis, therapist);
-    
+
     // Log to audit trail
     await auditService.log({
-      userId: params.userId,
+      memberId: params.memberId,
       agentId: params.agentId,
       action: 'crisis:escalate',
       resource: `crisis:${crisisId}`,
@@ -121,13 +121,13 @@ export class CrisisManager extends EventEmitter {
     };
 
     const therapist = therapistPool[crisis.severity];
-    
+
     // Mark therapist as busy
     this.therapistAvailability.set(therapist.id, false);
-    
+
     // Add to escalation path
     crisis.escalationPath.push(`Assigned to ${therapist.name}`);
-    
+
     return therapist;
   }
 
@@ -135,7 +135,7 @@ export class CrisisManager extends EventEmitter {
    * Send multi-channel notifications
    */
   private async sendNotifications(
-    crisis: CrisisEvent, 
+    crisis: CrisisEvent,
     therapist: any
   ): Promise<TherapistNotification[]> {
     const notifications: TherapistNotification[] = [];
@@ -168,7 +168,7 @@ export class CrisisManager extends EventEmitter {
   private async sendSMS(therapistId: string, crisis: CrisisEvent): Promise<TherapistNotification> {
     // In production, integrate with Twilio or similar
     console.log(`[CrisisManager] Sending SMS to ${therapistId} for crisis ${crisis.id}`);
-    
+
     return {
       therapistId,
       notificationType: 'sms',
@@ -180,7 +180,7 @@ export class CrisisManager extends EventEmitter {
   private async sendPushNotification(therapistId: string, _crisis: CrisisEvent): Promise<TherapistNotification> {
     // In production, use Firebase or similar
     console.log(`[CrisisManager] Sending push notification to ${therapistId}`);
-    
+
     return {
       therapistId,
       notificationType: 'push',
@@ -192,7 +192,7 @@ export class CrisisManager extends EventEmitter {
   private async sendPager(therapistId: string, _crisis: CrisisEvent): Promise<TherapistNotification> {
     // For critical situations
     console.log(`[CrisisManager] Paging ${therapistId} - CRITICAL`);
-    
+
     return {
       therapistId,
       notificationType: 'pager',
@@ -204,7 +204,7 @@ export class CrisisManager extends EventEmitter {
   private getResponseTime(severity: string): number {
     const times = {
       critical: 5,    // 5 minutes
-      high: 15,       // 15 minutes  
+      high: 15,       // 15 minutes
       moderate: 30    // 30 minutes
     };
     return times[severity as keyof typeof times] || 30;
@@ -214,7 +214,7 @@ export class CrisisManager extends EventEmitter {
     const actions = {
       critical: [
         'Therapist notified via all channels',
-        'Crisis resources displayed to user',
+        'Crisis resources displayed to member',
         'Session locked to crisis mode',
         'Emergency contacts notified',
         '911 reminder provided'
@@ -231,7 +231,7 @@ export class CrisisManager extends EventEmitter {
         'Follow-up scheduled within 24 hours'
       ]
     };
-    
+
     return actions[severity as keyof typeof actions] || actions.moderate;
   }
 
@@ -257,10 +257,10 @@ export class CrisisManager extends EventEmitter {
 
     // Remove from active crises
     this.activeCrises.delete(crisisId);
-    
+
     // Free up therapist
     this.therapistAvailability.set(resolution.therapistId, true);
-    
+
     // Emit resolution event
     this.emit('crisis:resolved', {
       crisis,
@@ -270,7 +270,7 @@ export class CrisisManager extends EventEmitter {
 
     // Audit log
     await auditService.log({
-      userId: crisis.userId,
+      memberId: crisis.memberId,
       agentId: 'crisis-manager',
       action: 'crisis:resolve',
       resource: `crisis:${crisisId}`,

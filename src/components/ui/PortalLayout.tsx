@@ -34,7 +34,7 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({
   showPortalSwitcher = true,
 }) => {
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { member, logout } = useAuthStore();
 
   const portalColors = {
     member: {
@@ -69,13 +69,13 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({
       admin: '/admin',
       maya: '/maya'
     };
-    window.location.href = routes[portal] || '/app';
+    window.location.href = routes[portal as keyof typeof routes] || '/app';
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Portal Switcher for privileged users */}
-      {showPortalSwitcher && (user?.role === 'admin' || user?.role === 'therapist') && (
+      {/* Portal Switcher for privileged members */}
+      {showPortalSwitcher && (member?.role === 'admin' || member?.role === 'therapist') && (
         <div className={cn('border-b px-4 py-2', colors.bg, colors.border)}>
           <div className="flex items-center justify-between max-w-7xl mx-auto">
             <div className="flex items-center gap-4">
@@ -96,15 +96,15 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({
               title="Switch Portal"
               className={cn(
                 'px-2 py-1 text-xs border rounded bg-white focus:ring-2 focus:border-transparent',
-                `focus:ring-${colors.primary}-500`, 
+                `focus:ring-${colors.primary}-500`,
                 colors.border
               )}
               onChange={(e) => handlePortalSwitch(e.target.value)}
               value={portalType}
             >
               <option value="member">User Portal</option>
-              {user?.role === 'therapist' && <option value="therapist">Therapist Portal</option>}
-              {user?.role === 'admin' && <option value="admin">Admin Portal</option>}
+              {member?.role === 'therapist' && <option value="therapist">Therapist Portal</option>}
+              {member?.role === 'admin' && <option value="admin">Admin Portal</option>}
               <option value="maya">Maya AI</option>
             </select>
           </div>
@@ -121,9 +121,9 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({
             </div>
             <div className="flex items-center gap-4">
               {headerActions}
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="border-red-300 text-red-600 hover:bg-red-50"
                 onClick={() => logout()}
               >
@@ -143,23 +143,25 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({
               {navigationItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = item.path ? location.pathname.startsWith(item.path) : false;
-                
+
                 const handleClick = () => {
                   if (item.onClick) {
                     item.onClick();
                   }
                 };
 
+                const tabClasses = cn(
+                  'flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2',
+                  isActive
+                    ? `border-${colors.primary}-600 text-${colors.primary}-600`
+                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                );
+
                 const content = (
                   <button
                     key={item.key}
                     onClick={handleClick}
-                    className={cn(
-                      'flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2',
-                      isActive
-                        ? `border-${colors.primary}-600 text-${colors.primary}-600`
-                        : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
-                    )}
+                    className={tabClasses}
                   >
                     <Icon size={20} />
                     {item.label}
@@ -207,9 +209,9 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({
       )}
 
       {/* Maya Quick Access (if enabled) */}
-      {showMaya && user && !window.location.pathname.includes('/maya') && (
-        <MayaQuickAccess 
-          user={user}
+      {showMaya && member && !window.location.pathname.includes('/maya') && (
+        <MayaQuickAccess
+          member={member}
           position="bottom-right"
           showLabel={false}
         />

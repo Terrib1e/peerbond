@@ -14,7 +14,7 @@ import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import DashboardPage from '@/pages/DashboardPage';
 import GroupsPage from '@/pages/GroupsPage';
 import GroupDetailPage from '@/pages/GroupDetailPage';
-import UserSessionsPage from '@/pages/UserSessionsPage';
+import MemberSessionsPage from '@/pages/MemberSessionsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import AdminDashboard from '@/pages/AdminDashboard';
 import TherapistDashboard from '@/pages/TherapistDashboard';
@@ -37,15 +37,15 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { user, isLoading, setUser } = useAuthStore();
+  const { member, isLoading, setMember } = useAuthStore();
 
   useEffect(() => {
     // Check for existing session on app load
     const initializeAuth = async () => {
       try {
-        const currentUser = await api.getCurrentUser();
-        if (currentUser) {
-          setUser(currentUser);
+        const currentMember = await api.getCurrentMember();
+        if (currentMember) {
+          setMember(currentMember);
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -53,7 +53,7 @@ function App() {
     };
 
     initializeAuth();
-  }, [setUser]);
+  }, [setMember]);
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -69,22 +69,22 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route
                 path="/login"
-                element={user ? <PortalRedirect /> : <LoginPage />}
+                element={member ? <PortalRedirect /> : <LoginPage />}
               />
               <Route
                 path="/register"
-                element={user ? <PortalRedirect /> : <RegisterPage />}
+                element={member ? <PortalRedirect /> : <RegisterPage />}
               />
               <Route
                 path="/forgot-password"
-                element={user ? <PortalRedirect /> : <ForgotPasswordPage />}
+                element={member ? <PortalRedirect /> : <ForgotPasswordPage />}
               />
               <Route
                 path="/reset-password"
-                element={user ? <PortalRedirect /> : <ResetPasswordPage />}
+                element={member ? <PortalRedirect /> : <ResetPasswordPage />}
               />
 
-              {/* Portal redirect for authenticated users */}
+              {/* Portal redirect for authenticated members */}
               <Route
                 path="/portal"
                 element={
@@ -94,7 +94,7 @@ function App() {
                 }
               />
 
-              {/* User Portal Routes */}
+              {/* Member Portal Routes */}
               <Route
                 path="/app"
                 element={
@@ -106,7 +106,7 @@ function App() {
                 <Route index element={<DashboardPage />} />
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="groups/:groupId" element={<GroupDetailPage />} />
-                <Route path="sessions" element={<UserSessionsPage />} />
+                <Route path="sessions" element={<MemberSessionsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
@@ -130,7 +130,7 @@ function App() {
                 }
               />
 
-              {/* Maya AI Routes - accessible to all authenticated users */}
+              {/* Maya AI Routes - accessible to all authenticated members */}
               <Route
                 path="/maya"
                 element={

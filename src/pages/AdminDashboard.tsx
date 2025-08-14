@@ -23,13 +23,13 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { User, Group } from '@/types';
+import { Member, Group } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/Dialog';
 import { toast } from 'react-hot-toast';
-import UserManagement from '@/components/admin/UserManagement';
+import MemberManagement from '@/components/admin/MemberManagement';
 import AnalyticsDashboard from '@/components/admin/AnalyticsDashboard';
 import SystemManagement from '@/components/admin/SystemManagement';
 import AuditLogs from '@/components/admin/AuditLogs';
@@ -37,6 +37,7 @@ import AIChatInterface from '@/components/chat/AIChatInterface';
 import AIToolsPanel from '@/components/ai/AIToolsPanel';
 import AgentTester from '@/components/ai/AgentTester';
 import PortalLayout from '@/components/ui/PortalLayout';
+import { getPortalComponentClasses } from '@/lib/design-system';
 import StatsCard from '@/components/ui/StatsCard';
 import { OrchestrationSystem } from '@/lib/api';
 import { motion } from 'framer-motion';
@@ -44,19 +45,22 @@ import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/store/authStore';
 
 interface AdminStats {
-  totalUsers: number;
+  totalMembers: number;
   totalGroups: number;
   totalMessages: number;
-  activeUsers: number;
+  activeMembers: number;
   activeGroups: number;
-  premiumUsers: number;
+  premiumMembers: number;
   avgEngagement: number;
   monthlyGrowth: number;
 }
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'groups' | 'analytics' | 'ai' | 'system' | 'audit'>('overview');
-  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+  const portalType = 'admin';
+  const portalClasses = getPortalComponentClasses(portalType);
+  
+  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'groups' | 'analytics' | 'ai' | 'system' | 'audit'>('overview');
+  const [showCreateMemberDialog, setShowCreateMemberDialog] = useState(false);
   const [showCreateGroupDialog, setShowCreateGroupDialog] = useState(false);
   const [aiDemoTab, setAiDemoTab] = useState<'chat' | 'tools' | 'status' | 'tester'>('status');
   const [systemStatus, setSystemStatus] = useState<{
@@ -96,12 +100,12 @@ export default function AdminDashboard() {
     queryFn: async () => {
       const analytics = await api.getAnalytics();
       return {
-        totalUsers: analytics.totalUsers,
+        totalMembers: analytics.totalMembers,
         totalGroups: analytics.totalGroups,
         totalMessages: analytics.totalMessages,
-        activeUsers: analytics.activeUsers,
+        activeMembers: analytics.activeMembers,
         activeGroups: analytics.activeGroups,
-        premiumUsers: Math.floor(analytics.totalUsers * 0.15),
+        premiumMembers: Math.floor(analytics.totalMembers * 0.15),
         avgEngagement: 78,
         monthlyGrowth: 12,
       };
@@ -113,25 +117,17 @@ export default function AdminDashboard() {
     queryFn: () => api.getGroups(),
   });
 
-  const { data: users, isLoading: usersLoading } = useQuery<User[]>({
-    queryKey: ['admin-users'],
-    queryFn: async () => {
-      const result = await api.getUsers();
-      return result;
-    }
-  });
-
   // Mutations
-  const createUserMutation = useMutation({
-    mutationFn: (userData: any) => api.createUser(userData),
+  const createMemberMutation = useMutation({
+    mutationFn: (memberData: any) => api.createMember(memberData),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-members'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      setShowCreateUserDialog(false);
-      toast.success('User created successfully');
+      setShowCreateMemberDialog(false);
+      toast.success('Member created successfully');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to create user');
+      toast.error(error.message || 'Failed to create member');
     }
   });
 
@@ -161,24 +157,26 @@ export default function AdminDashboard() {
   });
 
   const stats = statsData || {
-    totalUsers: 0,
+    totalMembers: 0,
     totalGroups: 0,
     totalMessages: 0,
-    activeUsers: 0,
+    activeMembers: 0,
     activeGroups: 0,
-    premiumUsers: 0,
+    premiumMembers: 0,
     avgEngagement: 0,
     monthlyGrowth: 0,
   };
 
+  const { member: currentMember } = useAuthStore();
+
   const navigationItems = [
-    { key: 'overview', label: 'Overview', icon: BarChart3, onClick: () => setActiveTab('overview') },
-    { key: 'users', label: 'Users', icon: Users, onClick: () => setActiveTab('users') },
-    { key: 'groups', label: 'Groups', icon: MessageSquare, onClick: () => setActiveTab('groups') },
-    { key: 'analytics', label: 'Analytics', icon: Activity, onClick: () => setActiveTab('analytics') },
-    { key: 'ai', label: 'AI Management', icon: Brain, onClick: () => setActiveTab('ai') },
-    { key: 'system', label: 'System', icon: Server, onClick: () => setActiveTab('system') },
-    { key: 'audit', label: 'Audit Logs', icon: FileText, onClick: () => setActiveTab('audit') },
+    { key: 'overview', label: 'Overview', icon: BarChart3 as React.ComponentType<{ size?: number; className?: string }>, onClick: () => setActiveTab('overview') },
+    { key: 'members', label: 'Members', icon: Users as React.ComponentType<{ size?: number; className?: string }>, onClick: () => setActiveTab('members') },
+    { key: 'groups', label: 'Groups', icon: MessageSquare as React.ComponentType<{ size?: number; className?: string }>, onClick: () => setActiveTab('groups') },
+    { key: 'analytics', label: 'Analytics', icon: Activity as React.ComponentType<{ size?: number; className?: string }>, onClick: () => setActiveTab('analytics') },
+    { key: 'ai', label: 'AI Management', icon: Brain as React.ComponentType<{ size?: number; className?: string }>, onClick: () => setActiveTab('ai') },
+    { key: 'system', label: 'System', icon: Server as React.ComponentType<{ size?: number; className?: string }>, onClick: () => setActiveTab('system') },
+    { key: 'audit', label: 'Audit Logs', icon: FileText as React.ComponentType<{ size?: number; className?: string }>, onClick: () => setActiveTab('audit') },
   ];
 
   return (
@@ -190,78 +188,101 @@ export default function AdminDashboard() {
     >
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Stats Cards */}
+          {/* Stats Cards - Enhanced with unified design */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatsCard
-              title="Total Users"
-              value={stats.totalUsers}
+              title="Total Members"
+              value={stats.totalMembers}
               icon={Users}
               trend={{ value: stats.monthlyGrowth, label: 'this month', isPositive: true }}
-              portalType="admin"
+              portalType={portalType}
               isLoading={statsLoading}
+              variant="interactive"
             />
             <StatsCard
               title="Active Groups"
               value={stats.activeGroups}
               icon={MessageSquare}
-              portalType="admin"
+              portalType={portalType}
               isLoading={statsLoading}
+              variant="interactive"
             />
             <StatsCard
               title="Total Messages"
               value={stats.totalMessages}
               icon={TrendingUp}
-              portalType="admin"
+              portalType={portalType}
               isLoading={statsLoading}
+              variant="interactive"
             />
             <StatsCard
-              title="Premium Users"
-              value={stats.premiumUsers}
+              title="Premium Members"
+              value={stats.premiumMembers}
               icon={Shield}
-              portalType="admin"
+              portalType={portalType}
               isLoading={statsLoading}
+              variant="interactive"
             />
           </div>
 
-          {/* Quick Actions */}
+          {/* Quick Actions - Enhanced with unified design */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
+            <Card className={portalClasses.card('hover')}>
               <CardHeader>
-                <CardTitle>User Management</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-600" />
+                  Member Management
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-600 mb-4">Manage users and their permissions</p>
-                <Button onClick={() => setShowCreateUserDialog(true)} className="w-full">
+                <p className="text-sm text-gray-600 mb-4">Manage members and their permissions</p>
+                <Button 
+                  onClick={() => setShowCreateMemberDialog(true)} 
+                  className="w-full"
+                  variant="primary"
+                  portalType={portalType}
+                >
                   <Plus className="w-4 h-4 mr-2" />
-                  Create User
+                  Create Member
                 </Button>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={portalClasses.card('hover')}>
               <CardHeader>
-                <CardTitle>Group Management</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-600" />
+                  Group Management
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-gray-600 mb-4">Create and manage therapeutic groups</p>
-                <Button onClick={() => setShowCreateGroupDialog(true)} className="w-full">
+                <Button 
+                  onClick={() => setShowCreateGroupDialog(true)} 
+                  className="w-full"
+                  variant="primary"
+                  portalType={portalType}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Create Group
                 </Button>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={portalClasses.card('hover')}>
               <CardHeader>
-                <CardTitle>System Health</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Server className="w-5 h-5 text-purple-600" />
+                  System Health
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {Object.entries(systemStatus).map(([system, status]) => (
-                    <div key={system} className="flex justify-between items-center">
-                      <span className="text-sm">{system}</span>
+                    <div key={system} className="flex justify-between items-center p-2 rounded-lg bg-purple-50/50 border border-purple-100">
+                      <span className="text-sm font-medium capitalize">{system}</span>
                       <div className={cn(
-                        'px-2 py-1 text-xs rounded-full',
+                        'px-3 py-1 text-xs rounded-full font-medium',
                         status === 'healthy' && 'bg-green-100 text-green-800',
                         status === 'error' && 'bg-red-100 text-red-800',
                         status === 'checking' && 'bg-yellow-100 text-yellow-800'
@@ -277,38 +298,50 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'users' && <UserManagement />}
+      {activeTab === 'members' && <MemberManagement />}
       {activeTab === 'groups' && (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-gray-900">Groups</h2>
-            <Button onClick={() => setShowCreateGroupDialog(true)}>
+            <Button 
+              onClick={() => setShowCreateGroupDialog(true)}
+              variant="primary"
+              portalType={portalType}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Create Group
             </Button>
           </div>
 
           {groupsLoading ? (
-            <div className="text-center py-8">Loading groups...</div>
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+              <p className="text-gray-500 mt-2">Loading groups...</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {groups?.map((group) => (
-                <Card key={group.id}>
+                <Card key={group.id} className={portalClasses.card('hover')}>
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-lg font-semibold">{group.name}</h3>
-                        <p className="text-gray-600">{group.description}</p>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                          <span>{group.members?.length || 0} members</span>
-                          <span>Created {new Date(group.createdAt).toLocaleDateString()}</span>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{group.name}</h3>
+                        <p className="text-gray-600 mb-3">{group.description}</p>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full border border-purple-200">
+                            {group.members?.length || 0} members
+                          </span>
+                          <span className="text-gray-500">
+                            Created {new Date(group.createdAt).toLocaleDateString()}
+                          </span>
                         </div>
                       </div>
                       <Button
-                        variant="outline"
+                        variant="destructive"
                         size="sm"
                         onClick={() => deleteGroupMutation.mutate(group.id)}
-                        className="text-red-600 hover:text-red-700"
+                        disabled={deleteGroupMutation.isPending}
+                        className="ml-4"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -325,7 +358,7 @@ export default function AdminDashboard() {
       {activeTab === 'ai' && (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-gray-900">AI Management</h2>
-          
+
           <div className="border-b border-gray-200">
             <nav className="flex space-x-8">
               {[
@@ -371,7 +404,7 @@ export default function AdminDashboard() {
                               status === 'error' && 'text-red-600',
                               status === 'checking' && 'text-yellow-600'
                             )}>
-                              {status === 'healthy' ? 'Operational' : 
+                              {status === 'healthy' ? 'Operational' :
                                status === 'error' ? 'Error' : 'Checking...'}
                             </p>
                           </div>
@@ -390,12 +423,12 @@ export default function AdminDashboard() {
             )}
             {aiDemoTab === 'chat' && (
               <div className="h-96">
-                <AIChatInterface />
+                <AIChatInterface currentMember={currentMember!} />
               </div>
             )}
             {aiDemoTab === 'tools' && (
               <div className="p-6">
-                <AIToolsPanel />
+                <AIToolsPanel groupId="" />
               </div>
             )}
             {aiDemoTab === 'tester' && (
@@ -409,17 +442,17 @@ export default function AdminDashboard() {
 
       {activeTab === 'system' && <SystemManagement />}
       {activeTab === 'audit' && <AuditLogs />}
-      
-      {/* Create User Dialog */}
-      <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+
+      {/* Create Member Dialog */}
+      <Dialog open={showCreateMemberDialog} onOpenChange={setShowCreateMemberDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New User</DialogTitle>
+            <DialogTitle>Create New Member</DialogTitle>
           </DialogHeader>
           <form onSubmit={(e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
-            createUserMutation.mutate({
+            createMemberMutation.mutate({
               firstName: formData.get('firstName'),
               lastName: formData.get('lastName'),
               email: formData.get('email'),
@@ -430,7 +463,7 @@ export default function AdminDashboard() {
               <Input name="firstName" placeholder="First Name" required />
               <Input name="lastName" placeholder="Last Name" required />
               <Input name="email" type="email" placeholder="Email" required />
-              <select name="role" className="w-full p-2 border rounded" required>
+              <select name="role" className="w-full p-2 border rounded" required aria-label="Member role">
                 <option value="">Select Role</option>
                 <option value="member">Member</option>
                 <option value="facilitator">Facilitator</option>
@@ -439,11 +472,21 @@ export default function AdminDashboard() {
               </select>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <Button type="button" variant="outline" onClick={() => setShowCreateUserDialog(false)}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowCreateMemberDialog(false)}
+                portalType={portalType}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createUserMutation.isPending}>
-                {createUserMutation.isPending ? 'Creating...' : 'Create User'}
+              <Button 
+                type="submit" 
+                disabled={createMemberMutation.isPending}
+                variant="primary"
+                portalType={portalType}
+              >
+                {createMemberMutation.isPending ? 'Creating...' : 'Create Member'}
               </Button>
             </div>
           </form>
@@ -475,7 +518,7 @@ export default function AdminDashboard() {
                 className="w-full p-2 border rounded h-20 resize-none"
                 required
               />
-              <select name="type" className="w-full p-2 border rounded" required>
+              <select name="type" className="w-full p-2 border rounded" required aria-label="Group type">
                 <option value="">Select Type</option>
                 <option value="recovery">Recovery</option>
                 <option value="wellness">Wellness</option>
@@ -488,10 +531,20 @@ export default function AdminDashboard() {
               </label>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <Button type="button" variant="outline" onClick={() => setShowCreateGroupDialog(false)}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowCreateGroupDialog(false)}
+                portalType={portalType}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createGroupMutation.isPending}>
+              <Button 
+                type="submit" 
+                disabled={createGroupMutation.isPending}
+                variant="primary"
+                portalType={portalType}
+              >
                 {createGroupMutation.isPending ? 'Creating...' : 'Create Group'}
               </Button>
             </div>

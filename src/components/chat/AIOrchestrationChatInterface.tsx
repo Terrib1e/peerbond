@@ -15,7 +15,7 @@ import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 import { api } from '@/lib/api';
 import { wsService } from '@/lib/websocket';
-import { Message, User, Group } from '@/types';
+import { Message, Member, Group } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/utils/cn';
@@ -27,13 +27,13 @@ import { useCrisisDetection } from '@/hooks/useCrisisDetection';
 
 interface AIOrchestrationChatProps {
   groupId: string;
-  currentUser: User;
+  currentMember: Member;
   group: Group;
   className?: string;
 }
 
 interface EnhancedMessage extends Message {
-  user?: User;
+  member?: Member;
   isLoading?: boolean;
   error?: string;
   aiContext?: {
@@ -49,7 +49,7 @@ interface EnhancedMessage extends Message {
 
 export default function AIOrchestrationChatInterface({
   groupId,
-  currentUser,
+  currentMember,
   group,
   className
 }: AIOrchestrationChatProps) {
@@ -60,11 +60,11 @@ export default function AIOrchestrationChatInterface({
   const queryClient = useQueryClient();
 
   // AI Orchestration hooks
-  const orchestration = useGroupOrchestration(groupId, currentUser.id);
-  const crisisDetection = useCrisisDetection(groupId, group.facilitators?.includes(currentUser.id));
+  const orchestration = useGroupOrchestration(groupId, currentMember.id);
+  const crisisDetection = useCrisisDetection(groupId, group.facilitators?.includes(currentMember.id));
 
   // Debug logging
-  console.log('🤖 [AI-CHAT] AIOrchestrationChatInterface initialized:', { groupId, user: currentUser?.email });
+  console.log('🤖 [AI-CHAT] AIOrchestrationChatInterface initialized:', { groupId, member: currentMember?.email });
   console.log('🤖 [AI-CHAT] Orchestration state:', {
     sessionId: orchestration.sessionId,
     agentStatus: orchestration.agentStatus,
@@ -106,9 +106,9 @@ export default function AIOrchestrationChatInterface({
 
           return {
             ...msg,
-            user: currentUser.id === msg.userId ? currentUser : msg.user,
+            member: currentMember.id === msg.memberId ? currentMember : msg.member,
             timestamp,
-            isAIGenerated: msg.type === 'ai_facilitator' || msg.userId === 'ai-facilitator' || msg.userId === 'ai-crisis',
+            isAIGenerated: msg.type === 'ai_facilitator' || msg.memberId === 'ai-facilitator' || msg.memberId === 'ai-crisis',
             aiContext: msg.metadata ? {
               agentUsed: msg.metadata.agentUsed || [],
               confidence: msg.metadata.confidence || 0,
@@ -130,8 +130,8 @@ export default function AIOrchestrationChatInterface({
   // Send message mutation with AI integration
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
-      if (!currentUser || !groupId) {
-        throw new Error('User not authenticated or group not selected');
+      if (!currentMember || !groupId) {
+        throw new Error('Member not authenticated or group not selected');
       }
 
       // Ensure we have an orchestration session
@@ -154,11 +154,11 @@ export default function AIOrchestrationChatInterface({
       const tempMessage: EnhancedMessage = {
         id: `temp-${Date.now()}`,
         groupId,
-        userId: currentUser.id,
+        memberId: currentMember.id,
         content,
         type: 'text',
         timestamp: new Date(),
-        user: currentUser,
+        member: currentMember,
         isLoading: true,
         reactions: []
       };
@@ -177,7 +177,7 @@ export default function AIOrchestrationChatInterface({
         const messageRequest = {
           content,
           sessionId: sessionId!,
-          messageType: 'user' as const
+          messageType: 'member' as const
         };
 
         console.log('🤖 [AI-ORCHESTRATION] Sending request:', messageRequest);
@@ -191,20 +191,20 @@ export default function AIOrchestrationChatInterface({
           responsePreview: response.data?.response?.slice(0, 100) + '...'
         });
 
-        // Remove temp message and add both user and AI messages
+        // Remove temp message and add both member and AI messages
         queryClient.setQueryData(['messages', groupId], (old: any[] | undefined) => {
           const filtered = (old || []).filter((msg: any) => msg.id !== tempMessage.id);
 
-          const userMessage = {
+          const memberMessage = {
             ...tempMessage,
             isLoading: false,
-            id: `user-${Date.now()}`
+            id: `member-${Date.now()}`
           };
 
           const aiMessage = {
             id: `ai-${Date.now()}`,
             groupId,
-            userId: 'ai-facilitator',
+            memberId: 'ai-facilitator',
             content: response.data.response,
             type: 'ai_facilitator',
             timestamp: new Date(),
@@ -218,10 +218,10 @@ export default function AIOrchestrationChatInterface({
             }
           };
 
-          return [...filtered, userMessage, aiMessage];
+          return [...filtered, memberMessage, aiMessage];
         });
 
-        // Also send via WebSocket for real-time updates to other users
+        // Also send via WebSocket for real-time updates to other members
         wsService.emit('send_message', {
           groupId,
           content,
@@ -308,7 +308,7 @@ export default function AIOrchestrationChatInterface({
           return [...filtered, {
             ...messageData,
             timestamp,
-            isAIGenerated: messageData.type === 'ai_facilitator' || messageData.userId === 'ai-facilitator'
+            isAIGenerated: messageData.type === 'ai_facilitator' || messageData.memberId === 'ai-facilitator'
           }];
         });
       }
@@ -366,7 +366,7 @@ export default function AIOrchestrationChatInterface({
 
   // Message rendering with AI enhancements
   const renderMessage = (message: EnhancedMessage) => {
-    const isOwnMessage = message.userId === currentUser.id;
+    const isOwnMessage = message.memberId === currentMember.id;
     const isAI = message.isAIGenerated;
     const isMetaQuery = message.metadata?.isMetaQuery;
 
@@ -391,7 +391,7 @@ export default function AIOrchestrationChatInterface({
         )}>
           {isMetaQuery ? <Bot className="w-4 h-4" /> :
            isAI ? <Brain className="w-4 h-4" /> :
-           (message.user?.firstName?.[0] || message.userId.slice(0, 2).toUpperCase())}
+           (message.member?.firstName?.[0] || message.memberId.slice(0, 2).toUpperCase())}
         </div>
 
         {/* Message Content */}
@@ -401,7 +401,7 @@ export default function AIOrchestrationChatInterface({
             <span className="text-sm font-medium text-gray-900">
               {isMetaQuery ? 'AI System Info' :
                isAI ? 'AI Facilitator' :
-               message.user ? `${message.user.firstName} ${message.user.lastName}` :
+               message.member ? `${message.member.firstName} ${message.member.lastName}` :
                'Unknown User'}
             </span>
 
@@ -475,8 +475,8 @@ export default function AIOrchestrationChatInterface({
             <div className="mt-2 text-xs text-gray-500">
               <div className="flex items-center gap-2">
                 <span>
-                  Agents: {Array.isArray(message.aiContext.agentUsed) 
-                    ? message.aiContext.agentUsed.join(', ') 
+                  Agents: {Array.isArray(message.aiContext.agentUsed)
+                    ? message.aiContext.agentUsed.join(', ')
                     : String(message.aiContext.agentUsed || 'Unknown')
                   }
                 </span>
@@ -497,7 +497,7 @@ export default function AIOrchestrationChatInterface({
                   key={index}
                   className="px-2 py-1 bg-white border rounded-full text-xs cursor-pointer hover:bg-gray-50"
                 >
-                  {reaction.emoji} {reaction.count || reaction.users.length}
+                  {reaction.emoji} {reaction.count || reaction.members.length}
                 </span>
               ))}
             </div>

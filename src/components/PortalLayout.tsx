@@ -1,11 +1,11 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { 
-  Home, 
-  Users, 
-  MessageSquare, 
-  Settings, 
-  LogOut, 
+import {
+  Home,
+  Users,
+  MessageSquare,
+  Settings,
+  LogOut,
   Shield,
   BarChart3,
   FileText,
@@ -15,14 +15,14 @@ import {
 import { Button } from './ui/Button';
 
 interface PortalLayoutProps {
-  portalType: 'admin' | 'therapist' | 'user';
+  portalType: 'admin' | 'therapist' | 'member';
 }
 
 /**
  * Shared layout component for different portal types
  */
 export default function PortalLayout({ portalType }: PortalLayoutProps) {
-  const { user, logout } = useAuthStore();
+  const { member, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -37,12 +37,12 @@ export default function PortalLayout({ portalType }: PortalLayoutProps) {
       case 'admin':
         return [
           { path: '/admin', label: 'Overview', icon: BarChart3 },
-          { path: '/admin/users', label: 'Users', icon: Users },
+          { path: '/admin/members', label: 'Members', icon: Users },
           { path: '/admin/groups', label: 'Groups', icon: MessageSquare },
           { path: '/admin/analytics', label: 'Analytics', icon: Activity },
           { path: '/admin/settings', label: 'Settings', icon: Settings },
         ];
-      
+
       case 'therapist':
         return [
           { path: '/therapist', label: 'Overview', icon: BarChart3 },
@@ -51,8 +51,8 @@ export default function PortalLayout({ portalType }: PortalLayoutProps) {
           { path: '/therapist/reports', label: 'Reports', icon: FileText },
           { path: '/therapist/ai-insights', label: 'AI Insights', icon: Brain },
         ];
-      
-      case 'user':
+
+      case 'member':
       default:
         return [
           { path: '/app', label: 'Dashboard', icon: Home },
@@ -69,7 +69,7 @@ export default function PortalLayout({ portalType }: PortalLayoutProps) {
     switch (portalType) {
       case 'admin': return 'Admin Portal';
       case 'therapist': return 'Therapist Portal';
-      case 'user': return 'PeerBond';
+      case 'member': return 'PeerBond';
     }
   };
 
@@ -77,7 +77,7 @@ export default function PortalLayout({ portalType }: PortalLayoutProps) {
     switch (portalType) {
       case 'admin': return Shield;
       case 'therapist': return Activity;
-      case 'user': return MessageSquare;
+      case 'member': return MessageSquare;
     }
   };
 
@@ -101,7 +101,7 @@ export default function PortalLayout({ portalType }: PortalLayoutProps) {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">{getPortalTitle()}</h2>
-              <p className="text-sm text-gray-500 capitalize">{user?.role}</p>
+              <p className="text-sm text-gray-500 capitalize">{member?.role}</p>
             </div>
           </div>
         </div>
@@ -111,16 +111,16 @@ export default function PortalLayout({ portalType }: PortalLayoutProps) {
           <ul className="space-y-2">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path || 
+              const isActive = location.pathname === item.path ||
                 (item.path !== '/admin' && item.path !== '/therapist' && item.path !== '/app' && location.pathname.startsWith(item.path));
-              
+
               return (
                 <li key={item.path}>
                   <Link
                     to={item.path}
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? portalType === 'admin' 
+                        ? portalType === 'admin'
                           ? 'bg-red-100 text-red-700'
                           : portalType === 'therapist'
                           ? 'bg-blue-100 text-blue-700'
@@ -142,19 +142,19 @@ export default function PortalLayout({ portalType }: PortalLayoutProps) {
           <div className="flex items-center gap-3 mb-3">
             <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
               <span className="text-sm font-medium text-gray-600">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
+                {member?.firstName?.[0]}{member?.lastName?.[0]}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.firstName} {user?.lastName}
+                {member?.firstName} {member?.lastName}
               </p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              <p className="text-xs text-gray-500 truncate">{member?.email}</p>
             </div>
           </div>
-          
+
           {/* Portal Switcher */}
-          {(user?.role === 'admin' || user?.role === 'therapist') && (
+          {(member?.role === 'admin' || member?.role === 'therapist') && (
             <div className="mb-3">
               <select
                 title="Switch Portal"
@@ -167,9 +167,9 @@ export default function PortalLayout({ portalType }: PortalLayoutProps) {
                 }}
                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                <option value="user">User Portal</option>
-                {user?.role === 'therapist' && <option value="therapist">Therapist Portal</option>}
-                {user?.role === 'admin' && <option value="admin">Admin Portal</option>}
+                <option value="member">Member Portal</option>
+                {member?.role === 'therapist' && <option value="therapist">Therapist Portal</option>}
+                {member?.role === 'admin' && <option value="admin">Admin Portal</option>}
               </select>
             </div>
           )}

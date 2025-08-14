@@ -40,9 +40,9 @@ interface AITypingState {
   isTyping: boolean;
 }
 
-export function useGroupOrchestration(groupId: string, userId: string) {
-  console.log('🤖 [ORCHESTRATION-HOOK] useGroupOrchestration called with:', { groupId, userId });
-  
+export function useGroupOrchestration(groupId: string, memberId: string) {
+  console.log('🤖 [ORCHESTRATION-HOOK] useGroupOrchestration called with:', { groupId, memberId });
+
   const [state, setState] = useState<GroupOrchestrationState>({
     sessionId: null,
     agentStatus: {
@@ -59,28 +59,28 @@ export function useGroupOrchestration(groupId: string, userId: string) {
     lastInsights: [],
     crisisDetected: false
   });
-  
+
   console.log('🤖 [ORCHESTRATION-HOOK] Initial state:', state);
 
   const [aiTyping, setAITyping] = useState<AITypingState | null>(null);
 
   // Initialize AI session for the group
-  const startAISession = useCallback(async (userProfile?: any) => {
-    if (!groupId || !userId) return;
+  const startAISession = useCallback(async (memberProfile?: any) => {
+    if (!groupId || !memberId) return;
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      console.log('🤖 [ORCHESTRATION-HOOK] Starting AI session:', { groupId, userId });
-      
+      console.log('🤖 [ORCHESTRATION-HOOK] Starting AI session:', { groupId, memberId });
+
       // Start orchestration session via API
       const sessionResult = await api.startOrchestrationSession('production', {
         groupId,
-        userProfile
+        memberProfile
       });
-      
+
       console.log('🤖 [ORCHESTRATION-HOOK] Session started:', sessionResult);
-      
+
       setState(prev => ({
         ...prev,
         sessionId: sessionResult.sessionId,
@@ -95,7 +95,7 @@ export function useGroupOrchestration(groupId: string, userId: string) {
           matching: true
         }
       }));
-      
+
       console.log('🤖 [ORCHESTRATION-HOOK] Agent status updated:', {
         facilitator: true,
         sentiment: true,
@@ -107,7 +107,7 @@ export function useGroupOrchestration(groupId: string, userId: string) {
       // Also emit via WebSocket for real-time coordination
       wsService.emit('ai:start_session', {
         groupId,
-        userProfile
+        memberProfile
       });
     } catch (error) {
       console.error('🤖 [ORCHESTRATION-HOOK] Error starting session:', error);
@@ -117,7 +117,7 @@ export function useGroupOrchestration(groupId: string, userId: string) {
         error: error instanceof Error ? error.message : 'Failed to start AI session'
       }));
     }
-  }, [groupId, userId]);
+  }, [groupId, memberId]);
 
   // Call specific AI agent
   const callAgent = useCallback(async (agentId: string, message: string) => {
@@ -287,7 +287,7 @@ export function useGroupOrchestration(groupId: string, userId: string) {
     try {
       wsService.on('connect', updateConnectionStatus);
       wsService.on('disconnect', updateConnectionStatus);
-      
+
       // Initial status
       updateConnectionStatus();
     } catch (error) {
@@ -308,11 +308,11 @@ export function useGroupOrchestration(groupId: string, userId: string) {
 
   // Auto-start AI session when component mounts (don't wait for WebSocket)
   useEffect(() => {
-    if (!state.sessionId && !state.isLoading && groupId && userId) {
+    if (!state.sessionId && !state.isLoading && groupId && memberId) {
       console.log('🤖 [ORCHESTRATION-HOOK] Auto-starting AI session...');
       startAISession();
     }
-  }, [groupId, userId, state.sessionId, state.isLoading, startAISession]);
+  }, [groupId, memberId, state.sessionId, state.isLoading, startAISession]);
 
   const returnValue = {
     ...state,
@@ -333,7 +333,7 @@ export function useGroupOrchestration(groupId: string, userId: string) {
       return state.sessionId;
     }
   };
-  
+
   console.log('🤖 [ORCHESTRATION-HOOK] Returning state:', {
     sessionId: returnValue.sessionId,
     agentStatus: returnValue.agentStatus,
@@ -341,6 +341,6 @@ export function useGroupOrchestration(groupId: string, userId: string) {
     isLoading: returnValue.isLoading,
     error: returnValue.error
   });
-  
+
   return returnValue;
 }

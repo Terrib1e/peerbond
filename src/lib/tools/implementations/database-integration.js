@@ -25,7 +25,7 @@ class DatabaseIntegratedTools {
                 args.limit || 50, // limit
                 {
                     status: !args.includeInactive, // only active groups
-                    userId: args.userId
+                    memberId: args.memberId
                 });
                 return groups.map(group => ({
                     groupId: group.id,
@@ -61,9 +61,9 @@ class DatabaseIntegratedTools {
                 const { groups } = await this.databaseService.getGroups(1, 100, // get more for better matching
                 {
                     status: true,
-                    userId: args.userId
+                    memberId: args.memberId
                 });
-                // Score and rank groups based on user goals
+                // Score and rank groups based on member goals
                 const scoredGroups = groups.map(group => {
                     let score = 0;
                     const groupText = `${group.name} ${group.description} ${group.type}`.toLowerCase();
@@ -135,11 +135,11 @@ class DatabaseIntegratedTools {
                 if (memberCount >= (group.maxMembers || 8)) {
                     throw new Error(`Group ${group.name} is currently full (${memberCount}/${group.maxMembers || 8} members)`);
                 }
-                // Check if user is already a member
+                // Check if member is already a member
                 const existingMembership = await this.databaseService.prisma.groupMember.findUnique({
                     where: {
-                        userId_groupId: {
-                            userId: args.userId,
+                        memberId_groupId: {
+                            memberId: args.memberId,
                             groupId: args.groupId
                         }
                     }
@@ -147,10 +147,10 @@ class DatabaseIntegratedTools {
                 if (existingMembership) {
                     throw new Error('You are already a member of this group');
                 }
-                // Add user to group
+                // Add member to group
                 await this.databaseService.prisma.groupMember.create({
                     data: {
-                        userId: args.userId,
+                        memberId: args.memberId,
                         groupId: args.groupId,
                         role: 'member'
                     }
@@ -158,10 +158,10 @@ class DatabaseIntegratedTools {
                 // Send notification to group if requested
                 if (args.notifyMembers) {
                     // In production, this would trigger real notifications
-                    console.log(`[JoinGroup] Notifying group members about new member ${args.userId}`);
+                    console.log(`[JoinGroup] Notifying group members about new member ${args.memberId}`);
                 }
                 // Generate welcome message
-                const welcomeMessage = `Welcome to ${group.name}! We're so glad you've joined us. 
+                const welcomeMessage = `Welcome to ${group.name}! We're so glad you've joined us.
 
 ${group.description}
 

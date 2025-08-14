@@ -4,10 +4,10 @@ export const suggestGroupTestSuite: TestSuite = {
   name: 'SuggestGroup Tool Tests',
   cases: [
     {
-      name: 'Should suggest groups for valid user',
+      name: 'Should suggest groups for valid member',
       tool: 'suggestGroup',
       args: {
-        userId: 'user_123',
+        memberId: 'member_123',
         goals: ['anxiety', 'stress management'],
         language: 'en'
       },
@@ -19,14 +19,14 @@ export const suggestGroupTestSuite: TestSuite = {
       name: 'Should work with minimal args',
       tool: 'suggestGroup',
       args: {
-        userId: 'user_456'
+        memberId: 'member_456'
       },
       expectedResult: {
         success: true
       }
     },
     {
-      name: 'Should fail with missing userId',
+      name: 'Should fail with missing memberId',
       tool: 'suggestGroup',
       args: {
         goals: ['depression']
@@ -37,7 +37,7 @@ export const suggestGroupTestSuite: TestSuite = {
       name: 'Should fail with too many goals',
       tool: 'suggestGroup',
       args: {
-        userId: 'user_789',
+        memberId: 'member_789',
         goals: Array(15).fill('goal')
       },
       shouldFail: true
@@ -46,7 +46,7 @@ export const suggestGroupTestSuite: TestSuite = {
       name: 'Should handle non-English language',
       tool: 'suggestGroup',
       args: {
-        userId: 'user_intl',
+        memberId: 'member_intl',
         language: 'es'
       },
       expectedResult: {

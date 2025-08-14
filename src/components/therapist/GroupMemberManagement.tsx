@@ -14,9 +14,9 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { api } from '@/lib/api';
 
 interface GroupMember {
-  userId: string;
+  memberId: string;
   role: 'member' | 'facilitator';
-  user: {
+  member: {
     id: string;
     firstName: string;
     lastName: string;
@@ -57,8 +57,8 @@ function GroupMemberManagement({ groupId, groupName, isOpen, onClose }: GroupMem
 
   // Add member mutation
   const addMemberMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: 'member' | 'facilitator' }) => {
-      const response = await api.post(`/therapist/groups/${groupId}/members`, { userId, role });
+    mutationFn: async ({ memberId, role }: { memberId: string; role: 'member' | 'facilitator' }) => {
+      const response = await api.post(`/therapist/groups/${groupId}/members`, { memberId, role });
       return response as any;
     },
     onSuccess: () => {
@@ -70,8 +70,8 @@ function GroupMemberManagement({ groupId, groupName, isOpen, onClose }: GroupMem
 
   // Remove member mutation
   const removeMemberMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const response = await api.delete(`/therapist/groups/${groupId}/members/${userId}`);
+    mutationFn: async (memberId: string) => {
+      const response = await api.delete(`/therapist/groups/${groupId}/members/${memberId}`);
       return response as any;
     },
     onSuccess: () => {
@@ -84,8 +84,8 @@ function GroupMemberManagement({ groupId, groupName, isOpen, onClose }: GroupMem
   const clients = clientsData?.data?.clients || [];
 
   // Filter out clients who are already members
-  const availableClients = clients.filter((client: any) => 
-    !members.some((member: GroupMember) => member.userId === client.id)
+  const availableClients = clients.filter((client: any) =>
+    !members.some((member: GroupMember) => member.memberId === client.id)
   );
 
   if (!isOpen) return null;
@@ -140,7 +140,7 @@ function GroupMemberManagement({ groupId, groupName, isOpen, onClose }: GroupMem
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => addMemberMutation.mutate({ userId: client.id, role: 'member' })}
+                                onClick={() => addMemberMutation.mutate({ memberId: client.id, role: 'member' })}
                                 disabled={addMemberMutation.isPending}
                               >
                                 <UserCheck className="w-4 h-4 mr-1" />
@@ -148,7 +148,7 @@ function GroupMemberManagement({ groupId, groupName, isOpen, onClose }: GroupMem
                               </Button>
                               <Button
                                 size="sm"
-                                onClick={() => addMemberMutation.mutate({ userId: client.id, role: 'facilitator' })}
+                                onClick={() => addMemberMutation.mutate({ memberId: client.id, role: 'facilitator' })}
                                 disabled={addMemberMutation.isPending}
                               >
                                 <Crown className="w-4 h-4 mr-1" />
@@ -178,13 +178,13 @@ function GroupMemberManagement({ groupId, groupName, isOpen, onClose }: GroupMem
             ) : members.length > 0 ? (
               <div className="space-y-3">
                 {members.map((member: GroupMember) => (
-                  <Card key={member.userId}>
+                  <Card key={member.memberId}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-full ${
-                            member.role === 'facilitator' 
-                              ? 'bg-blue-100 text-blue-600' 
+                            member.role === 'facilitator'
+                              ? 'bg-blue-100 text-blue-600'
                               : 'bg-gray-100 text-gray-600'
                           }`}>
                             {member.role === 'facilitator' ? (
@@ -195,9 +195,9 @@ function GroupMemberManagement({ groupId, groupName, isOpen, onClose }: GroupMem
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">
-                              {member.user?.firstName || 'Unknown'} {member.user?.lastName || 'User'}
+                              {member.member?.firstName || 'Unknown'} {member.member?.lastName || 'User'}
                             </p>
-                            <p className="text-sm text-gray-500">{member.user?.email || 'No email'}</p>
+                            <p className="text-sm text-gray-500">{member.member?.email || 'No email'}</p>
                             <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
                               member.role === 'facilitator'
                                 ? 'bg-blue-100 text-blue-800'
@@ -210,7 +210,7 @@ function GroupMemberManagement({ groupId, groupName, isOpen, onClose }: GroupMem
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => removeMemberMutation.mutate(member.userId)}
+                          onClick={() => removeMemberMutation.mutate(member.memberId)}
                           disabled={removeMemberMutation.isPending}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >

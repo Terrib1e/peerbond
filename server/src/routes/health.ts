@@ -1,88 +1,83 @@
 import { Router } from 'express';
+import { GeminiService } from '../services/geminiService';
+import { ProductionOrchestratorService } from '../orchestration/orchestrator';
 import { DatabaseService } from '../services/database';
-import { logger } from '../utils/logger';
 
 const router = Router();
-const dbService = new DatabaseService();
 
-// Health check endpoint
-router.get('/', async (req, res) => {
+// Health check endpoint with Maya AI status
+router.get('/maya-status', async (req, res) => {
   try {
-    const healthCheck = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV,
-      version: process.env.npm_package_version || '1.0.0',
-      services: {
-        database: 'unknown',
-        redis: 'unknown',
-        ai: 'unknown'
-      }
+    const geminiService = new GeminiService();
+    const orchestrator = new ProductionOrchestratorService();
+    const dbService = new DatabaseService();
+
+    // Check Gemini API status
+    const geminiStatus = {
+      initialized: !!(geminiService as any).model,
+      apiKeyConfigured: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+      apiKeyName: process.env.GEMINI_API_KEY ? 'GEMINI_API_KEY' : process.env.GOOGLE_API_KEY ? 'GOOGLE_API_KEY' : 'NOT_SET'
     };
 
+    // Test simple AI response if API is configured
+    let testResponse = null;
+    let aiWorking = false;
+    if (geminiStatus.initialized) {
+      try {
+        testResponse = await geminiService.generateResponse('Say "Maya is working!" in a friendly way.');
+        aiWorking = testResponse && testResponse.length > 0 && !testResponse.includes('not able to provide');
+      } catch (error) {
+        testResponse = `AI Error: ${error.message}`;
+      }
+    }
+
     // Check database connection
+    let dbConnected = false;
     try {
       await dbService.healthCheck();
-      healthCheck.services.database = 'healthy';
+      dbConnected = true;
     } catch (error) {
-      healthCheck.services.database = 'unhealthy';
-      healthCheck.status = 'degraded';
+      dbConnected = false;
     }
 
-    // Check Redis connection (if available)
-    try {
-      // Add Redis health check when Redis is implemented
-      healthCheck.services.redis = 'healthy';
-    } catch (error) {
-      healthCheck.services.redis = 'unhealthy';
-    }
-
-    // Check AI service
-    try {
-      // Add AI service health check
-      healthCheck.services.ai = 'healthy';
-    } catch (error) {
-      healthCheck.services.ai = 'unhealthy';
-    }
-
-    const statusCode = healthCheck.status === 'healthy' ? 200 : 503;
-    res.status(statusCode).json(healthCheck);
-
-  } catch (error) {
-    logger.error('Health check failed:', error);
-    res.status(503).json({
-      status: 'unhealthy',
-      timestamp: new Date().toISOString(),
-      error: 'Health check failed'
-    });
-  }
-});
-
-// Readiness check
-router.get('/ready', async (req, res) => {
-  try {
-    await dbService.healthCheck();
-    res.status(200).json({
-      status: 'ready',
+    res.json({
+      status: aiWorking ? 'healthy' : 'degraded',
+      maya: {
+        aiEnabled: geminiStatus.initialized,
+        apiKeyConfigured: geminiStatus.apiKeyConfigured,
+        apiKeyVariable: geminiStatus.apiKeyName,
+        aiResponding: aiWorking,
+        testResponse: testResponse || 'No response - API key may be missing',
+        fallbackMode: !aiWorking
+      },
+      services: {
+        database: dbConnected ? 'connected' : 'disconnected',
+        geminiApi: geminiStatus.initialized ? 'initialized' : 'not initialized',
+        orchestrator: 'active',
+        toolSystem: process.env.USE_TOOL_SYSTEM === 'true' ? 'enabled' : 'disabled'
+      },
+      recommendations: !aiWorking ? [
+        'Set GOOGLE_API_KEY or GEMINI_API_KEY in your .env file',
+        'Get API key from: https://makersuite.google.com/app/apikey',
+        'Restart server after adding API key'
+      ] : [],
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('Readiness check failed:', error);
-    res.status(503).json({
-      status: 'not ready',
-      timestamp: new Date().toISOString(),
-      error: 'Database not ready'
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
 
-// Liveness check
-router.get('/live', (req, res) => {
-  res.status(200).json({
-    status: 'alive',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+// Basic health check
+router.get('/', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'peerbond-api',
+    timestamp: new Date().toISOString()
   });
 });
 

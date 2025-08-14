@@ -3,8 +3,8 @@ import { BaseTool } from '../base';
 import { ToolContext } from '../types';
 
 const SuggestGroupSchema = z.object({
-  userId: z.string().describe('The ID of the user seeking a support group'),
-  goals: z.array(z.string()).optional().describe('Specific goals or topics the user wants to address'),
+  memberId: z.string().describe('The ID of the member seeking a support group'),
+  goals: z.array(z.string()).optional().describe('Specific goals or topics the member wants to address'),
   language: z.string().optional().describe('Preferred language for the group')
 });
 
@@ -26,9 +26,9 @@ interface GroupSuggestion {
 
 export class SuggestGroupTool extends BaseTool<SuggestGroupArgs, GroupSuggestion[]> {
   name = 'suggestGroup';
-  description = 'Finds the best peer-support groups for a user based on their needs and preferences';
+  description = 'Finds the best peer-support groups for a member based on their needs and preferences';
   schema = SuggestGroupSchema;
-  permissions = ['group:read', 'user:read'];
+  permissions = ['group:read', 'member:read'];
   rateLimit = { requests: 10, window: 3600 }; // 10 requests per hour
 
   protected async run(args: SuggestGroupArgs, _context: ToolContext): Promise<GroupSuggestion[]> {

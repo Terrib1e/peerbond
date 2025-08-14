@@ -1,17 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User } from '@/types';
+import { Member } from '@/types';
 import { api } from '@/lib/api';
 
 interface AuthState {
-  user: User | null;
+  member: Member | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
 
   // Actions
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: {
+  register: (memberData: {
     firstName: string;
     lastName: string;
     email: string;
@@ -21,15 +21,15 @@ interface AuthState {
     experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
   }) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<User>) => Promise<void>;
-  setUser: (user: User | null) => void;
+  updateProfile: (updates: Partial<Member>) => Promise<void>;
+  setMember: (member: Member | null) => void;
   clearError: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      user: null,
+      member: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -38,10 +38,10 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const { user, token: _token } = await api.login({ email, password });
+          const { member, token: _token } = await api.login({ email, password });
           // The API service automatically saves the token
           set({
-            user,
+            member,
             isAuthenticated: true,
             isLoading: false
           });
@@ -55,14 +55,14 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-            register: async (userData) => {
+            register: async (memberData) => {
         set({ isLoading: true, error: null });
 
         try {
-          const { user, token: _token } = await api.register(userData);
+          const { member, token: _token } = await api.register(memberData);
           // The API service automatically saves the token
           set({
-            user,
+            member,
             isAuthenticated: true,
             isLoading: false
           });
@@ -82,7 +82,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           await api.logout();
           set({
-            user: null,
+            member: null,
             isAuthenticated: false,
             isLoading: false,
             error: null
@@ -90,7 +90,7 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           // Even if logout fails, clear local state
           set({
-            user: null,
+            member: null,
             isAuthenticated: false,
             isLoading: false,
             error: null
@@ -99,17 +99,17 @@ export const useAuthStore = create<AuthState>()(
       },
 
       updateProfile: async (updates) => {
-        const { user } = get();
-        if (!user) {
-          throw new Error('No user logged in');
+        const { member } = get();
+        if (!member) {
+          throw new Error('No member logged in');
         }
 
         set({ isLoading: true, error: null });
 
         try {
-          const updatedUser = await api.updateProfile(updates);
+          const updatedMember = await api.updateProfile(updates);
           set({
-            user: updatedUser,
+            member: updatedMember,
             isLoading: false
           });
         } catch (error) {
@@ -122,10 +122,10 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      setUser: (user) => {
+      setMember: (member) => {
         set({
-          user,
-          isAuthenticated: !!user
+          member,
+          isAuthenticated: !!member
         });
       },
 
@@ -136,7 +136,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       partialize: (state) => ({
-        user: state.user,
+        member: state.member,
         isAuthenticated: state.isAuthenticated,
       }),
     }

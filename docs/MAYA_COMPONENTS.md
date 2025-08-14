@@ -24,7 +24,7 @@ This document provides detailed technical documentation for all Maya AI componen
 **Props**:
 ```typescript
 interface MayaQuickAccessProps {
-  user: {
+  member: {
     id: string;
     firstName: string;
     role: 'member' | 'therapist' | 'admin';
@@ -47,8 +47,8 @@ interface MayaQuickAccessProps {
 
 **Usage**:
 ```typescript
-<MayaQuickAccess 
-  user={currentUser}
+<MayaQuickAccess
+  member={currentUser}
   position="bottom-right"
   theme="purple"
   showLabel={false}
@@ -64,12 +64,12 @@ interface MayaQuickAccessProps {
 
 **File**: `src/components/ai/MayaHub.tsx`
 
-**Purpose**: Central routing component that selects appropriate Maya interface based on user role and context.
+**Purpose**: Central routing component that selects appropriate Maya interface based on member role and context.
 
 **Props**:
 ```typescript
 interface MayaHubProps {
-  user: {
+  member: {
     id: string;
     firstName: string;
     lastName: string;
@@ -88,14 +88,14 @@ interface MayaHubProps {
 **Routing Logic**:
 ```typescript
 const getInterfaceComponent = () => {
-  if (user.role === 'admin') {
+  if (member.role === 'admin') {
     return <MayaAdminInterface {...props} />;
   }
-  
-  if (user.role === 'therapist') {
+
+  if (member.role === 'therapist') {
     return <MayaTherapistInterface {...props} />;
   }
-  
+
   return <MayaInterface {...props} />;
 };
 ```
@@ -111,7 +111,7 @@ const getInterfaceComponent = () => {
 **Props**:
 ```typescript
 interface MayaInterfaceProps {
-  userId: string;
+  memberId: string;
   className?: string;
   compact?: boolean;
 }
@@ -129,7 +129,7 @@ interface MayaInterfaceProps {
 interface MayaMessage {
   id: string;
   content: string;
-  type: 'user' | 'maya' | 'system';
+  type: 'member' | 'maya' | 'system';
   timestamp: Date;
   agentUsed?: string[];
   confidence?: number;
@@ -228,7 +228,7 @@ interface MayaAdminInterfaceProps {
 
 ### OnboardingForm
 
-**Purpose**: New user intake and platform onboarding.
+**Purpose**: New member intake and platform onboarding.
 
 **Props**:
 ```typescript
@@ -346,16 +346,16 @@ interface SessionPlanningFormData {
 ```typescript
 class AgentService {
   async callAgent(
-    agentType: string, 
-    content: string, 
+    agentType: string,
+    content: string,
     sessionId: string
   ): Promise<AgentCallResponse>
-  
+
   async startOrchestrationSession(
     environment: string,
-    userProfile: UserProfile
+    memberProfile: UserProfile
   ): Promise<SessionResponse>
-  
+
   private authenticateRequest(): string
 }
 ```
@@ -393,7 +393,7 @@ private authenticateRequest(): string {
 **Maya-Specific Methods**:
 ```typescript
 // User Management
-register(userData: RegisterData): Promise<UserResponse>
+register(memberData: RegisterData): Promise<UserResponse>
 getAllUsers(): Promise<User[]>
 
 // Group Management
@@ -435,10 +435,10 @@ interface AgentIndicatorProps {
   className?: string;
 }
 
-const AIAgentIndicator: React.FC<AgentIndicatorProps> = ({ 
-  agents, 
-  confidence, 
-  className 
+const AIAgentIndicator: React.FC<AgentIndicatorProps> = ({
+  agents,
+  confidence,
+  className
 }) => (
   <div className={cn("flex items-center gap-2", className)}>
     {agents.map(agent => (
@@ -461,19 +461,19 @@ const AIAgentIndicator: React.FC<AgentIndicatorProps> = ({
 ```typescript
 const validateForm = (formData: any, rules: ValidationRules) => {
   const errors: Record<string, string> = {};
-  
+
   // Required field validation
   Object.keys(rules.required || {}).forEach(field => {
     if (!formData[field] || formData[field].trim() === '') {
       errors[field] = `${field} is required`;
     }
   });
-  
+
   // Email validation
   if (formData.email && !isValidEmail(formData.email)) {
     errors.email = 'Please enter a valid email address';
   }
-  
+
   // Custom validations
   if (rules.custom) {
     Object.entries(rules.custom).forEach(([field, validator]) => {
@@ -481,7 +481,7 @@ const validateForm = (formData: any, rules: ValidationRules) => {
       if (error) errors[field] = error;
     });
   }
-  
+
   return {
     isValid: Object.keys(errors).length === 0,
     errors
@@ -623,8 +623,8 @@ interface AgentResponse {
 
 interface OrchestrationContext {
   sessionId: string;
-  userId: string;
-  userRole: string;
+  memberId: string;
+  memberRole: string;
   conversationHistory: Message[];
   currentAgent?: string;
   escalationLevel: number;
@@ -640,18 +640,18 @@ import { MayaQuickAccess } from '@/components/ui/MayaQuickAccess';
 import { useAuthStore } from '@/store/authStore';
 
 function App() {
-  const { user } = useAuthStore();
-  
+  const { member } = useAuthStore();
+
   return (
     <div className="app">
       {/* Main app content */}
-      
+
       {/* Maya quick access - appears on all authenticated pages */}
-      {user && (
-        <MayaQuickAccess 
-          user={user}
+      {member && (
+        <MayaQuickAccess
+          member={member}
           position="bottom-right"
-          theme={user.role === 'therapist' ? 'blue' : 'purple'}
+          theme={member.role === 'therapist' ? 'blue' : 'purple'}
         />
       )}
     </div>
@@ -667,19 +667,19 @@ import { useAuthStore } from '@/store/authStore';
 import { useSearchParams } from 'react-router-dom';
 
 function MayaPage() {
-  const { user } = useAuthStore();
+  const { member } = useAuthStore();
   const [searchParams] = useSearchParams();
-  
+
   const context = {
     groupId: searchParams.get('groupId'),
     sessionId: searchParams.get('sessionId'),
     clientId: searchParams.get('clientId')
   };
-  
+
   return (
     <div className="maya-page">
       <MayaHub
-        user={user}
+        member={member}
         context={context}
         defaultMode="full"
         className="h-full"
@@ -696,13 +696,13 @@ import { MayaTherapistInterface } from '@/components/ai/MayaTherapistInterface';
 
 function TherapistDashboard() {
   const [selectedClient, setSelectedClient] = useState(null);
-  
+
   return (
     <div className="dashboard">
       <div className="sidebar">
         {/* Client list */}
       </div>
-      
+
       <div className="main-content">
         {selectedClient && (
           <MayaTherapistInterface
@@ -737,8 +737,8 @@ function TherapistDashboard() {
 
 ### Security Considerations
 
-1. **Input Sanitization**: Sanitize all user inputs
-2. **Authentication**: Verify user permissions before rendering
+1. **Input Sanitization**: Sanitize all member inputs
+2. **Authentication**: Verify member permissions before rendering
 3. **Session Management**: Handle token expiration gracefully
 4. **Crisis Protocols**: Implement appropriate escalation procedures
 

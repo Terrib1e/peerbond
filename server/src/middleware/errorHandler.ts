@@ -20,7 +20,7 @@ export const errorHandler = (
     url: req.url,
     method: req.method,
     ip: req.ip,
-    userAgent: req.get('User-Agent'),
+    memberAgent: req.get('User-Agent'),
     timestamp: new Date().toISOString()
   });
 

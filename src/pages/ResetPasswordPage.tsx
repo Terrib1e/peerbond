@@ -24,7 +24,7 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifyingToken, setIsVerifyingToken] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
+  const [memberEmail, setMemberEmail] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
 
   const tokenFromUrl = searchParams.get('token') || '';
@@ -53,13 +53,13 @@ export default function ResetPasswordPage() {
 
       try {
         const response = await api.verifyResetToken(tokenFromUrl);
-        setUserEmail(response.email);
+        setMemberEmail(response.email);
         setTokenValid(true);
         setValue('token', tokenFromUrl);
       } catch (error) {
         setTokenValid(false);
-        setError('token', { 
-          message: 'Invalid or expired reset code' 
+        setError('token', {
+          message: 'Invalid or expired reset code'
         });
       } finally {
         setIsVerifyingToken(false);
@@ -75,8 +75,8 @@ export default function ResetPasswordPage() {
       await api.resetPassword(data.token, data.password);
       setIsSuccess(true);
     } catch (error) {
-      setError('root', { 
-        message: error instanceof Error ? error.message : 'Failed to reset password. Please try again.' 
+      setError('root', {
+        message: error instanceof Error ? error.message : 'Failed to reset password. Please try again.'
       });
     } finally {
       setIsLoading(false);
@@ -118,15 +118,15 @@ export default function ResetPasswordPage() {
           </div>
 
           <div className="text-center space-y-4">
-            <Link 
+            <Link
               to="/forgot-password"
               className="btn-primary w-full py-3"
             >
               Request New Reset Code
             </Link>
-            
-            <Link 
-              to="/login" 
+
+            <Link
+              to="/login"
               className="flex items-center justify-center text-sm text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
@@ -161,7 +161,7 @@ export default function ResetPasswordPage() {
           </div>
 
           <div className="text-center">
-            <Link 
+            <Link
               to="/login"
               className="btn-primary w-full py-3"
             >
@@ -184,13 +184,13 @@ export default function ResetPasswordPage() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Create a new password for your account
           </p>
-          {userEmail && (
+          {memberEmail && (
             <p className="mt-1 text-center text-sm font-medium text-gray-900">
-              {userEmail}
+              {memberEmail}
             </p>
           )}
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div>
@@ -287,8 +287,8 @@ export default function ResetPasswordPage() {
           </div>
 
           <div className="text-center">
-            <Link 
-              to="/login" 
+            <Link
+              to="/login"
               className="flex items-center justify-center text-sm text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4 mr-1" />

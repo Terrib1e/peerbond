@@ -3,7 +3,7 @@ import { BaseAgent } from '../base';
 export class MatchingAgent extends BaseAgent {
   id = 'matching-agent';
   name = 'Matching Agent';
-  description = 'Finds and recommends suitable peer support groups based on user needs';
+  description = 'Finds and recommends suitable peer support groups based on member needs';
   model = 'gpt-4o';
   provider = 'openai';
 
@@ -12,25 +12,25 @@ export class MatchingAgent extends BaseAgent {
     'listAllGroups'
   ];
 
-  systemPrompt = `You are a specialized AI agent for matching users with appropriate peer support groups.
+  systemPrompt = `You are a specialized AI agent for matching members with appropriate peer support groups.
 
 Your role:
-- Analyze user needs, goals, and preferences
-- Match users with suitable peer support groups
+- Analyze member needs, goals, and preferences
+- Match members with suitable peer support groups
 - Provide comprehensive group recommendations
-- Help users understand group dynamics and benefits
+- Help members understand group dynamics and benefits
 - Facilitate connections within the peer support community
 
 Available tools:
-- suggestGroup: Find the best matching groups for specific user needs
-- listAllGroups: Show all available groups when users want to browse options
+- suggestGroup: Find the best matching groups for specific member needs
+- listAllGroups: Show all available groups when members want to browse options
 
 Guidelines:
-- Always consider user safety and comfort level
+- Always consider member safety and comfort level
 - Match based on specific challenges, goals, and preferences
 - Explain why certain groups are recommended
 - Provide clear information about group dynamics, schedules, and expectations
-- Encourage gradual engagement for anxious users
+- Encourage gradual engagement for anxious members
 - Respect privacy and confidentiality preferences
 
 Response patterns:
@@ -44,7 +44,7 @@ Remember: Peer support groups can be transformative, but the right match is cruc
 
   async findGroupsForUser(
     sessionId: string,
-    userId: string,
+    memberId: string,
     criteria: {
       goals?: string[];
       challenges?: string[];
@@ -54,20 +54,20 @@ Remember: Peer support groups can be transformative, but the right match is cruc
   ): Promise<string> {
     const context = {
       searchCriteria: criteria,
-      userId,
+      memberId,
       requestType: criteria.showAll ? 'list_all' : 'targeted_search'
     };
 
     let prompt = '';
-    
+
     if (criteria.showAll) {
-      prompt = `Please list all available peer support groups for user ${userId}. Show comprehensive details about each group including meeting times, focus areas, and member capacity.`;
+      prompt = `Please list all available peer support groups for member ${memberId}. Show comprehensive details about each group including meeting times, focus areas, and member capacity.`;
     } else {
-      prompt = `Find suitable peer support groups for a user with the following needs:
+      prompt = `Find suitable peer support groups for a member with the following needs:
       - Goals: ${criteria.goals?.join(', ') || 'general support'}
       - Challenges: ${criteria.challenges?.join(', ') || 'none specified'}
       - Preferences: ${criteria.preferences?.join(', ') || 'none specified'}
-      
+
       Please suggest the best matching groups and explain why they're good fits.`;
     }
 
@@ -89,18 +89,18 @@ Remember: Peer support groups can be transformative, but the right match is cruc
   async helpWithGroupJoining(
     sessionId: string,
     groupId: string,
-    userConcerns?: string[]
+    memberConcerns?: string[]
   ): Promise<string> {
-    let prompt = `Help the user understand the process of joining group ${groupId} and provide encouragement.`;
-    
-    if (userConcerns && userConcerns.length > 0) {
-      prompt += ` Address these specific concerns: ${userConcerns.join(', ')}`;
+    let prompt = `Help the member understand the process of joining group ${groupId} and provide encouragement.`;
+
+    if (memberConcerns && memberConcerns.length > 0) {
+      prompt += ` Address these specific concerns: ${memberConcerns.join(', ')}`;
     }
 
     const response = await this.processMessage(sessionId, prompt, {
       activityType: 'joining_assistance',
       targetGroup: groupId,
-      concerns: userConcerns
+      concerns: memberConcerns
     });
 
     return response.message;

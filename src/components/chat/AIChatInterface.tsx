@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import { formatDistanceToNow } from 'date-fns';
 
 import { api, OrchestrationSystem } from '@/lib/api';
-import { User } from '@/types';
+import { Member } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -15,7 +15,7 @@ import { cn } from '@/utils/cn';
 interface AIChatMessage {
   id: string;
   content: string;
-  type: 'user' | 'ai' | 'system';
+  type: 'member' | 'ai' | 'system';
   timestamp: Date;
   agentUsed?: string[];
   needsCrisisIntervention?: boolean;
@@ -24,7 +24,7 @@ interface AIChatMessage {
 }
 
 interface AIChatInterfaceProps {
-  currentUser: User;
+  currentMember: Member;
   groupId?: string;
   className?: string;
 }
@@ -56,7 +56,7 @@ const ORCHESTRATION_SYSTEMS = {
   }
 };
 
-export default function AIChatInterface({ currentUser, groupId, className }: AIChatInterfaceProps) {
+export default function AIChatInterface({ currentMember, groupId, className }: AIChatInterfaceProps) {
   const [messages, setMessages] = useState<AIChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -75,20 +75,20 @@ export default function AIChatInterface({ currentUser, groupId, className }: AIC
 
   const initializeSession = async () => {
     try {
-      // Check if user is authenticated before starting orchestration
-      if (!currentUser || !api.isAuthenticated()) {
-        console.warn('❌ Cannot start orchestration: User not authenticated');
+      // Check if member is authenticated before starting orchestration
+      if (!currentMember || !api.isAuthenticated()) {
+        console.warn('❌ Cannot start orchestration: Member not authenticated');
         throw new Error('Please log in to start AI session');
       }
 
-      console.log('🚀 Starting orchestration session for user:', currentUser.email);
+      console.log('🚀 Starting orchestration session for member:', currentMember.email);
 
       const session = await api.startOrchestrationSession('production', {
         groupId: groupId,
-        userProfile: {
+        memberProfile: {
           interests: ['peer-support', 'mental-health'],
-          experience: currentUser.experienceLevel || 'beginner',
-          goals: currentUser.recoveryGoals ? (typeof currentUser.recoveryGoals === 'string' ? JSON.parse(currentUser.recoveryGoals) : currentUser.recoveryGoals) : ['emotional_healing', 'stress_management']
+          experience: currentMember.experienceLevel || 'beginner',
+          goals: currentMember.recoveryGoals ? (typeof currentMember.recoveryGoals === 'string' ? JSON.parse(currentMember.recoveryGoals) : currentMember.recoveryGoals) : ['emotional_healing', 'stress_management']
         }
       });
 
@@ -143,11 +143,11 @@ export default function AIChatInterface({ currentUser, groupId, className }: AIC
     setIsLoading(true);
     console.log('🔄 Set loading state to true');
 
-    // Add user message
-    const userMessage: AIChatMessage = {
-      id: `user-${Date.now()}`,
+    // Add member message
+    const memberMessage: AIChatMessage = {
+      id: `member-${Date.now()}`,
       content,
-      type: 'user',
+      type: 'member',
       timestamp: new Date()
     };
 
@@ -160,7 +160,7 @@ export default function AIChatInterface({ currentUser, groupId, className }: AIC
       isLoading: true
     };
 
-    setMessages(prev => [...prev, userMessage, loadingMessage]);
+    setMessages(prev => [...prev, memberMessage, loadingMessage]);
 
     try {
       // Use proper orchestration now that it's fixed
@@ -190,7 +190,7 @@ export default function AIChatInterface({ currentUser, groupId, className }: AIC
         content,
         sessionId: currentSessionId,
         groupId: 'ai-chat',
-        messageType: 'user'
+        messageType: 'member'
       });
 
       console.log('🌐 Making API call to sendOrchestrationMessage...');
@@ -198,7 +198,7 @@ export default function AIChatInterface({ currentUser, groupId, className }: AIC
         content,
         sessionId: currentSessionId,
         groupId: 'ai-chat',
-        messageType: 'user'
+        messageType: 'member'
       }, 'production'); // Use production orchestration
 
       console.log('✅ Got orchestration response:', response);
@@ -336,10 +336,10 @@ export default function AIChatInterface({ currentUser, groupId, className }: AIC
               exit={{ opacity: 0, y: -10 }}
               className={cn(
                 'flex gap-3',
-                message.type === 'user' ? 'justify-end' : 'justify-start'
+                message.type === 'member' ? 'justify-end' : 'justify-start'
               )}
             >
-              {message.type !== 'user' && (
+              {message.type !== 'member' && (
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
                   <Bot className="w-4 h-4 text-white" />
                 </div>
@@ -348,7 +348,7 @@ export default function AIChatInterface({ currentUser, groupId, className }: AIC
               <div
                 className={cn(
                   'max-w-[80%] rounded-lg px-4 py-2',
-                  message.type === 'user'
+                  message.type === 'member'
                     ? 'bg-blue-500 text-white'
                     : message.type === 'system'
                     ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
@@ -402,7 +402,7 @@ export default function AIChatInterface({ currentUser, groupId, className }: AIC
                 </div>
               </div>
 
-              {message.type === 'user' && (
+              {message.type === 'member' && (
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-blue-500 flex items-center justify-center">
                   <Heart className="w-4 h-4 text-white" />
                 </div>

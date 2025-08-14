@@ -2,12 +2,12 @@
 
 ## Overview
 
-Maya is PeerBond's AI-powered therapeutic companion that provides personalized mental health support across different user roles. The system uses specialized AI agents and role-based interfaces to deliver appropriate levels of care and administrative functionality.
+Maya is PeerBond's AI-powered therapeutic companion that provides personalized mental health support across different member roles. The system uses specialized AI agents and role-based interfaces to deliver appropriate levels of care and administrative functionality.
 
 ## Table of Contents
 
 1. [System Architecture](#system-architecture)
-2. [User Interfaces](#user-interfaces)
+2. [User Interfaces](#member-interfaces)
 3. [AI Agents](#ai-agents)
 4. [Administrative Tools](#administrative-tools)
 5. [Authentication & Security](#authentication--security)
@@ -75,7 +75,7 @@ Maya is PeerBond's AI-powered therapeutic companion that provides personalized m
 interface MayaMessage {
   id: string;
   content: string;
-  type: 'user' | 'maya' | 'system';
+  type: 'member' | 'maya' | 'system';
   timestamp: Date;
   agentUsed?: string[];
   confidence?: number;
@@ -170,12 +170,12 @@ const determineAgent = (content: string, context: any) => {
   if (containsCrisisKeywords(content)) {
     return 'facilitator'; // Handles crisis with escalation
   }
-  
+
   // Administrative tasks use specialized routing
   if (isAdministrativeTask(content)) {
     return routeAdministrativeTask(content);
   }
-  
+
   // Default to facilitator for general support
   return 'facilitator';
 };
@@ -190,7 +190,7 @@ Maya's administrative capabilities are powered by interactive forms that provide
 ### 1. User Onboarding Form
 
 **Component**: `OnboardingForm`
-**Purpose**: Streamlined new user intake process
+**Purpose**: Streamlined new member intake process
 
 **Features**:
 - Basic information collection
@@ -266,9 +266,9 @@ interface SessionPlanningFormData {
 ### Form Workflow Pattern
 
 1. **Detection**: Maya recognizes administrative intent in conversation
-2. **Preparation**: System gathers necessary data (users, groups, etc.)
+2. **Preparation**: System gathers necessary data (members, groups, etc.)
 3. **Form Trigger**: Interactive form modal appears
-4. **Validation**: Client-side validation with user feedback
+4. **Validation**: Client-side validation with member feedback
 5. **Submission**: API call with comprehensive error handling
 6. **Success Response**: Detailed feedback with next steps
 
@@ -290,19 +290,19 @@ const authenticateRequest = () => {
 
 ### Role-Based Access Control
 
-Maya interfaces automatically adapt based on user roles:
+Maya interfaces automatically adapt based on member roles:
 
 ```typescript
 // MayaQuickAccess.tsx - Role-based interface switching
-{user.role === 'therapist' || user.role === 'admin' ? (
+{member.role === 'therapist' || member.role === 'admin' ? (
   <MayaTherapistInterface
-    therapistId={user.id}
+    therapistId={member.id}
     className="h-full"
     mode="general"
   />
 ) : (
   <MayaInterface
-    userId={user.id}
+    memberId={member.id}
     className="h-full"
     compact={false}
   />
@@ -326,10 +326,10 @@ Maya integrates with PeerBond's REST API for all data operations:
 
 ```typescript
 // User Management
-await api.register(userData);
+await api.register(memberData);
 await api.getAllUsers();
 
-// Group Management  
+// Group Management
 await api.post('/therapist/groups', groupData);
 await api.getAllGroups();
 
@@ -343,7 +343,7 @@ await api.post('/therapist/sessions', sessionData);
 
 ```typescript
 const response = await api.startOrchestrationSession('production', {
-  userProfile: {
+  memberProfile: {
     interests: ['mental-health', 'peer-support'],
     experience: 'beginner',
     goals: ['emotional-support', 'coping-strategies']
@@ -379,11 +379,11 @@ Maya's forms use a consistent pattern for complex administrative tasks:
 ### Form Component Pattern
 
 ```typescript
-function AdminForm({ 
-  data, 
-  onSubmit, 
-  onCancel, 
-  isProcessing 
+function AdminForm({
+  data,
+  onSubmit,
+  onCancel,
+  isProcessing
 }: {
   data: any;
   onSubmit: (data: FormData) => void;
@@ -391,14 +391,14 @@ function AdminForm({
   isProcessing: boolean;
 }) {
   const [formData, setFormData] = useState(initialState);
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm(formData)) {
       onSubmit(formData);
     }
   };
-  
+
   return (
     <form onSubmit={handleSubmit}>
       {/* Form fields with validation */}
@@ -414,7 +414,7 @@ Forms are triggered based on Maya's conversational analysis:
 
 ```typescript
 const handleAdministrativeTask = async (content: string) => {
-  if (content.includes('onboard user')) {
+  if (content.includes('onboard member')) {
     // Trigger onboarding form
     setActiveForm({
       type: 'onboarding',
@@ -433,7 +433,7 @@ const handleAdministrativeTask = async (content: string) => {
 Maya implements multi-layered error handling:
 
 1. **Authentication Errors**: Token validation and refresh
-2. **API Errors**: Network issues and server responses  
+2. **API Errors**: Network issues and server responses
 3. **Form Validation**: Field-level and form-level validation
 4. **Agent Errors**: AI service failures with fallbacks
 
@@ -442,14 +442,14 @@ Maya implements multi-layered error handling:
 ```typescript
 const handleError = (error: Error, context: string) => {
   console.error(`${context} error:`, error);
-  
+
   // User-friendly error message
-  const userMessage = getUserFriendlyMessage(error);
-  addSystemMessage(`❌ ${userMessage}`);
-  
+  const memberMessage = getUserFriendlyMessage(error);
+  addSystemMessage(`❌ ${memberMessage}`);
+
   // Toast notification
   toast.error('Operation failed. Please try again.');
-  
+
   // Graceful degradation
   setSystemAvailable(false);
 };
@@ -474,7 +474,7 @@ if (response.metadata?.needsCrisisIntervention) {
 ### Setting Up Maya Development
 
 1. **Prerequisites**:
-   - Node.js 18+ 
+   - Node.js 18+
    - TypeScript knowledge
    - React experience
    - Understanding of mental health considerations
@@ -488,9 +488,9 @@ if (response.metadata?.needsCrisisIntervention) {
    ```bash
    # Start development server
    npm run dev
-   
+
    # Access Maya via floating heart icon
-   # Test different user roles (member, therapist, admin)
+   # Test different member roles (member, therapist, admin)
    # Verify form functionality and API integration
    ```
 
@@ -530,7 +530,7 @@ if (response.metadata?.needsCrisisIntervention) {
 ### Testing Maya Features
 
 1. **Interface Testing**:
-   - Test all user roles (member, therapist, admin)
+   - Test all member roles (member, therapist, admin)
    - Verify responsive design
    - Check accessibility features
 
@@ -547,8 +547,8 @@ if (response.metadata?.needsCrisisIntervention) {
 ### Best Practices
 
 1. **Security First**:
-   - Always validate user permissions
-   - Sanitize all user input
+   - Always validate member permissions
+   - Sanitize all member input
    - Log security-relevant actions
 
 2. **User Experience**:
@@ -594,6 +594,6 @@ if (response.metadata?.needsCrisisIntervention) {
 
 ## Conclusion
 
-Maya AI represents a comprehensive therapeutic support system that adapts to different user roles and provides sophisticated administrative capabilities. The system prioritizes user safety, clinical effectiveness, and ease of use while maintaining strict security and privacy standards.
+Maya AI represents a comprehensive therapeutic support system that adapts to different member roles and provides sophisticated administrative capabilities. The system prioritizes member safety, clinical effectiveness, and ease of use while maintaining strict security and privacy standards.
 
 For additional support or questions, consult the development team or refer to the broader PeerBond documentation.

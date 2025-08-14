@@ -9,11 +9,11 @@ const router = express.Router();
 // Simple in-memory session storage
 const sessions = new Map<string, {
   sessionId: string;
-  userId: string;
+  memberId: string;
   messages: Array<{
     id: string;
     content: string;
-    type: 'user' | 'ai';
+    type: 'member' | 'ai';
     timestamp: Date;
   }>;
   startTime: Date;
@@ -27,27 +27,27 @@ router.post('/session/start',
   authenticateToken,
   [
     body('groupId').optional().isString(),
-    body('userProfile').optional().isObject()
+    body('memberProfile').optional().isObject()
   ],
   validateRequest,
   async (req, res) => {
     console.log('[SimpleAI] Starting new session...');
-    
+
     try {
-      const userId = req.user.id;
+      const memberId = req.member.id;
       const sessionId = `session_${Date.now()}_${uuidv4()}`;
-      
+
       const session = {
         sessionId,
-        userId,
+        memberId,
         messages: [],
         startTime: new Date()
       };
-      
+
       sessions.set(sessionId, session);
-      
-      console.log(`[SimpleAI] ✅ Session ${sessionId} created for user ${userId}`);
-      
+
+      console.log(`[SimpleAI] ✅ Session ${sessionId} created for member ${memberId}`);
+
       res.json({
         success: true,
         data: {
@@ -57,7 +57,7 @@ router.post('/session/start',
         },
         timestamp: new Date().toISOString()
       });
-      
+
     } catch (error) {
       console.error('[SimpleAI] Error starting session:', error);
       res.status(500).json({
@@ -79,18 +79,18 @@ router.post('/message',
   [
     body('content').notEmpty().withMessage('Message content is required'),
     body('sessionId').notEmpty().withMessage('Session ID is required'),
-    body('messageType').optional().isIn(['user', 'system'])
+    body('messageType').optional().isIn(['member', 'system'])
   ],
   validateRequest,
   async (req, res) => {
     console.log('[SimpleAI] Processing message...');
-    
+
     try {
-      const { content, sessionId, messageType = 'user' } = req.body;
-      const userId = req.user.id;
-      
-      console.log(`[SimpleAI] Message: "${content}" from user ${userId} in session ${sessionId}`);
-      
+      const { content, sessionId, messageType = 'member' } = req.body;
+      const memberId = req.member.id;
+
+      console.log(`[SimpleAI] Message: "${content}" from member ${memberId} in session ${sessionId}`);
+
       // Get session
       const session = sessions.get(sessionId);
       if (!session) {
@@ -100,27 +100,27 @@ router.post('/message',
           timestamp: new Date().toISOString()
         });
       }
-      
-      if (session.userId !== userId) {
+
+      if (session.memberId !== memberId) {
         return res.status(403).json({
           success: false,
           error: 'Unauthorized access to session',
           timestamp: new Date().toISOString()
         });
       }
-      
-      // Add user message
-      const userMessage = {
-        id: `msg_${Date.now()}_user`,
+
+      // Add member message
+      const memberMessage = {
+        id: `msg_${Date.now()}_member`,
         content,
-        type: 'user' as const,
+        type: 'member' as const,
         timestamp: new Date()
       };
-      session.messages.push(userMessage);
-      
+      session.messages.push(memberMessage);
+
       // Generate AI response based on content
       const aiResponse = generateAIResponse(content);
-      
+
       // Add AI message
       const aiMessage = {
         id: `msg_${Date.now()}_ai`,
@@ -129,9 +129,9 @@ router.post('/message',
         timestamp: new Date()
       };
       session.messages.push(aiMessage);
-      
+
       console.log(`[SimpleAI] ✅ Generated response: "${aiResponse}"`);
-      
+
       res.json({
         success: true,
         data: {
@@ -148,7 +148,7 @@ router.post('/message',
         },
         timestamp: new Date().toISOString()
       });
-      
+
     } catch (error) {
       console.error('[SimpleAI] Error processing message:', error);
       res.status(500).json({
@@ -180,10 +180,10 @@ router.get('/health', (req, res) => {
 // Helper functions
 function generateAIResponse(content: string): string {
   const lowerContent = content.toLowerCase();
-  
+
   // Crisis keywords
   if (lowerContent.includes('suicide') || lowerContent.includes('kill myself') || lowerContent.includes('end it all')) {
-    return `I'm very concerned about what you've shared. Your safety is the most important thing right now. 
+    return `I'm very concerned about what you've shared. Your safety is the most important thing right now.
 
 🚨 **Immediate Help Available:**
 • National Suicide Prevention Lifeline: 988
@@ -192,7 +192,7 @@ function generateAIResponse(content: string): string {
 
 You don't have to go through this alone. There are people who want to help you right now. Would you like me to help you connect with professional support immediately?`;
   }
-  
+
   // Moderate crisis
   if (lowerContent.includes('hopeless') || lowerContent.includes('can\'t go on') || lowerContent.includes('give up')) {
     return `I can hear how much pain you're in right now, and I want you to know that these feelings can change. You're reaching out, which shows tremendous strength.
@@ -204,39 +204,39 @@ You don't have to go through this alone. There are people who want to help you r
 
 Would you like to talk about what's making you feel this hopeless? Sometimes sharing can help lighten the burden.`;
   }
-  
+
   // Anxiety/depression responses
   if (lowerContent.includes('anxious') || lowerContent.includes('anxiety')) {
     return "I understand that anxiety can feel overwhelming. You're in a safe space here. What's been contributing to these feelings? I'm here to listen and support you through this.";
   }
-  
+
   if (lowerContent.includes('depressed') || lowerContent.includes('depression') || lowerContent.includes('sad')) {
     return "I hear that you're going through a difficult time, and I want you to know that your feelings are completely valid. Depression can feel isolating, but you're not alone. What's been the hardest part for you recently?";
   }
-  
+
   if (lowerContent.includes('stressed') || lowerContent.includes('overwhelmed')) {
     return "It sounds like you're carrying a lot right now. Stress can be really challenging to manage alone. What's been weighing on you the most? I'm here to help you work through it.";
   }
-  
+
   if (lowerContent.includes('lonely') || lowerContent.includes('isolated') || lowerContent.includes('alone')) {
     return "Feeling isolated can be really painful. Connection is so important for our wellbeing. Tell me more about what's making you feel this way? You're not alone in this conversation.";
   }
-  
+
   // Group/support requests
   if (lowerContent.includes('group') || lowerContent.includes('support') || lowerContent.includes('connect') || lowerContent.includes('others')) {
     return "Connecting with others who understand your experience can be incredibly healing. That's a wonderful step toward building your support network. What kind of group or community are you hoping to find? I can help guide you toward the right resources.";
   }
-  
+
   // Positive responses
   if (lowerContent.includes('thank') || lowerContent.includes('better') || lowerContent.includes('good') || lowerContent.includes('helping')) {
     return "I'm so glad to hear that! It's wonderful that you're feeling better. What's been helping you the most? Your progress is meaningful and I'm proud of you for the work you're doing.";
   }
-  
+
   // Greetings
   if (lowerContent.includes('hello') || lowerContent.includes('hi') || lowerContent.includes('hey')) {
     return "Hello! I'm Maya, and I'm so glad you're here. This is a safe space where you can share whatever is on your mind. How are you feeling today, and what would be most helpful for you right now?";
   }
-  
+
   // Default supportive response
   return "Thank you for sharing that with me. I'm here to listen and support you through whatever you're experiencing. Could you tell me a bit more about what's on your mind today? What kind of support would be most helpful for you right now?";
 }

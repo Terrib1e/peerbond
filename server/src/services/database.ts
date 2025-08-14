@@ -100,19 +100,19 @@ export class DatabaseService {
 
   private async initializeSampleData(): Promise<void> {
     try {
-      // Check if admin user already exists
-      const existingAdmin = await this.prisma.user.findUnique({
+      // Check if admin member already exists
+      const existingAdmin = await this.prisma.member.findUnique({
         where: { email: 'admin@peerbond.com' }
       });
 
       if (!existingAdmin) {
-        // Create admin user
+        // Create admin member
         const hashedPassword = await bcrypt.hash('password123', 12);
-        const adminUser = await this.prisma.user.create({
+        const adminMember = await this.prisma.member.create({
           data: {
             id: 'admin-1',
             firstName: 'Admin',
-            lastName: 'User',
+            lastName: 'Member',
             email: 'admin@peerbond.com',
             password: hashedPassword,
             role: 'admin',
@@ -124,34 +124,87 @@ export class DatabaseService {
           }
         });
 
-        // Create sample groups
+        // Create sample groups with diverse mental health support options
         const sampleGroups = [
           {
             id: 'group-1',
             name: 'Recovery Support Circle',
-            description: 'A supportive group for individuals in recovery',
+            description: 'A safe space for individuals in recovery from addiction to share experiences, celebrate milestones, and support each other through challenges.',
             type: 'recovery',
             maxMembers: 8,
             isPrivate: false,
-            isActive: true
+            isActive: true,
+            tags: JSON.stringify(['recovery', 'addiction', 'sobriety', 'peer-support'])
           },
           {
             id: 'group-2',
             name: 'Anxiety & Stress Management',
-            description: 'Learn coping strategies and connect with others managing anxiety and stress',
+            description: 'Learn evidence-based coping strategies and connect with others who understand anxiety, stress, and related challenges. Weekly check-ins and mindfulness practices.',
             type: 'wellness',
-            maxMembers: 8,
+            maxMembers: 10,
             isPrivate: false,
-            isActive: true
+            isActive: true,
+            tags: JSON.stringify(['anxiety', 'stress', 'mindfulness', 'coping-strategies'])
           },
           {
             id: 'group-3',
-            name: 'General Support Community',
-            description: 'Open discussion for life challenges, personal growth, and peer support',
+            name: 'Depression Support Network',
+            description: 'A compassionate community for those experiencing depression. Share coping strategies, celebrate small victories, and find understanding.',
+            type: 'wellness',
+            maxMembers: 8,
+            isPrivate: false,
+            isActive: true,
+            tags: JSON.stringify(['depression', 'mental-health', 'support', 'self-care'])
+          },
+          {
+            id: 'group-4',
+            name: 'Trauma Recovery Group',
+            description: 'A safe, confidential space for trauma survivors to heal together using trauma-informed approaches and peer support.',
+            type: 'wellness',
+            maxMembers: 6,
+            isPrivate: true,
+            isActive: true,
+            tags: JSON.stringify(['trauma', 'ptsd', 'healing', 'therapy'])
+          },
+          {
+            id: 'group-5',
+            name: 'Young Adults Mental Health',
+            description: 'Peer support for young adults (18-30) navigating mental health challenges, career stress, relationships, and life transitions.',
+            type: 'general',
+            maxMembers: 12,
+            isPrivate: false,
+            isActive: true,
+            tags: JSON.stringify(['young-adults', 'life-transitions', 'career-stress', 'relationships'])
+          },
+          {
+            id: 'group-6',
+            name: 'Mindfulness & Meditation Circle',
+            description: 'Practice mindfulness and meditation together. Weekly guided sessions, sharing experiences, and building a sustainable practice.',
+            type: 'wellness',
+            maxMembers: 10,
+            isPrivate: false,
+            isActive: true,
+            tags: JSON.stringify(['mindfulness', 'meditation', 'wellness', 'self-care'])
+          },
+          {
+            id: 'group-7',
+            name: 'Grief & Loss Support',
+            description: 'Compassionate support for those dealing with loss of loved ones, relationships, jobs, or life changes. Process grief in a safe environment.',
+            type: 'general',
+            maxMembers: 8,
+            isPrivate: false,
+            isActive: true,
+            tags: JSON.stringify(['grief', 'loss', 'bereavement', 'healing'])
+          },
+          {
+            id: 'group-8',
+            name: 'LGBTQ+ Wellness Community',
+            description: 'A supportive space for LGBTQ+ individuals to discuss mental health, identity, coming out, family relationships, and community building.',
             type: 'general',
             maxMembers: 10,
             isPrivate: false,
-            isActive: true
+            isActive: true,
+            tags: JSON.stringify(['lgbtq', 'identity', 'community', 'inclusion'])
           }
         ];
 
@@ -163,7 +216,7 @@ export class DatabaseService {
           // Add admin as member
           await this.prisma.groupMember.create({
             data: {
-              userId: adminUser.id,
+              memberId: adminMember.id,
               groupId: group.id,
               role: 'facilitator'
             }
@@ -177,8 +230,8 @@ export class DatabaseService {
     }
   }
 
-  // User methods
-  async createUser(userData: {
+  // Member methods
+  async createMember(memberData: {
     firstName: string;
     lastName: string;
     email: string;
@@ -188,27 +241,27 @@ export class DatabaseService {
     experienceLevel?: string;
     role?: string;
   }): Promise<any> {
-    const hashedPassword = await bcrypt.hash(userData.password, 12);
+    const hashedPassword = await bcrypt.hash(memberData.password, 12);
 
-    return await this.prisma.user.create({
+    return await this.prisma.member.create({
       data: {
         id: uuidv4(),
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        email: userData.email,
+        firstName: memberData.firstName,
+        lastName: memberData.lastName,
+        email: memberData.email,
         password: hashedPassword,
-        recoveryGoals: JSON.stringify(userData.recoveryGoals || []),
-        wellnessGoals: JSON.stringify(userData.wellnessGoals || []),
-        experienceLevel: userData.experienceLevel || 'beginner',
-        role: userData.role || 'member',
+        recoveryGoals: JSON.stringify(memberData.recoveryGoals || []),
+        wellnessGoals: JSON.stringify(memberData.wellnessGoals || []),
+        experienceLevel: memberData.experienceLevel || 'beginner',
+        role: memberData.role || 'member',
         isPremium: false,
         isActive: true
       }
     });
   }
 
-  async getUserById(id: string): Promise<any> {
-    return await this.prisma.user.findUnique({
+  async getMemberById(id: string): Promise<any> {
+    return await this.prisma.member.findUnique({
       where: { id },
       include: {
         groupMemberships: {
@@ -222,8 +275,8 @@ export class DatabaseService {
     });
   }
 
-  async getUserByEmail(email: string): Promise<any> {
-    return await this.prisma.user.findUnique({
+  async getMemberByEmail(email: string): Promise<any> {
+    return await this.prisma.member.findUnique({
       where: { email },
       include: {
         groupMemberships: {
@@ -237,7 +290,7 @@ export class DatabaseService {
     });
   }
 
-  async getUsers(
+  async getMembers(
     page: number = 1,
     limit: number = 20,
     filters: {
@@ -246,7 +299,7 @@ export class DatabaseService {
       experienceLevel?: string;
       role?: string;
     } = {}
-  ): Promise<{ users: any[]; total: number }> {
+  ): Promise<{ members: any[]; total: number }> {
     const where: any = {};
 
     if (filters.search) {
@@ -269,8 +322,8 @@ export class DatabaseService {
       where.role = filters.role;
     }
 
-    const [users, total] = await Promise.all([
-      this.prisma.user.findMany({
+    const [members, total] = await Promise.all([
+      this.prisma.member.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
@@ -288,13 +341,13 @@ export class DatabaseService {
           lastActive: true
         }
       }),
-      this.prisma.user.count({ where })
+      this.prisma.member.count({ where })
     ]);
 
-    return { users, total };
+    return { members, total };
   }
 
-  async updateUser(id: string, updates: any): Promise<any> {
+  async updateMember(id: string, updates: any): Promise<any> {
     const data: any = { ...updates };
 
     // Handle array fields that need JSON stringification
@@ -305,21 +358,21 @@ export class DatabaseService {
       data.wellnessGoals = JSON.stringify(data.wellnessGoals);
     }
 
-    return await this.prisma.user.update({
+    return await this.prisma.member.update({
       where: { id },
       data
     });
   }
 
-  async deleteUser(id: string): Promise<void> {
-    await this.prisma.user.delete({
+  async deleteMember(id: string): Promise<void> {
+    await this.prisma.member.delete({
       where: { id }
     });
   }
 
-  async getUserGroups(userId: string): Promise<any[]> {
+  async getMemberGroups(memberId: string): Promise<any[]> {
     const memberships = await this.prisma.groupMember.findMany({
-      where: { userId },
+      where: { memberId: memberId },
       include: {
         group: true
       }
@@ -386,7 +439,7 @@ export class DatabaseService {
       include: {
         members: {
           include: {
-            user: {
+            member: {
               select: {
                 id: true,
                 firstName: true,
@@ -403,7 +456,7 @@ export class DatabaseService {
           take: 50,
           orderBy: { createdAt: 'desc' },
           include: {
-            user: {
+            member: {
               select: {
                 id: true,
                 firstName: true,
@@ -423,11 +476,11 @@ export class DatabaseService {
     // Transform the response to match frontend expectations
     return {
       ...group,
-      members: group.members.map((member: any) => member.userId),
+      members: group.members.map((groupMember: any) => groupMember.memberId),
       facilitators: group.members
-        .filter((member: any) => member.role === 'facilitator')
-        .map((member: any) => member.userId),
-      createdBy: group.members[0]?.userId // Fallback to first member for now
+        .filter((groupMember: any) => groupMember.role === 'facilitator')
+        .map((groupMember: any) => groupMember.memberId),
+      createdBy: group.members[0]?.memberId // Fallback to first member for now
     };
   }
 
@@ -439,15 +492,16 @@ export class DatabaseService {
       type?: string;
       status?: boolean;
       privacy?: boolean;
-      userId?: string;
+      publicOnly?: boolean;
+      memberId?: string;
     } = {}
   ): Promise<{ groups: any[]; total: number }> {
     const where: any = {};
 
     if (filters.search) {
       where.OR = [
-        { name: { contains: filters.search, mode: 'insensitive' } },
-        { description: { contains: filters.search, mode: 'insensitive' } }
+        { name: { contains: filters.search } },
+        { description: { contains: filters.search } }
       ];
     }
 
@@ -462,11 +516,15 @@ export class DatabaseService {
     if (filters.privacy !== undefined) {
       where.isPrivate = !filters.privacy;
     }
+    
+    if (filters.publicOnly !== undefined) {
+      where.isPrivate = filters.publicOnly ? false : true; // publicOnly: true means isPrivate: false
+    }
 
-    if (filters.userId) {
+    if (filters.memberId) {
       where.members = {
         some: {
-          userId: filters.userId
+          memberId: filters.memberId
         }
       };
     }
@@ -480,9 +538,9 @@ export class DatabaseService {
         include: {
           members: {
             select: {
-              userId: true,
+              memberId: true,
               role: true,
-              user: {
+              member: {
                 select: {
                   firstName: true,
                   lastName: true,
@@ -504,11 +562,11 @@ export class DatabaseService {
     // Transform the response to match frontend expectations
     const transformedGroups = groups.map(group => ({
       ...group,
-      members: group.members.map((member: any) => member.userId),
+      members: group.members.map((member: any) => member.memberId),
       facilitators: group.members
         .filter((member: any) => member.role === 'facilitator')
-        .map((member: any) => member.userId),
-      createdBy: group.members[0]?.userId // Fallback to first member for now
+        .map((member: any) => member.memberId),
+      createdBy: group.members[0]?.memberId // Fallback to first member for now
     }));
 
     return { groups: transformedGroups, total };
@@ -527,11 +585,11 @@ export class DatabaseService {
     });
   }
 
-  async addGroupMember(groupId: string, userId: string, role: string = 'member'): Promise<any> {
+  async addGroupMember(groupId: string, memberId: string, role: string = 'member'): Promise<any> {
     const existingMember = await this.prisma.groupMember.findUnique({
       where: {
-        userId_groupId: {
-          userId,
+        memberId_groupId: {
+          memberId: memberId,
           groupId
         }
       }
@@ -544,18 +602,18 @@ export class DatabaseService {
     return await this.prisma.groupMember.create({
       data: {
         id: uuidv4(),
-        userId,
+        memberId: memberId,
         groupId,
         role
       }
     });
   }
 
-  async removeGroupMember(groupId: string, userId: string): Promise<void> {
+  async removeGroupMember(groupId: string, memberId: string): Promise<void> {
     await this.prisma.groupMember.delete({
       where: {
-        userId_groupId: {
-          userId,
+        memberId_groupId: {
+          memberId: memberId,
           groupId
         }
       }
@@ -565,7 +623,7 @@ export class DatabaseService {
   // Message methods
   async createMessage(messageData: {
     groupId: string;
-    userId: string;
+    memberId: string;
     content: string;
     type?: string;
   }): Promise<any> {
@@ -573,12 +631,12 @@ export class DatabaseService {
       data: {
         id: uuidv4(),
         groupId: messageData.groupId,
-        userId: messageData.userId,
+        memberId: messageData.memberId,
         content: messageData.content,
-        type: messageData.type || 'user'
+        type: messageData.type || 'member'
       },
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -624,7 +682,7 @@ export class DatabaseService {
         take: limit,
         orderBy: { createdAt: 'asc' }, // Changed from 'desc' to 'asc' for proper chat ordering
         include: {
-          user: {
+          member: {
             select: {
               id: true,
               firstName: true,
@@ -635,7 +693,7 @@ export class DatabaseService {
           reactions: {
             select: {
               emoji: true,
-              userId: true,
+              memberId: true,
               createdAt: true
             }
           }
@@ -660,12 +718,12 @@ export class DatabaseService {
     });
   }
 
-  async addMessageReaction(messageId: string, userId: string, emoji: string): Promise<any> {
+  async addMessageReaction(messageId: string, memberId: string, emoji: string): Promise<any> {
     return await this.prisma.reaction.upsert({
       where: {
-        messageId_userId_emoji: {
+        messageId_memberId_emoji: {
           messageId,
-          userId,
+          memberId: memberId,
           emoji
         }
       },
@@ -673,18 +731,18 @@ export class DatabaseService {
       create: {
         id: uuidv4(),
         messageId,
-        userId,
+        memberId: memberId,
         emoji
       }
     });
   }
 
-  async removeMessageReaction(messageId: string, userId: string, emoji: string): Promise<void> {
+  async removeMessageReaction(messageId: string, memberId: string, emoji: string): Promise<void> {
     await this.prisma.reaction.delete({
       where: {
-        messageId_userId_emoji: {
+        messageId_memberId_emoji: {
           messageId,
-          userId,
+          memberId: memberId,
           emoji
         }
       }
@@ -693,14 +751,14 @@ export class DatabaseService {
 
   // Session methods
   async createSession(sessionData: {
-    userId: string;
+    memberId: string;
     token: string;
     expiresAt: Date;
   }): Promise<any> {
     return await this.prisma.session.create({
       data: {
         id: uuidv4(),
-        userId: sessionData.userId,
+        memberId: sessionData.memberId,
         token: sessionData.token,
         expiresAt: sessionData.expiresAt
       }
@@ -711,7 +769,7 @@ export class DatabaseService {
     return await this.prisma.session.findUnique({
       where: { token },
       include: {
-        user: true
+        member: true
       }
     });
   }
@@ -725,15 +783,15 @@ export class DatabaseService {
   // Analytics methods
   async getAnalytics(): Promise<any> {
     const [
-      totalUsers,
-      activeUsers,
+      totalMembers,
+      activeMembers,
       totalGroups,
       activeGroups,
       totalMessages,
-      premiumUsers
+      premiumMembers
     ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({
+      this.prisma.member.count(),
+      this.prisma.member.count({
         where: {
           lastActive: {
             gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -743,7 +801,7 @@ export class DatabaseService {
       this.prisma.group.count(),
       this.prisma.group.count({ where: { isActive: true } }),
       this.prisma.message.count(),
-      this.prisma.user.count({ where: { isPremium: true } })
+      this.prisma.member.count({ where: { isPremium: true } })
     ]);
 
     const averageGroupSize = totalGroups > 0
@@ -751,10 +809,10 @@ export class DatabaseService {
       : 0;
 
     return {
-      users: {
-        total: totalUsers,
-        active: activeUsers,
-        premium: premiumUsers,
+      members: {
+        total: totalMembers,
+        active: activeMembers,
+        premium: premiumMembers,
         growth: 0
       },
       groups: {
@@ -768,7 +826,7 @@ export class DatabaseService {
         averagePerGroup: totalGroups > 0 ? totalMessages / totalGroups : 0
       },
       engagement: {
-        dailyActiveUsers: activeUsers,
+        dailyActiveMembers: activeMembers,
         averageSessionDuration: 0,
         messagesSentToday: 0
       }
@@ -780,7 +838,7 @@ export class DatabaseService {
     return await this.prisma.message.findUnique({
       where: { id },
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -791,7 +849,7 @@ export class DatabaseService {
         reactions: {
           select: {
             emoji: true,
-            userId: true,
+            memberId: true,
             createdAt: true
           }
         }
@@ -800,17 +858,17 @@ export class DatabaseService {
   }
 
   // Group facilitator methods
-  async addGroupFacilitator(groupId: string, userId: string): Promise<any> {
-    return await this.addGroupMember(groupId, userId, 'facilitator');
+  async addGroupFacilitator(groupId: string, memberId: string): Promise<any> {
+    return await this.addGroupMember(groupId, memberId, 'facilitator');
   }
 
-  async removeGroupFacilitator(groupId: string, userId: string): Promise<void> {
-    await this.removeGroupMember(groupId, userId);
+  async removeGroupFacilitator(groupId: string, memberId: string): Promise<void> {
+    await this.removeGroupMember(groupId, memberId);
   }
 
-  // User activity methods
-  async getUserActivity(
-    userId: string,
+  // Member activity methods
+  async getMemberActivity(
+    memberId: string,
     page: number = 1,
     limit: number = 20
   ): Promise<{ logs: any[]; total: number }> {
@@ -820,26 +878,26 @@ export class DatabaseService {
 
   // Audit log methods
   async createAuditLog(auditData: {
-    userId: string;
+    memberId: string;
     action: string;
     resource?: string;
     resourceId?: string;
     details?: any;
     metadata?: any;
     ipAddress?: string;
-    userAgent?: string;
+    memberAgent?: string;
   }): Promise<any> {
     try {
       // Try to create audit log in database if table exists
       return await this.prisma.auditLog.create({
         data: {
-          userId: auditData.userId,
+          memberId: auditData.memberId,
           action: auditData.action,
           entityType: auditData.resource,
           entityId: auditData.resourceId,
           details: typeof auditData.metadata === 'object' ? JSON.stringify(auditData.metadata) : auditData.metadata,
           ipAddress: auditData.ipAddress,
-          userAgent: auditData.userAgent,
+          memberAgent: auditData.memberAgent,
           timestamp: new Date()
         }
       });
@@ -861,7 +919,7 @@ export class DatabaseService {
     page: number = 1,
     limit: number = 50,
     filters: {
-      userId?: string;
+      memberId?: string;
       action?: string;
       resource?: string;
       startDate?: Date;
@@ -873,8 +931,8 @@ export class DatabaseService {
   }
 
   // Advanced analytics methods (placeholders)
-  async getUserAnalytics(period: string, startDate?: Date, endDate?: Date): Promise<any> {
-    return { placeholder: 'User analytics would be implemented with real database queries' };
+  async getMemberAnalytics(period: string, startDate?: Date, endDate?: Date): Promise<any> {
+    return { placeholder: 'Member analytics would be implemented with real database queries' };
   }
 
   async getGroupAnalytics(period: string, startDate?: Date, endDate?: Date): Promise<any> {
@@ -889,8 +947,8 @@ export class DatabaseService {
     return { placeholder: 'Engagement analytics would be implemented with real database queries' };
   }
 
-  async getUserActivityAnalytics(userId: string, period: string, startDate?: Date, endDate?: Date): Promise<any> {
-    return { placeholder: 'User activity analytics would be implemented with real database queries' };
+  async getMemberActivityAnalytics(memberId: string, period: string, startDate?: Date, endDate?: Date): Promise<any> {
+    return { placeholder: 'Member activity analytics would be implemented with real database queries' };
   }
 
   async getGroupSpecificAnalytics(groupId: string, period: string, startDate?: Date, endDate?: Date): Promise<any> {
@@ -917,8 +975,8 @@ export class DatabaseService {
     return { placeholder: 'Premium analytics would be implemented with real database queries' };
   }
 
-  async getUserStats(period: string, startDate?: Date, endDate?: Date): Promise<any> {
-    return { placeholder: 'User stats would be implemented with real database queries' };
+  async getMemberStats(period: string, startDate?: Date, endDate?: Date): Promise<any> {
+    return { placeholder: 'Member stats would be implemented with real database queries' };
   }
 
   async getGroupStats(period: string, startDate?: Date, endDate?: Date): Promise<any> {
@@ -931,11 +989,11 @@ export class DatabaseService {
 
   // Database statistics
   async getStats(): Promise<any> {
-    const [userCount, groupCount, messageCount, activeUsers] = await Promise.all([
-      this.prisma.user.count(),
+    const [memberCount, groupCount, messageCount, activeMembers] = await Promise.all([
+      this.prisma.member.count(),
       this.prisma.group.count(),
       this.prisma.message.count(),
-      this.prisma.user.count({
+      this.prisma.member.count({
         where: {
           lastActive: {
             gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -945,10 +1003,10 @@ export class DatabaseService {
     ]);
 
     return {
-      totalUsers: userCount,
+      totalMembers: memberCount,
       totalGroups: groupCount,
       totalMessages: messageCount,
-      activeUsers: activeUsers,
+      activeMembers: activeMembers,
       databaseHealth: 'healthy'
     };
   }
@@ -960,7 +1018,7 @@ export class DatabaseService {
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -976,7 +1034,7 @@ export class DatabaseService {
     const groupMemberships = await this.prisma.groupMember.findMany({
       where: { groupId },
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -997,24 +1055,24 @@ export class DatabaseService {
   // Group Assignment Methods
 
   async getGroupAssignments(filters: {
-    userId?: string;
+    memberId?: string;
     groupId?: string;
     page?: number;
     limit?: number;
   }): Promise<any[]> {
-    const { userId, groupId, page = 1, limit = 50 } = filters;
+    const { memberId, groupId, page = 1, limit = 50 } = filters;
 
     const where: any = {
       isActive: true
     };
 
-    if (userId) where.userId = userId;
+    if (memberId) where.memberId = memberId;
     if (groupId) where.groupId = groupId;
 
     const assignments = await this.prisma.groupAssignment.findMany({
       where,
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -1055,16 +1113,16 @@ export class DatabaseService {
     return assignments;
   }
 
-  async getGroupAssignment(userId: string, groupId: string): Promise<any | null> {
+  async getGroupAssignment(memberId: string, groupId: string): Promise<any | null> {
     return await this.prisma.groupAssignment.findUnique({
       where: {
-        userId_groupId: {
-          userId,
+        memberId_groupId: {
+          memberId: memberId,
           groupId
         }
       },
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -1093,21 +1151,21 @@ export class DatabaseService {
   }
 
   async createGroupAssignment(data: {
-    userId: string;
+    memberId: string;
     groupId: string;
     assignedBy: string;
     notes?: string;
   }): Promise<any> {
     const assignment = await this.prisma.groupAssignment.create({
       data: {
-        userId: data.userId,
+        memberId: data.memberId,
         groupId: data.groupId,
         assignedBy: data.assignedBy,
         notes: data.notes,
         isActive: true
       },
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -1134,27 +1192,27 @@ export class DatabaseService {
       }
     });
 
-    logger.info(`Group assignment created: User ${data.userId} assigned to group ${data.groupId} by ${data.assignedBy}`);
+    logger.info(`Group assignment created: Member ${data.memberId} assigned to group ${data.groupId} by ${data.assignedBy}`);
     return assignment;
   }
 
-  async deleteGroupAssignment(userId: string, groupId: string): Promise<void> {
+  async deleteGroupAssignment(memberId: string, groupId: string): Promise<void> {
     await this.prisma.groupAssignment.delete({
       where: {
-        userId_groupId: {
-          userId,
+        memberId_groupId: {
+          memberId: memberId,
           groupId
         }
       }
     });
 
-    logger.info(`Group assignment deleted: User ${userId} unassigned from group ${groupId}`);
+    logger.info(`Group assignment deleted: Member ${memberId} unassigned from group ${groupId}`);
   }
 
-  async getUserAssignedGroups(userId: string): Promise<any[]> {
+  async getMemberAssignedGroups(memberId: string): Promise<any[]> {
     const assignments = await this.prisma.groupAssignment.findMany({
       where: {
-        userId,
+        memberId: memberId,
         isActive: true
       },
       include: {
@@ -1171,7 +1229,7 @@ export class DatabaseService {
             createdAt: true,
             members: {
               select: {
-                userId: true
+                memberId: true
               }
             },
             _count: {
@@ -1204,63 +1262,134 @@ export class DatabaseService {
     }));
   }
 
-  async getUserAvailableGroups(userId: string): Promise<any[]> {
-    // Get groups that are either:
-    // 1. Assigned to the user, OR
-    // 2. Public groups that the user can freely join
-    
-    const assignedGroups = await this.getUserAssignedGroups(userId);
-    const assignedGroupIds = assignedGroups.map(g => g.id);
-
-    // Get public groups that aren't assigned to the user
-    const publicGroups = await this.prisma.group.findMany({
+  async getMemberAvailableGroups(memberId: string): Promise<any[]> {
+    // Get groups where member is actually a member (via GroupMember table)
+    const memberGroups = await this.prisma.group.findMany({
       where: {
         isActive: true,
-        isPrivate: false,
-        id: {
-          notIn: assignedGroupIds
+        members: {
+          some: {
+            memberId: memberId
+          }
         }
       },
       include: {
         members: {
-          select: {
-            userId: true
+          include: {
+            member: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatar: true
+              }
+            }
           }
         },
         _count: {
           select: {
-            members: true
+            members: true,
+            messages: true
           }
         }
+      },
+      orderBy: {
+        lastActivity: 'desc'
       }
     });
 
-    // Combine assigned and public groups
-    const availableGroups = [
-      ...assignedGroups.map(g => ({
-        ...g,
-        isAssigned: true,
-        isMember: g.members?.some((m: any) => m.userId === userId) || false,
-        memberCount: g._count?.members || g.members?.length || 0,
-        canJoin: !g.members?.some((m: any) => m.userId === userId) && 
-                 (g._count?.members || g.members?.length || 0) < g.maxMembers
-      })),
-      ...publicGroups.map(g => ({
-        ...g,
-        memberCount: g._count.members,
-        isAssigned: false,
-        isMember: g.members.some(m => m.userId === userId),
-        canJoin: !g.members.some(m => m.userId === userId) && g._count.members < g.maxMembers,
-        members: g.members.map(m => m.userId) // Convert to array of userIds for frontend
-      }))
-    ];
+    // Also get available public groups they can join (but aren't members of yet)
+    const joinableGroups = await this.prisma.group.findMany({
+      where: {
+        isActive: true,
+        isPrivate: false,
+        members: {
+          none: {
+            memberId: memberId
+          }
+        }
+      },
+      include: {
+        members: {
+          include: {
+            member: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatar: true
+              }
+            }
+          }
+        },
+        _count: {
+          select: {
+            members: true,
+            messages: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
 
-    return availableGroups;
+    // Format the response
+    const memberGroupsFormatted = memberGroups.map(group => ({
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      type: group.type,
+      maxMembers: group.maxMembers,
+      isPrivate: group.isPrivate,
+      isActive: group.isActive,
+      createdAt: group.createdAt,
+      lastActivity: group.lastActivity,
+      memberCount: group._count.members,
+      messageCount: group._count.messages,
+      isMember: true,
+      isAssigned: false, // We're not tracking assignments in this simplified version
+      canJoin: false, // Already a member
+      members: group.members.map(m => ({
+        id: m.member.id,
+        name: `${m.member.firstName} ${m.member.lastName}`,
+        avatar: m.member.avatar,
+        role: m.role,
+        joinedAt: m.joinedAt
+      }))
+    }));
+
+    const joinableGroupsFormatted = joinableGroups.map(group => ({
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      type: group.type,
+      maxMembers: group.maxMembers,
+      isPrivate: group.isPrivate,
+      isActive: group.isActive,
+      createdAt: group.createdAt,
+      lastActivity: group.lastActivity,
+      memberCount: group._count.members,
+      messageCount: group._count.messages,
+      isMember: false,
+      isAssigned: false,
+      canJoin: group._count.members < group.maxMembers,
+      members: group.members.map(m => ({
+        id: m.member.id,
+        name: `${m.member.firstName} ${m.member.lastName}`,
+        avatar: m.member.avatar,
+        role: m.role,
+        joinedAt: m.joinedAt
+      }))
+    }));
+
+    // Return member groups first, then joinable groups
+    return [...memberGroupsFormatted, ...joinableGroupsFormatted];
   }
 
   // Mood Entry Methods
   async createMoodEntry(data: {
-    userId: string;
+    memberId: string;
     score: number;
     emotions?: string;
     triggers?: string;
@@ -1268,7 +1397,7 @@ export class DatabaseService {
   }): Promise<any> {
     return await this.prisma.moodEntry.create({
       data: {
-        userId: data.userId,
+        memberId: data.memberId,
         score: data.score,
         emotions: data.emotions,
         triggers: data.triggers,
@@ -1278,11 +1407,11 @@ export class DatabaseService {
   }
 
   // Therapist Profile Methods
-  async getTherapistProfile(userId: string): Promise<any> {
+  async getTherapistProfile(memberId: string): Promise<any> {
     return await this.prisma.therapistProfile.findUnique({
-      where: { userId },
+      where: { memberId: memberId },
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -1295,7 +1424,7 @@ export class DatabaseService {
   }
 
   async createTherapistProfile(data: {
-    userId: string;
+    memberId: string;
     licenseNumber: string;
     specializations: string;
     bio: string;
@@ -1303,7 +1432,7 @@ export class DatabaseService {
   }): Promise<any> {
     return await this.prisma.therapistProfile.create({
       data: {
-        userId: data.userId,
+        memberId: data.memberId,
         licenseNumber: data.licenseNumber,
         specializations: data.specializations,
         bio: data.bio,
@@ -1429,7 +1558,7 @@ export class DatabaseService {
   }
 
   async getTherapistsWithClientCount(): Promise<any[]> {
-    const therapists = await this.prisma.user.findMany({
+    const therapists = await this.prisma.member.findMany({
       where: {
         role: 'therapist',
         isActive: true
@@ -1491,16 +1620,16 @@ export class DatabaseService {
     }));
   }
 
-  async updateTherapistProfile(userId: string, data: any): Promise<any> {
+  async updateTherapistProfile(memberId: string, data: any): Promise<any> {
     return await this.prisma.therapistProfile.update({
-      where: { userId },
+      where: { memberId: memberId },
       data
     });
   }
 
   // Public methods for counting records
-  async getUserCount(filters?: any): Promise<number> {
-    return this.prisma.user.count(filters);
+  async getMemberCount(filters?: any): Promise<number> {
+    return this.prisma.member.count(filters);
   }
 
   async getGroupCount(filters?: any): Promise<number> {
@@ -1515,4 +1644,16 @@ export class DatabaseService {
   get client(): PrismaClient {
     return this.prisma;
   }
+
+  async getMoodEntries(memberId: string, days: number): Promise<any[]> {
+    return await this.prisma.moodEntry.findMany({
+      where: {
+        memberId: memberId,
+        createdAt: {
+          gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+        }
+      }
+    });
+  }
+
 }

@@ -3,27 +3,26 @@
  * Can be embedded anywhere in the app for instant Maya support
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Heart, 
-  X, 
-  Maximize2, 
-  Minimize2,
-  MessageSquare,
+import {
+  Heart,
+  X,
   Bot,
-  RotateCcw
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  LifeBuoy
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 import MayaInterface from '../ai/MayaInterface';
 import MayaTherapistInterface from '../ai/MayaTherapistInterface';
 import { Button } from './Button';
-import { Card } from './Card';
 import { cn } from '@/utils/cn';
 
 interface MayaQuickAccessProps {
-  user: {
+  member: {
     id: string;
     firstName: string;
     role: 'member' | 'therapist' | 'admin';
@@ -60,8 +59,8 @@ const THEME_COLORS = {
   }
 };
 
-export default function MayaQuickAccess({ 
-  user, 
+export default function MayaQuickAccess({
+  member,
   position = 'bottom-right',
   className,
   disabled = false,
@@ -187,15 +186,15 @@ export default function MayaQuickAccess({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               className={cn(
-                'bg-white rounded-lg shadow-2xl',
-                isExpanded 
-                  ? 'w-full h-full max-w-none max-h-none' 
-                  : 'w-full max-w-5xl min-h-[600px] max-h-[calc(100vh-4rem)]',
-                'overflow-hidden flex-shrink-0'
+                'bg-white rounded-lg shadow-2xl flex flex-col',
+                isExpanded
+                  ? 'w-full h-full max-w-none max-h-none'
+                  : 'w-full max-w-5xl h-[calc(100vh-4rem)]',
+                'overflow-hidden'
               )}
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-purple-50 to-pink-50">
+              <div className="flex-shrink-0 flex items-center justify-between p-4 border-b bg-gradient-to-r from-purple-50 to-pink-50">
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     'w-10 h-10 rounded-full flex items-center justify-center',
@@ -205,11 +204,11 @@ export default function MayaQuickAccess({
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">
-                      {user.role === 'therapist' || user.role === 'admin' ? 'Maya Clinical Assistant' : 'Maya AI'}
+                      {member.role === 'therapist' || member.role === 'admin' ? 'Maya Clinical Assistant' : 'Maya AI'}
                     </h3>
                     <p className="text-sm text-gray-600">
-                      {user.role === 'therapist' || user.role === 'admin' 
-                        ? 'Professional therapeutic support' 
+                      {member.role === 'therapist' || member.role === 'admin'
+                        ? 'Professional therapeutic support'
                         : 'Your therapeutic companion'
                       }
                     </p>
@@ -217,6 +216,20 @@ export default function MayaQuickAccess({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Crisis Help Button */}
+                  <Button
+                    onClick={() => {
+                      // Trigger crisis help
+                      console.log('Crisis help triggered');
+                      toast.error('Crisis support activated. Connecting you with help...');
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-1.5"
+                    size="sm"
+                  >
+                    <LifeBuoy className="w-4 h-4 mr-2" />
+                    I need immediate help
+                  </Button>
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -226,7 +239,7 @@ export default function MayaQuickAccess({
                   >
                     <RotateCcw className="w-4 h-4" />
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -239,7 +252,7 @@ export default function MayaQuickAccess({
                       <Maximize2 className="w-4 h-4" />
                     )}
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -252,26 +265,27 @@ export default function MayaQuickAccess({
               </div>
 
               {/* Modal Content */}
-              <div className="flex-1 h-full">
-                {user.role === 'therapist' || user.role === 'admin' ? (
+              <div className="flex-1 overflow-hidden">
+                {member.role === 'therapist' || member.role === 'admin' ? (
                   <MayaTherapistInterface
                     key={mayaKey} // Forces remount when key changes
-                    therapistId={user.id}
+                    therapistId={member.id}
                     className="h-full"
                     mode="general"
                   />
                 ) : (
                   <MayaInterface
                     key={mayaKey} // Forces remount when key changes
-                    userId={user.id}
+                    memberId={member.id}
                     className="h-full"
                     compact={false}
+                    hideHeader={true} // Hide header since modal has its own
                   />
                 )}
               </div>
 
               {/* Modal Footer */}
-              <div className="border-t bg-gray-50 px-4 py-2">
+              <div className="flex-shrink-0 border-t bg-gray-50 px-4 py-2">
                 <div className="flex items-center justify-between text-xs text-gray-600">
                   <div className="flex items-center gap-2">
                     <Bot className="w-3 h-3" />

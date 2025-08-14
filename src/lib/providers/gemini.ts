@@ -14,8 +14,8 @@ export class GeminiProvider extends BaseProvider {
     // TODO: Install @google/generative-ai package
     // const { GoogleGenerativeAI } = await import('@google/generative-ai');
     // this.genAI = new GoogleGenerativeAI(this.config.apiKey);
-    // this.model = this.genAI.getGenerativeModel({ 
-    //   model: this.config.defaultModel || 'gemini-pro' 
+    // this.model = this.genAI.getGenerativeModel({
+    //   model: this.config.defaultModel || 'gemini-pro'
     // });
   }
 
@@ -36,7 +36,7 @@ export class GeminiProvider extends BaseProvider {
 
       const lastMessage = options.messages[options.messages.length - 1];
       const result = await chat.sendMessage(lastMessage.content);
-      
+
       return this.convertGeminiResponse(result);
     });
   }
@@ -67,14 +67,14 @@ export class GeminiProvider extends BaseProvider {
     return messages.map(msg => {
       if (msg.role === 'system') {
         return {
-          role: 'user',
+          role: 'member',
           parts: [{ text: `System: ${msg.content}` }]
         };
       }
 
       if (msg.role === 'tool') {
         return {
-          role: 'user',
+          role: 'member',
           parts: [{
             functionResponse: {
               name: msg.toolCallId,
@@ -97,7 +97,7 @@ export class GeminiProvider extends BaseProvider {
       }
 
       return {
-        role: msg.role === 'assistant' ? 'model' : 'user',
+        role: msg.role === 'assistant' ? 'model' : 'member',
         parts: [{ text: msg.content }]
       };
     });
@@ -142,7 +142,7 @@ export class GeminiProvider extends BaseProvider {
       id: `gemini_${Date.now()}`,
       choices: [{
         message,
-        finishReason: candidate.finishReason === 'STOP' ? 'stop' : 
+        finishReason: candidate.finishReason === 'STOP' ? 'stop' :
                      candidate.finishReason === 'MAX_TOKENS' ? 'length' : 'stop'
       }],
       usage: response.response.usageMetadata ? {

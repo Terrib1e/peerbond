@@ -7,12 +7,12 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  ArrowLeft, 
-  Heart, 
-  Bot, 
+import {
+  ArrowLeft,
+  Heart,
+  Bot,
   User,
-  AlertCircle 
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -22,10 +22,10 @@ import { Card } from '@/components/ui/Card';
 import { cn } from '@/utils/cn';
 
 export default function MayaPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { member, isAuthenticated } = useAuthStore();
   const [searchParams] = useSearchParams();
   const [isInitializing, setIsInitializing] = useState(true);
-  
+
   // Extract context from URL parameters
   const groupId = searchParams.get('groupId');
   const sessionId = searchParams.get('sessionId');
@@ -35,29 +35,29 @@ export default function MayaPage() {
   useEffect(() => {
     // Initialize page and validate access
     initializePage();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, member]);
 
   const initializePage = async () => {
     setIsInitializing(true);
-    
+
     try {
       // Check authentication
-      if (!isAuthenticated || !user) {
+      if (!isAuthenticated || !member) {
         toast.error('Please sign in to access Maya');
         // In a real app, redirect to login
         return;
       }
 
       // Validate role-based access if needed
-      if (clientId && user.role !== 'therapist' && user.role !== 'admin') {
+      if (clientId && member.role !== 'therapist' && member.role !== 'admin') {
         toast.error('You do not have permission to access client-specific Maya features');
         return;
       }
 
       // Log Maya page access for analytics
       console.log('Maya page accessed:', {
-        userId: user.id,
-        role: user.role,
+        memberId: member.id,
+        role: member.role,
         context: { groupId, sessionId, clientId, mode }
       });
 
@@ -74,15 +74,15 @@ export default function MayaPage() {
     if (groupId) {
       // Go back to group chat
       window.history.back();
-    } else if (user?.role === 'therapist') {
+    } else if (member?.role === 'therapist') {
       // Go back to therapist dashboard
       window.location.href = '/therapist';
-    } else if (user?.role === 'admin') {
+    } else if (member?.role === 'admin') {
       // Go back to admin dashboard
       window.location.href = '/admin';
     } else {
       // Go back to main dashboard
-      window.location.href = '/dashboard';
+      window.location.href = '/app';
     }
   };
 
@@ -106,7 +106,7 @@ export default function MayaPage() {
   }
 
   // Unauthenticated state
-  if (!isAuthenticated || !user) {
+  if (!isAuthenticated || !member) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-pink-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md p-8 text-center">
@@ -116,13 +116,13 @@ export default function MayaPage() {
             You need to be signed in to access Maya, your AI therapeutic companion.
           </p>
           <div className="space-y-3">
-            <Button 
+            <Button
               onClick={() => window.location.href = '/login'}
               className="w-full"
             >
               Sign In
             </Button>
-            <Button 
+            <Button
               variant="outline"
               onClick={() => window.location.href = '/'}
               className="w-full"
@@ -151,18 +151,18 @@ export default function MayaPage() {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              
+
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
                   <Heart className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">
-                    {user.role === 'therapist' || user.role === 'admin' ? 'Maya Clinical Assistant' : 'Maya AI'}
+                    {member.role === 'therapist' || member.role === 'admin' ? 'Maya Clinical Assistant' : 'Maya AI'}
                   </h1>
                   <p className="text-sm text-gray-600">
-                    {user.role === 'therapist' || user.role === 'admin' 
-                      ? 'Professional Therapeutic Support' 
+                    {member.role === 'therapist' || member.role === 'admin'
+                      ? 'Professional Therapeutic Support'
                       : 'Your Therapeutic Companion'
                     }
                   </p>
@@ -174,9 +174,9 @@ export default function MayaPage() {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <div className="text-sm font-medium text-gray-900">
-                  {user.firstName} {user.lastName}
+                  {member.firstName} {member.lastName}
                 </div>
-                <div className="text-xs text-gray-600 capitalize">{user.role}</div>
+                <div className="text-xs text-gray-600 capitalize">{member.role}</div>
               </div>
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                 <User className="w-4 h-4 text-white" />
@@ -195,7 +195,10 @@ export default function MayaPage() {
           className="h-full"
         >
           <MayaHub
-            user={user}
+            member={{
+              ...member,
+              role: member.role === 'member' ? 'member' as const : member.role
+            }}
             context={{
               groupId: groupId || undefined,
               sessionId: sessionId || undefined,
@@ -218,16 +221,16 @@ export default function MayaPage() {
               <span>•</span>
               <span>AI-Powered Mental Health Support</span>
             </div>
-            
+
             <div className="flex items-center gap-4">
-              <button 
-                onClick={() => toast.info('Maya provides AI-powered therapeutic support but is not a replacement for professional mental health care.')}
+              <button
+                onClick={() => toast.success('Maya provides AI-powered therapeutic support but is not a replacement for professional mental health care.')}
                 className="hover:text-gray-900 transition-colors"
               >
                 About Maya
               </button>
               <span>•</span>
-              <button 
+              <button
                 onClick={() => window.open('/privacy', '_blank')}
                 className="hover:text-gray-900 transition-colors"
               >

@@ -32,7 +32,7 @@ const therapistAuth = requireRole(['therapist', 'admin']);
 // Get therapist statistics
 router.get('/stats', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
-    const therapistId = req.user!.id;
+    const therapistId = req.member!.id;
 
     // Get therapist's assigned clients and groups
     const [assignedClients, therapistGroups, criticalAlerts] = await Promise.all([
@@ -47,7 +47,7 @@ router.get('/stats', therapistAuth, asyncHandler(async (req: AuthenticatedReques
             {
               members: {
                 some: {
-                  userId: therapistId,
+                  memberId: therapistId,
                   role: 'facilitator'
                 }
               }
@@ -55,8 +55,8 @@ router.get('/stats', therapistAuth, asyncHandler(async (req: AuthenticatedReques
           ]
         }
       }),
-      // Mock critical alerts for now - would come from real crisis detection
-      Promise.resolve(1)
+      // TODO: Implement real crisis detection system
+      Promise.resolve(0)
     ]);
 
     const totalGroups = therapistGroups;
@@ -99,7 +99,7 @@ router.get('/stats', therapistAuth, asyncHandler(async (req: AuthenticatedReques
 router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
     const { groupId } = req.params;
-    const therapistId = req.user!.id;
+    const therapistId = req.member!.id;
 
     logger.info(`🔍 Therapist ${therapistId} requesting members for group ${groupId}`);
 
@@ -114,7 +114,7 @@ router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: A
           {
             members: {
               some: {
-                userId: therapistId,
+                memberId: therapistId,
                 role: 'facilitator'
               }
             }
@@ -124,9 +124,9 @@ router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: A
       include: {
         members: {
           select: {
-            userId: true,
+            memberId: true,
             role: true,
-            user: {
+            member: {
               select: {
                 id: true,
                 firstName: true,
@@ -168,7 +168,7 @@ router.get('/groups/:groupId/members', therapistAuth, asyncHandler(async (req: A
 router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
     const { limit = 10 } = req.query;
-    const therapistId = req.user!.id;
+    const therapistId = req.member!.id;
 
     logger.info(`🔍 Therapist ${therapistId} requesting groups`);
 
@@ -182,7 +182,7 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
           {
             members: {
               some: {
-                userId: therapistId,
+                memberId: therapistId,
                 role: 'facilitator'
               }
             }
@@ -194,9 +194,9 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
       include: {
         members: {
           select: {
-            userId: true,
+            memberId: true,
             role: true,
-            user: {
+            member: {
               select: {
                 id: true,
                 firstName: true,
@@ -249,15 +249,15 @@ router.get('/groups', therapistAuth, asyncHandler(async (req: AuthenticatedReque
 
 // Add member to group
 router.post('/groups/:groupId/members', therapistAuth, validateRequest([
-  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('memberId').isUUID().withMessage('Vareq.member ID is required'),
   body('role').isIn(['member', 'facilitator']).withMessage('Valid role is required')
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
     const { groupId } = req.params;
-    const { userId, role } = req.body;
-    const therapistId = req.user!.id;
+    const { memberId, role } = req.body;
+    const therapistId = req.member!.id;
 
-    logger.info(`👥 Therapist ${therapistId} adding user ${userId} as ${role} to group ${groupId}`);
+    logger.info(`👥 Therapist ${therapistId} adding memberereq.memberId} as ${role} to group ${groupId}`);
 
     // Verify therapist has access to this group
     const group = await dbService.client.group.findFirst({
@@ -270,7 +270,7 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
           {
             members: {
               some: {
-                userId: therapistId,
+                memberId: therapistId,
                 role: 'facilitator'
               }
             }
@@ -287,18 +287,18 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
       });
     }
 
-    // Check if user is already a member
+    // Check if member is already a member
     const existingMember = await dbService.client.groupMember.findFirst({
       where: {
         groupId,
-        userId
+        memberId
       }
     });
 
     if (existingMember) {
       return res.status(400).json({
         success: false,
-        error: 'User is already a member of this group',
+        error: 'member is already a member of this group',
         timestamp: new Date().toISOString()
       });
     }
@@ -307,12 +307,12 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
     const newMember = await dbService.client.groupMember.create({
       data: {
         groupId,
-        userId,
+        memberId,
         role,
         joinedAt: new Date()
       },
       include: {
-        user: {
+        member: {
           select: {
             id: true,
             firstName: true,
@@ -323,7 +323,7 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
       }
     });
 
-    logger.info(`✅ User ${userId} added as ${role} to group ${groupId} by therapist ${therapistId}`);
+    logger.info(`✅ memberereq.memberId} added as ${role} to group ${groupId} by therapist ${therapistId}`);
 
     res.status(201).json({
       success: true,
@@ -341,12 +341,12 @@ router.post('/groups/:groupId/members', therapistAuth, validateRequest([
 }));
 
 // Remove member from group
-router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.delete('/groups/:groupId/members/:memberId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
-    const { groupId, userId } = req.params;
-    const therapistId = req.user!.id;
+    const { groupId, memberId } = req.params;
+    const therapistId = req.member!.id;
 
-    logger.info(`👥 Therapist ${therapistId} removing user ${userId} from group ${groupId}`);
+    logger.info(`👥 Therapist ${therapistId} removing memberereq.memberId} from group ${groupId}`);
 
     // Verify therapist has access to this group
     const group = await dbService.client.group.findFirst({
@@ -359,7 +359,7 @@ router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(as
           {
             members: {
               some: {
-                userId: therapistId,
+                memberId: therapistId,
                 role: 'facilitator'
               }
             }
@@ -376,18 +376,18 @@ router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(as
       });
     }
 
-    // Check if user is a member
+    // Check if member is a member
     const member = await dbService.client.groupMember.findFirst({
       where: {
         groupId,
-        userId
+        memberId
       }
     });
 
     if (!member) {
       return res.status(404).json({
         success: false,
-        error: 'User is not a member of this group',
+        error: 'member is not a member of this group',
         timestamp: new Date().toISOString()
       });
     }
@@ -399,7 +399,7 @@ router.delete('/groups/:groupId/members/:userId', therapistAuth, asyncHandler(as
       }
     });
 
-    logger.info(`✅ User ${userId} removed from group ${groupId} by therapist ${therapistId}`);
+    logger.info(`✅ memberereq.memberId} removed from group ${groupId} by therapist ${therapistId}`);
 
     res.json({
       success: true,
@@ -425,7 +425,7 @@ router.post('/groups', therapistAuth, validateRequest([
   body('isPrivate').optional().isBoolean().withMessage('isPrivate must be a boolean')
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { name, description, type, maxMembers = 8, isPrivate = false } = req.body;
-  const therapistId = req.user!.id;
+  const therapistId = req.member!.id;
 
   try {
     logger.info(`🏗️ Therapist ${therapistId} creating group: ${name}`);
@@ -445,12 +445,12 @@ router.post('/groups', therapistAuth, validateRequest([
 
     // Log the group creation
     await dbService.createAuditLog({
-      userId: therapistId,
+      memberId: therapistId,
       action: 'group_created',
       resource: 'group',
       resourceId: newGroup.id,
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
       metadata: { name, type, maxMembers, isPrivate }
     });
 
@@ -472,11 +472,131 @@ router.post('/groups', therapistAuth, validateRequest([
   }
 }));
 
+// Update/Edit a group
+router.put('/groups/:groupId', therapistAuth, validateRequest([
+  body('name').optional().trim().isLength({ min: 1 }).withMessage('Group name cannot be empty'),
+  body('description').optional().trim().isLength({ min: 1 }).withMessage('Group description cannot be empty'),
+  body('type').optional().isIn(['recovery', 'wellness', 'general', 'crisis', 'anxiety', 'depression']).withMessage('Valid group type is required'),
+  body('maxMembers').optional().isInt({ min: 2, max: 50 }).withMessage('Max members must be between 2 and 50'),
+  body('isPrivate').optional().isBoolean().withMessage('isPrivate must be a boolean'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean')
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { groupId } = req.params;
+  const therapistId = req.member!.id;
+  const updates = req.body;
+
+  try {
+    logger.info(`📝 Therapist ${therapistId} updating group ${groupId}`);
+
+    // Verify therapist has permission to edit this group (creator or facilitator)
+    const group = await dbService.client.group.findFirst({
+      where: {
+        id: groupId,
+        isActive: true,
+        OR: [
+          { createdBy: therapistId }, // Creator can edit
+          { facilitatorId: therapistId }, // Main facilitator can edit
+          {
+            members: {
+              some: {
+                memberId: therapistId,
+                role: 'facilitator'
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        error: 'Group not found or you do not have permission to edit this group',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Update the group
+    const updatedGroup = await dbService.client.group.update({
+      where: { id: groupId },
+      data: {
+        ...updates,
+        updatedAt: new Date()
+      },
+      include: {
+        members: {
+          include: {
+            member: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                avatar: true,
+                experienceLevel: true,
+                role: true
+              }
+            }
+          }
+        },
+        _count: {
+          select: {
+            messages: true
+          }
+        }
+      }
+    });
+
+    // Log the group update
+    await dbService.createAuditLog({
+      memberId: therapistId,
+      action: 'group_updated',
+      resource: 'group',
+      resourceId: groupId,
+      ipAddress: req.ip,
+      memberAgent: req.get('User-Agent') || 'unknown',
+      metadata: { 
+        updatedFields: Object.keys(updates),
+        groupName: updatedGroup.name 
+      }
+    });
+
+    logger.info(`✅ Group updated successfully: ${groupId} by therapist ${therapistId}`);
+
+    // Transform the response to match frontend expectations
+    const transformedGroup = {
+      ...updatedGroup,
+      members: updatedGroup.members.map((groupMember: any) => groupMember.memberId),
+      facilitators: updatedGroup.members
+        .filter((groupMember: any) => groupMember.role === 'facilitator')
+        .map((groupMember: any) => groupMember.memberId),
+      createdBy: updatedGroup.members[0]?.memberId || updatedGroup.createdBy
+    };
+
+    res.json({
+      success: true,
+      data: {
+        group: transformedGroup,
+        message: 'Group updated successfully.'
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Failed to update group:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update group',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
 // Delete a group
 router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
   try {
     const { groupId } = req.params;
-    const therapistId = req.user!.id;
+    const therapistId = req.member!.id;
 
     logger.info(`🗑️ Therapist ${therapistId} attempting to delete group ${groupId}`);
 
@@ -490,7 +610,7 @@ router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: Authen
       include: {
         members: {
           select: {
-            userId: true
+            memberId: true
           }
         },
         _count: {
@@ -513,7 +633,7 @@ router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: Authen
     // Soft delete the group (mark as inactive)
     await dbService.client.group.update({
       where: { id: groupId },
-      data: { 
+      data: {
         isActive: false,
         updatedAt: new Date()
       }
@@ -521,13 +641,13 @@ router.delete('/groups/:groupId', therapistAuth, asyncHandler(async (req: Authen
 
     // Log the group deletion
     await dbService.createAuditLog({
-      userId: therapistId,
+      memberId: therapistId,
       action: 'group_deleted',
       resource: 'group',
       resourceId: groupId,
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
-      metadata: { 
+      memberAgent: req.get('User-Agent') || 'unknown',
+      metadata: {
         groupName: group.name,
         memberCount: group._count.members,
         messageCount: group._count.messages
@@ -557,37 +677,35 @@ router.post('/clients', therapistAuth, validateRequest([
   body('firstName').trim().isLength({ min: 1 }).withMessage('First name is required'),
   body('lastName').trim().isLength({ min: 1 }).withMessage('Last name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('role').optional().isIn(['member', 'therapist']).withMessage('Role must be member or therapist'),
+  body('experienceLevel').optional().isIn(['beginner', 'intermediate', 'advanced']).withMessage('Invalid experience level'),
   body('phoneNumber').optional().trim(),
   body('emergencyContact').optional().isObject(),
   body('initialNotes').optional().trim()
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { firstName, lastName, email, phoneNumber, emergencyContact, initialNotes } = req.body;
-  const therapistId = req.user!.id;
+  const { firstName, lastName, email, password, role = 'member', experienceLevel = 'beginner', phoneNumber, emergencyContact, initialNotes } = req.body;
+  const therapistId = req.member!.id;
 
   try {
-    // Check if user already exists
-    const existingUser = await dbService.getUserByEmail(email);
-    if (existingUser) {
+    // Check if member already exists
+    const existingMember = await dbService.getMemberByEmail(email);
+    if (existingMember) {
       return res.status(409).json({
         success: false,
-        error: 'A user with this email already exists',
+        error: 'A member with this email already exists',
         timestamp: new Date().toISOString()
       });
     }
 
-    // Generate a temporary password
-    const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(tempPassword, saltRounds);
-
-    // Create the client user account
-    const newClient = await dbService.createUser({
+    // Create the client member account (password will be hashed by createMember)
+    const newClient = await dbService.createMember({
       firstName,
       lastName,
       email,
-      password: hashedPassword,
-      role: 'member',
-      experienceLevel: 'beginner'
+      password: password, // Pass plain password - createMember will hash it
+      role: role,
+      experienceLevel: experienceLevel
     });
 
     // Create therapist-client assignment
@@ -603,24 +721,24 @@ router.post('/clients', therapistAuth, validateRequest([
     // Add initial therapist note if provided
     if (initialNotes) {
       await dbService.createAuditLog({
-        userId: newClient.id,
+        memberId: newClient.id,
         action: 'client_note_added',
         resource: 'client',
         resourceId: newClient.id,
         ipAddress: req.ip,
-        userAgent: req.get('User-Agent') || 'unknown',
+        memberAgent: req.get('User-Agent') || 'unknown',
         metadata: { note: initialNotes, addedBy: therapistId }
       });
     }
 
     // Log the client creation
     await dbService.createAuditLog({
-      userId: therapistId,
+      memberId: therapistId,
       action: 'client_created',
       resource: 'client',
       resourceId: newClient.id,
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
       metadata: { clientEmail: email, emergencyContact, phoneNumber }
     });
 
@@ -633,8 +751,7 @@ router.post('/clients', therapistAuth, validateRequest([
       success: true,
       data: {
         client: clientWithoutPassword,
-        tempPassword, // Send this once so therapist can share with client
-        message: 'Client created successfully. Please share the temporary password securely with the client.'
+        message: 'Client created successfully with the specified password.'
       },
       timestamp: new Date().toISOString()
     });
@@ -644,6 +761,145 @@ router.post('/clients', therapistAuth, validateRequest([
     res.status(500).json({
       success: false,
       error: 'Failed to create client',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Update/Edit a client
+router.put('/clients/:clientId', therapistAuth, validateRequest([
+  body('firstName').optional().trim().isLength({ min: 1 }).withMessage('First name cannot be empty'),
+  body('lastName').optional().trim().isLength({ min: 1 }).withMessage('Last name cannot be empty'),
+  body('email').optional().isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('role').optional().isIn(['member', 'therapist']).withMessage('Role must be member or therapist'),
+  body('experienceLevel').optional().isIn(['beginner', 'intermediate', 'advanced']).withMessage('Invalid experience level'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+  body('isPremium').optional().isBoolean().withMessage('isPremium must be a boolean')
+]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { clientId } = req.params;
+  const therapistId = req.member!.id;
+  const updates = req.body;
+
+  try {
+    // Verify the client exists and is assigned to this therapist
+    const clientAssignment = await dbService.getTherapistClientAssignment(therapistId, clientId);
+    if (!clientAssignment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found or not assigned to you',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Hash password if provided
+    if (updates.password) {
+      const saltRounds = 12;
+      updates.password = await bcrypt.hash(updates.password, saltRounds);
+    }
+
+    // Update the client
+    const updatedClient = await dbService.updateMember(clientId, updates);
+
+    // Log the client update
+    await dbService.createAuditLog({
+      memberId: therapistId,
+      action: 'client_updated',
+      resource: 'client',
+      resourceId: clientId,
+      ipAddress: req.ip,
+      memberAgent: req.get('User-Agent') || 'unknown',
+      metadata: { 
+        updatedFields: Object.keys(updates),
+        clientEmail: updatedClient.email 
+      }
+    });
+
+    logger.info(`Client updated by therapist: ${clientId} by ${therapistId}`);
+
+    // Remove password from response
+    const { password: _, ...clientWithoutPassword } = updatedClient;
+
+    res.json({
+      success: true,
+      data: {
+        client: clientWithoutPassword,
+        message: 'Client updated successfully.'
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Failed to update client:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update client',
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+// Delete a client (soft delete - deactivate)
+router.delete('/clients/:clientId', therapistAuth, asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const { clientId } = req.params;
+  const therapistId = req.member!.id;
+
+  try {
+    // Verify the client exists and is assigned to this therapist
+    const clientAssignment = await dbService.getTherapistClientAssignment(therapistId, clientId);
+    if (!clientAssignment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found or not assigned to you',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Get client info before deletion for logging
+    const client = await dbService.getMemberById(clientId);
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Soft delete: deactivate the client
+    await dbService.updateMember(clientId, { isActive: false });
+
+    // Deactivate the therapist-client assignment
+    await dbService.deleteTherapistClientAssignment(therapistId, clientId);
+
+    // Log the client deletion
+    await dbService.createAuditLog({
+      memberId: therapistId,
+      action: 'client_deleted',
+      resource: 'client',
+      resourceId: clientId,
+      ipAddress: req.ip,
+      memberAgent: req.get('User-Agent') || 'unknown',
+      metadata: { 
+        clientEmail: client.email,
+        clientName: `${client.firstName} ${client.lastName}`
+      }
+    });
+
+    logger.info(`Client deleted by therapist: ${clientId} by ${therapistId}`);
+
+    res.json({
+      success: true,
+      data: {
+        message: 'Client deleted successfully.'
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('Failed to delete client:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete client',
       timestamp: new Date().toISOString()
     });
   }
@@ -674,7 +930,7 @@ router.get('/clients', therapistAuth, validateRequest([
   } = req.query;
 
   // Get real clients from database (only assigned to this therapist)
-  const therapistId = req.user!.id;
+  const therapistId = req.member!.id;
 
   try {
     logger.info(`🔍 Therapist ${therapistId} requesting clients with params:`, {
@@ -803,46 +1059,42 @@ router.get('/sessions', therapistAuth, validateRequest([
   query('dateRange').optional().isIn(['upcoming', 'today', 'this_week', 'this_month', 'past', 'all']),
   query('clientId').optional().isUUID()
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const mockSessions = [
-    {
-      id: 'session-1',
-      title: 'Weekly Check-in with Sarah',
-      type: 'individual',
-      clientId: 'client-1',
-      clientName: 'Sarah Johnson',
-      scheduledDate: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
-      duration: 50,
-      status: 'scheduled',
-      meetingType: 'video',
-      meetingLink: 'https://meet.example.com/session-1',
-      objectives: ['Discuss weekly progress', 'Review coping strategies'],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    },
-    {
-      id: 'session-2',
-      title: 'Crisis Intervention - Michael',
-      type: 'crisis',
-      clientId: 'client-2',
-      clientName: 'Michael Chen',
-      scheduledDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes from now
-      duration: 90,
-      status: 'scheduled',
-      meetingType: 'phone',
-      objectives: ['Address crisis situation', 'Develop safety plan'],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
-  ];
+  const therapistId = req.member!.id;
+  const {
+    page = 1,
+    limit = 20,
+    search,
+    type,
+    status,
+    dateRange,
+    clientId
+  } = req.query;
 
-  res.json({
-    success: true,
-    data: {
-      sessions: mockSessions,
-      total: mockSessions.length
-    },
-    timestamp: new Date().toISOString()
-  });
+  try {
+    // TODO: Implement database methods for therapy sessions
+    // For now, return empty array since sessions feature needs proper database schema
+    const sessions: any[] = [];
+    const total = 0;
+
+    logger.info(`📅 Therapist ${therapistId} requested sessions: found ${total} sessions`);
+
+    res.json({
+      success: true,
+      data: {
+        sessions,
+        total,
+        message: 'Sessions feature requires database schema implementation for TherapySession model'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to get therapist sessions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get sessions',
+      timestamp: new Date().toISOString()
+    });
+  }
 }));
 
 // Create new session
@@ -855,22 +1107,28 @@ router.post('/sessions', therapistAuth, validateRequest([
   body('meetingType').isIn(['in_person', 'video', 'phone']),
   body('objectives').optional().isArray()
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const therapistId = req.member!.id;
   const sessionData = req.body;
 
-  // Mock creating session
-  const newSession = {
-    id: `session-${Date.now()}`,
-    ...sessionData,
-    status: 'scheduled',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
+  try {
+    // TODO: Implement database method for creating therapy sessions
+    // For now, return success message indicating feature needs implementation
+    logger.info(`📅 Therapist ${therapistId} attempted to create session`);
 
-  res.json({
-    success: true,
-    data: { session: newSession },
-    timestamp: new Date().toISOString()
-  });
+    res.status(501).json({
+      success: false,
+      error: 'Sessions feature requires database schema implementation',
+      message: 'TherapySession model needs to be added to Prisma schema',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to create session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create session',
+      timestamp: new Date().toISOString()
+    });
+  }
 }));
 
 // Get assessments
@@ -881,51 +1139,40 @@ router.get('/assessments', therapistAuth, validateRequest([
   query('severity').optional().isIn(['minimal', 'mild', 'moderate', 'severe']),
   query('timeRange').optional().isIn(['1month', '3months', '6months', '1year', 'all'])
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const mockAssessments = [
-    {
-      id: 'assessment-1',
-      clientId: 'client-1',
-      clientName: 'Sarah Johnson',
-      type: 'phq9',
-      name: 'PHQ-9 (Depression)',
-      score: 8,
-      maxScore: 27,
-      interpretation: 'Mild depression symptoms',
-      severity: 'mild',
-      administeredDate: new Date().toISOString(),
-      administeredBy: req.user?.firstName + ' ' + req.user?.lastName,
-      followUpRequired: false,
-      previousScore: 12,
-      percentChange: -33.3,
-      aiConfidence: 0.85
-    },
-    {
-      id: 'assessment-2',
-      clientId: 'client-2',
-      clientName: 'Michael Chen',
-      type: 'gad7',
-      name: 'GAD-7 (Anxiety)',
-      score: 16,
-      maxScore: 21,
-      interpretation: 'Severe anxiety symptoms',
-      severity: 'severe',
-      administeredDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Yesterday
-      administeredBy: req.user?.firstName + ' ' + req.user?.lastName,
-      followUpRequired: true,
-      previousScore: 14,
-      percentChange: 14.3,
-      aiConfidence: 0.92
-    }
-  ];
+  const therapistId = req.member!.id;
+  const {
+    page = 1,
+    limit = 20,
+    clientId,
+    severity,
+    timeRange
+  } = req.query;
 
-  res.json({
-    success: true,
-    data: {
-      assessments: mockAssessments,
-      total: mockAssessments.length
-    },
-    timestamp: new Date().toISOString()
-  });
+  try {
+    // TODO: Implement database methods for mental health assessments
+    // For now, return empty array since assessments feature needs proper database schema
+    const assessments: any[] = [];
+    const total = 0;
+
+    logger.info(`📋 Therapist ${therapistId} requested assessments: found ${total} assessments`);
+
+    res.json({
+      success: true,
+      data: {
+        assessments,
+        total,
+        message: 'Assessments feature requires database schema implementation for Assessment model'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to get assessments:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get assessments',
+      timestamp: new Date().toISOString()
+    });
+  }
 }));
 
 // Create assessment
@@ -936,21 +1183,27 @@ router.post('/assessments', therapistAuth, validateRequest([
   body('maxScore').isInt({ min: 1 }),
   body('notes').optional().trim()
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const therapistId = req.member!.id;
   const assessmentData = req.body;
 
-  const newAssessment = {
-    id: `assessment-${Date.now()}`,
-    ...assessmentData,
-    administeredDate: new Date().toISOString(),
-    administeredBy: req.user?.firstName + ' ' + req.user?.lastName,
-    aiConfidence: Math.random() * 0.3 + 0.7 // Mock confidence between 0.7-1.0
-  };
+  try {
+    // TODO: Implement database method for creating assessments
+    logger.info(`📋 Therapist ${therapistId} attempted to create assessment`);
 
-  res.json({
-    success: true,
-    data: { assessment: newAssessment },
-    timestamp: new Date().toISOString()
-  });
+    res.status(501).json({
+      success: false,
+      error: 'Assessments feature requires database schema implementation',
+      message: 'Assessment model needs to be added to Prisma schema',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to create assessment:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create assessment',
+      timestamp: new Date().toISOString()
+    });
+  }
 }));
 
 // Get goals
@@ -959,55 +1212,38 @@ router.get('/goals', therapistAuth, validateRequest([
   query('category').optional().isIn(['behavioral', 'emotional', 'cognitive', 'social', 'physical']),
   query('status').optional().isIn(['not_started', 'in_progress', 'completed', 'paused', 'abandoned'])
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const mockGoals = [
-    {
-      id: 'goal-1',
-      clientId: 'client-1',
-      clientName: 'Sarah Johnson',
-      title: 'Daily Meditation Practice',
-      description: 'Establish a consistent daily meditation practice to reduce anxiety and improve emotional regulation',
-      category: 'emotional',
-      targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-      status: 'in_progress',
-      priority: 'high',
-      progress: 70,
-      milestones: [
-        { id: 'milestone-1', title: 'Complete 5 consecutive days', completed: true, completedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
-        { id: 'milestone-2', title: 'Complete 10 consecutive days', completed: true, completedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
-        { id: 'milestone-3', title: 'Complete 21 consecutive days', completed: false }
-      ],
-      lastUpdated: new Date().toISOString(),
-      createdDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
-    },
-    {
-      id: 'goal-2',
-      clientId: 'client-2',
-      clientName: 'Michael Chen',
-      title: 'Attend Weekly Group Sessions',
-      description: 'Consistently attend weekly group therapy sessions to build social support network',
-      category: 'social',
-      targetDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days from now
-      status: 'not_started',
-      priority: 'critical',
-      progress: 0,
-      milestones: [
-        { id: 'milestone-4', title: 'Attend first session', completed: false },
-        { id: 'milestone-5', title: 'Attend 4 consecutive sessions', completed: false },
-        { id: 'milestone-6', title: 'Actively participate in discussions', completed: false }
-      ],
-      lastUpdated: new Date().toISOString(),
-      createdDate: new Date().toISOString()
-    }
-  ];
+  const therapistId = req.member!.id;
+  const {
+    clientId,
+    category,
+    status
+  } = req.query;
 
-  res.json({
-    success: true,
-    data: {
-      goals: mockGoals,
-      total: mockGoals.length
-    },
-    timestamp: new Date().toISOString()
-  });
+  try {
+    // TODO: Implement database methods for therapy goals
+    // For now, return empty array since goals feature needs proper database schema
+    const goals: any[] = [];
+    const total = 0;
+
+    logger.info(`🎯 Therapist ${therapistId} requested goals: found ${total} goals`);
+
+    res.json({
+      success: true,
+      data: {
+        goals,
+        total,
+        message: 'Goals feature requires database schema implementation for TherapyGoal model'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to get goals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get goals',
+      timestamp: new Date().toISOString()
+    });
+  }
 }));
 
 // Create goal
@@ -1046,16 +1282,11 @@ router.patch('/goals/:goalId', therapistAuth, validateRequest([
   const { goalId } = req.params;
   const updates = req.body;
 
-  // Mock update
-  const updatedGoal = {
-    id: goalId,
-    ...updates,
-    lastUpdated: new Date().toISOString()
-  };
-
-  res.json({
-    success: true,
-    data: { goal: updatedGoal },
+  // TODO: Implement database method for updating goals
+  res.status(501).json({
+    success: false,
+    error: 'Goals feature requires database schema implementation',
+    message: 'TherapyGoal model needs to be added to Prisma schema',
     timestamp: new Date().toISOString()
   });
 }));
@@ -1069,87 +1300,78 @@ router.get('/crisis-alerts', therapistAuth, validateRequest([
   query('alertType').optional().isIn(['ai_detected', 'manual_flag', 'assessment_score', 'inactivity', 'keywords', 'self_report']),
   query('timeRange').optional().isIn(['1h', '24h', '7d', '30d', 'all'])
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const mockAlerts = [
-    {
-      id: 'alert-1',
-      clientId: 'client-2',
-      clientName: 'Michael Chen',
-      clientPhone: '+1-555-0456',
-      alertType: 'ai_detected',
-      severity: 'critical',
-      status: 'active',
-      triggeredBy: 'AI Analysis Engine',
-      triggerDetails: {
-        message: 'I feel like I can\'t go on anymore. Everything seems hopeless.',
-        keywords: ['hopeless', 'can\'t go on'],
-        context: 'Private message in Anxiety Support group'
-      },
-      aiConfidence: 0.94,
-      riskFactors: ['Suicidal ideation keywords', 'Extended inactivity', 'Missed therapy sessions', 'High anxiety scores'],
-      recommendedActions: ['Immediate contact', 'Crisis intervention', 'Emergency contact notification', 'Safety plan activation'],
-      emergencyContacts: [
-        { name: 'Lisa Chen', phone: '+1-555-0456', relationship: 'Sister' },
-        { name: 'Crisis Hotline', phone: '988', relationship: 'Crisis Support' }
-      ],
-      assignedTherapist: req.user?.firstName + ' ' + req.user?.lastName,
-      createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
-      followUpRequired: true,
-      escalationLevel: 5
-    },
-    {
-      id: 'alert-2',
-      clientId: 'client-1',
-      clientName: 'Sarah Johnson',
-      clientPhone: '+1-555-0123',
-      alertType: 'assessment_score',
-      severity: 'medium',
-      status: 'acknowledged',
-      triggeredBy: 'Assessment System',
-      triggerDetails: {
-        score: 15,
-        context: 'GAD-7 assessment score increased from 8 to 15'
-      },
-      aiConfidence: 0.78,
-      riskFactors: ['Increased anxiety symptoms', 'Score deterioration'],
-      recommendedActions: ['Schedule follow-up session', 'Review treatment plan', 'Consider medication adjustment'],
-      emergencyContacts: [
-        { name: 'John Johnson', phone: '+1-555-0123', relationship: 'Spouse' }
-      ],
-      assignedTherapist: req.user?.firstName + ' ' + req.user?.lastName,
-      createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
-      acknowledgedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-      followUpRequired: true,
-      escalationLevel: 2
-    }
-  ];
+  const therapistId = req.member!.id;
+  const {
+    page = 1,
+    limit = 20,
+    severity,
+    status,
+    alertType,
+    timeRange
+  } = req.query;
 
-  res.json({
-    success: true,
-    data: {
-      alerts: mockAlerts,
-      total: mockAlerts.length
-    },
-    timestamp: new Date().toISOString()
-  });
+  try {
+    // TODO: Implement database methods for crisis alerts
+    // For now, return empty array since crisis alerts need proper database schema
+    const alerts: any[] = [];
+    const total = 0;
+
+    logger.info(`🚨 Therapist ${therapistId} requested crisis alerts: found ${total} alerts`);
+
+    res.json({
+      success: true,
+      data: {
+        alerts,
+        total,
+        message: 'Crisis alerts feature requires database schema implementation for CrisisAlert model'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to get crisis alerts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get crisis alerts',
+      timestamp: new Date().toISOString()
+    });
+  }
 }));
 
 // Get crisis statistics
 router.get('/crisis-stats', therapistAuth, validateRequest([
   query('timeRange').optional().isIn(['1h', '24h', '7d', '30d', 'all'])
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const mockStats = {
-    criticalAlerts: 1,
-    activeAlerts: 2,
-    aiDetected: 8,
-    resolvedToday: 3,
-    avgResponseTime: 15 // minutes
-  };
+  const therapistId = req.member!.id;
+  const { timeRange } = req.query;
 
-  res.json({
-    success: true,
-    data: { stats: mockStats },
-    timestamp: new Date().toISOString()
-  });
+  try {
+    // TODO: Implement database methods for crisis statistics
+    const stats = {
+      criticalAlerts: 0,
+      activeAlerts: 0,
+      aiDetected: 0,
+      resolvedToday: 0,
+      avgResponseTime: 0
+    };
+
+    logger.info(`📊 Therapist ${therapistId} requested crisis stats`);
+
+    res.json({
+      success: true,
+      data: { 
+        stats,
+        message: 'Crisis statistics require database schema implementation'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Failed to get crisis statistics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get crisis statistics',
+      timestamp: new Date().toISOString()
+    });
+  }
 }));
 
 // Acknowledge crisis alert
@@ -1159,15 +1381,11 @@ router.post('/crisis-alerts/:alertId/acknowledge', therapistAuth, validateReques
   const { alertId } = req.params;
   const { notes } = req.body;
 
-  // Mock acknowledgment
-  res.json({
-    success: true,
-    data: {
-      alertId,
-      acknowledgedAt: new Date().toISOString(),
-      acknowledgedBy: req.user?.firstName + ' ' + req.user?.lastName,
-      notes
-    },
+  // TODO: Implement database method for acknowledging crisis alerts
+  res.status(501).json({
+    success: false,
+    error: 'Crisis alerts feature requires database schema implementation',
+    message: 'CrisisAlert model needs to be added to Prisma schema',
     timestamp: new Date().toISOString()
   });
 }));
@@ -1180,16 +1398,11 @@ router.post('/crisis-alerts/:alertId/resolve', therapistAuth, validateRequest([
   const { alertId } = req.params;
   const { intervention, notes } = req.body;
 
-  // Mock resolution
-  res.json({
-    success: true,
-    data: {
-      alertId,
-      resolvedAt: new Date().toISOString(),
-      resolvedBy: req.user?.firstName + ' ' + req.user?.lastName,
-      intervention,
-      notes
-    },
+  // TODO: Implement database method for resolving crisis alerts
+  res.status(501).json({
+    success: false,
+    error: 'Crisis alerts feature requires database schema implementation',
+    message: 'CrisisAlert model needs to be added to Prisma schema',
     timestamp: new Date().toISOString()
   });
 }));
@@ -1201,16 +1414,11 @@ router.post('/crisis-alerts/:alertId/escalate', therapistAuth, validateRequest([
   const { alertId } = req.params;
   const { reason } = req.body;
 
-  // Mock escalation
-  res.json({
-    success: true,
-    data: {
-      alertId,
-      escalatedAt: new Date().toISOString(),
-      escalatedBy: req.user?.firstName + ' ' + req.user?.lastName,
-      reason,
-      escalatedTo: 'Crisis Intervention Team'
-    },
+  // TODO: Implement database method for escalating crisis alerts
+  res.status(501).json({
+    success: false,
+    error: 'Crisis alerts feature requires database schema implementation',
+    message: 'CrisisAlert model needs to be added to Prisma schema',
     timestamp: new Date().toISOString()
   });
 }));
@@ -1226,7 +1434,7 @@ router.post('/clients/:clientId/notes', therapistAuth, validateRequest([
     id: `note-${Date.now()}`,
     clientId,
     content: note,
-    createdBy: req.user?.firstName + ' ' + req.user?.lastName,
+    createdBy: req.member?.firstName + ' ' + req.member?.lastName,
     createdAt: new Date().toISOString()
   };
 
@@ -1248,7 +1456,7 @@ router.post('/clients/:clientId/flag-crisis', therapistAuth, validateRequest([
     id: `crisis-flag-${Date.now()}`,
     clientId,
     reason,
-    flaggedBy: req.user?.firstName + ' ' + req.user?.lastName,
+    flaggedBy: req.member?.firstName + ' ' + req.member?.lastName,
     flaggedAt: new Date().toISOString(),
     status: 'active'
   };
@@ -1264,15 +1472,15 @@ router.post('/clients/:clientId/flag-crisis', therapistAuth, validateRequest([
 
 // Get all group assignments (therapist has access to their clients' assignments)
 router.get('/group-assignments', therapistAuth, validateRequest([
-  query('userId').optional().isUUID().withMessage('Invalid user ID'),
+  query('memberId').optional().isUUID().withMessage('Invalid member ID'),
   query('groupId').optional().isUUID().withMessage('Invalid group ID'),
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId, page = 1, limit = 50 } = req.query;
+  const { memberId, groupId, page = 1, limit = 50 } = req.query;
 
   const assignments = await dbService.getGroupAssignments({
-    userId: userId as string,
+    memberId: req.member!.id,
     groupId: groupId as string,
     page: parseInt(page as string),
     limit: parseInt(limit as string)
@@ -1285,27 +1493,27 @@ router.get('/group-assignments', therapistAuth, validateRequest([
   });
 }));
 
-// Assign group to user (therapist can assign groups to their clients)
+// Assign group to member (therapist can assign groups to their clients)
 router.post('/group-assignments', therapistAuth, validateRequest([
-  body('userId').isUUID().withMessage('Valid user ID is required'),
+  body('memberId').isUUID().withMessage('Vareq.member ID is required'),
   body('groupId').isUUID().withMessage('Valid group ID is required'),
   body('notes').optional().isString().withMessage('Notes must be a string'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId, notes } = req.body;
-  const assignedBy = req.user!.id;
+  const { memberId, groupId, notes } = req.body;
+  const assignedBy = req.member!.id;
 
   // Check if assignment already exists
-  const existingAssignment = await dbService.getGroupAssignment(userId, groupId);
+  const existingAssignment = await dbService.getGroupAssignment(memberId, groupId);
   if (existingAssignment) {
     return res.status(400).json({
       success: false,
-      error: 'User is already assigned to this group',
+      error: 'member is already assigned to this group',
       timestamp: new Date().toISOString()
     });
   }
 
   const assignment = await dbService.createGroupAssignment({
-    userId,
+    memberId,
     groupId,
     assignedBy,
     notes
@@ -1313,15 +1521,15 @@ router.post('/group-assignments', therapistAuth, validateRequest([
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: assignedBy,
+    memberId: assignedBy,
     action: 'group_assignment_create',
     resource: 'group_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
-    metadata: { userId, groupId, notes }
+    memberAgent: req.get('User-Agent') || 'unknown',
+    metadata: { memberId, groupId, notes }
   });
 
-  logger.info(`Group assignment created by therapist: User ${userId} assigned to group ${groupId} by ${assignedBy}`);
+  logger.info(`Group assignment created by therapist: memberereq.memberId} assigned to group ${groupId} by ${assignedBy}`);
 
   res.status(201).json({
     success: true,
@@ -1331,14 +1539,14 @@ router.post('/group-assignments', therapistAuth, validateRequest([
 }));
 
 // Remove group assignment
-router.delete('/group-assignments/:userId/:groupId', therapistAuth, validateRequest([
-  query('userId').isUUID().withMessage('Invalid user ID'),
+router.delete('/group-assignments/:memberId/:groupId', therapistAuth, validateRequest([
+  query('memberId').isUUID().withMessage('Invalid member ID'),
   query('groupId').isUUID().withMessage('Invalid group ID'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId, groupId } = req.params;
-  const therapistId = req.user!.id;
+  const { memberId, groupId } = req.params;
+  const therapistId = req.member!.id;
 
-  const assignment = await dbService.getGroupAssignment(userId, groupId);
+  const assignment = await dbService.getGroupAssignment(memberId, groupId);
   if (!assignment) {
     return res.status(404).json({
       success: false,
@@ -1347,19 +1555,19 @@ router.delete('/group-assignments/:userId/:groupId', therapistAuth, validateRequ
     });
   }
 
-  await dbService.deleteGroupAssignment(userId, groupId);
+  await dbService.deleteGroupAssignment(memberId, groupId);
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: therapistId,
+    memberId: therapistId,
     action: 'group_assignment_delete',
     resource: 'group_assignment',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
-    metadata: { userId, groupId }
+    memberAgent: req.get('User-Agent') || 'unknown',
+    metadata: { memberId, groupId }
   });
 
-  logger.info(`Group assignment deleted by therapist: User ${userId} unassigned from group ${groupId} by ${therapistId}`);
+  logger.info(`Group assignment deleted by therapist: memberereq.memberId} unassigned from group ${groupId} by ${therapistId}`);
 
   res.json({
     success: true,
@@ -1368,13 +1576,13 @@ router.delete('/group-assignments/:userId/:groupId', therapistAuth, validateRequ
   });
 }));
 
-// Get groups assigned to a specific user
-router.get('/users/:userId/assigned-groups', therapistAuth, validateRequest([
-  query('userId').isUUID().withMessage('Invalid user ID'),
+// Get groups assigned to a specific member
+router.get('/members/:memberId/assigned-groups', therapistAuth, validateRequest([
+  query('memberId').isUUID().withMessage('Invalid member ID'),
 ]), asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const { userId } = req.params;
+  const { memberId } = req.params;
 
-  const assignedGroups = await dbService.getUserAssignedGroups(userId);
+  const assignedGroups = await dbService.getMemberAssignedGroups(memberId);
 
   res.json({
     success: true,
@@ -1405,42 +1613,20 @@ router.get('/crisis-alerts', therapistAuth, asyncHandler(async (req: Authenticat
   const { limit = 5 } = req.query;
 
   try {
-    // Mock crisis alerts for now - in production this would come from a crisis monitoring system
-    const mockAlerts = [
-      {
-        id: 'alert_001',
-        alertType: 'High Risk',
-        clientName: 'John D.',
-        severity: 'critical',
-        message: 'Client expressed suicidal ideation in recent message',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        isResolved: false
-      },
-      {
-        id: 'alert_002',
-        alertType: 'Medication Concern',
-        clientName: 'Sarah M.',
-        severity: 'moderate',
-        message: 'Client reported skipping medication for 3 days',
-        timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
-        isResolved: false
-      },
-      {
-        id: 'alert_003',
-        alertType: 'Inactivity',
-        clientName: 'Mike R.',
-        severity: 'low',
-        message: 'Client has been inactive for 7 days',
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-        isResolved: false
-      }
-    ];
+    const therapistId = req.member!.id;
+    
+    // TODO: Implement database methods for crisis alerts
+    // For now, return empty array since crisis alerts need proper database schema
+    const alerts: any[] = [];
 
-    const alerts = mockAlerts.slice(0, parseInt(limit as string));
+    logger.info(`🚨 Therapist ${therapistId} requested simple crisis alerts: found ${alerts.length} alerts`);
 
     res.json({
       success: true,
-      data: { alerts },
+      data: { 
+        alerts,
+        message: 'Crisis alerts feature requires database schema implementation'
+      },
       timestamp: new Date().toISOString()
     });
 

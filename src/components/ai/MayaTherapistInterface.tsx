@@ -5,14 +5,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Stethoscope, 
-  Send, 
-  Bot, 
-  Users, 
-  Activity, 
-  TrendingUp, 
-  AlertTriangle, 
+import {
+  Stethoscope,
+  Send,
+  Users,
+  TrendingUp,
+  AlertTriangle,
   FileText,
   Calendar,
   Brain,
@@ -20,18 +18,11 @@ import {
   Shield,
   Clock,
   ChevronDown,
-  BarChart3,
-  MessageSquare,
   UserCheck,
   ClipboardList,
   BookOpen,
-  Eye,
-  Settings,
   Plus,
-  Edit3,
   UserPlus,
-  RotateCcw,
-  Save,
   X,
   Check
 } from 'lucide-react';
@@ -43,8 +34,17 @@ import { agentService, AgentCallResponse } from '@/services/agentService';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
 import { cn } from '@/utils/cn';
+
+interface OrchestrationResponse {
+  success: boolean;
+  response: string;
+  agentUsed: string[];
+  confidence: number;
+  metadata: any;
+  needsCrisisIntervention?: boolean;
+  error?: string;
+}
 
 interface TherapistMessage {
   id: string;
@@ -57,6 +57,7 @@ interface TherapistMessage {
   clinicalInsights?: ClinicalInsight[];
   clientId?: string;
   riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  metadata?: any;
 }
 
 interface ClinicalInsight {
@@ -118,10 +119,10 @@ const THERAPIST_TOOLS = [
     requiresClientId: false
   },
   {
-    id: 'onboard-user',
+    id: 'onboard-member',
     label: 'Onboard New User',
     icon: UserCheck,
-    prompt: "Help me onboard a new user to the platform. Guide me through the intake process, assessment questions, and initial group recommendations.",
+    prompt: "Help me onboard a new member to the platform. Guide me through the intake process, assessment questions, and initial group recommendations.",
     category: 'administration',
     requiresClientId: false
   },
@@ -142,10 +143,10 @@ const THERAPIST_TOOLS = [
     requiresClientId: false
   },
   {
-    id: 'user-management',
+    id: 'member-management',
     label: 'User Management',
     icon: UserCheck,
-    prompt: "Assist with user account management. Help me review user profiles, adjust permissions, or handle account issues.",
+    prompt: "Assist with member account management. Help me review member profiles, adjust permissions, or handle account issues.",
     category: 'administration',
     requiresClientId: false
   },
@@ -183,7 +184,7 @@ const THERAPIST_TOOLS = [
   }
 ];
 
-const CATEGORY_COLORS = {
+const CATEGORY_COLORS: Record<string, string> = {
   'assessment': 'bg-blue-50 text-blue-700 border-blue-200',
   'planning': 'bg-green-50 text-green-700 border-green-200',
   'crisis': 'bg-red-50 text-red-700 border-red-200',
@@ -222,18 +223,7 @@ interface GroupFormData {
   tags: string[];
 }
 
-interface UserEditFormData {
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: 'member' | 'facilitator' | 'therapist';
-  recoveryGoals: string[];
-  wellnessGoals: string[];
-  experienceLevel: 'beginner' | 'intermediate' | 'advanced';
-  groupAssignments: string[];
-  accountStatus: 'active' | 'inactive' | 'suspended';
-}
+
 
 interface SessionPlanningFormData {
   sessionType: 'individual' | 'group' | 'crisis' | 'assessment';
@@ -248,21 +238,21 @@ interface SessionPlanningFormData {
 }
 
 interface InteractiveFormProps {
-  type: 'onboarding' | 'groupCreation' | 'groupEdit' | 'userEdit' | 'sessionPlanning';
+  type: 'onboarding' | 'groupCreation' | 'groupEdit' | 'memberEdit' | 'sessionPlanning';
   data?: any;
   onSubmit: (data: any) => void;
   onCancel: () => void;
 }
 
 // Form Components
-function OnboardingForm({ 
-  data, 
-  onSubmit, 
-  onCancel, 
-  isProcessing 
-}: { 
-  data: any; 
-  onSubmit: (data: OnboardingFormData) => void; 
+function OnboardingForm({
+  data,
+  onSubmit,
+  onCancel,
+  isProcessing
+}: {
+  data: any;
+  onSubmit: (data: OnboardingFormData) => void;
   onCancel: () => void;
   isProcessing: boolean;
 }) {
@@ -277,7 +267,7 @@ function OnboardingForm({
   });
 
   const availableGroups = data?.availableGroups || [];
-  
+
   const recoveryOptions = [
     'Addiction Recovery',
     'Trauma Healing',
@@ -495,12 +485,12 @@ function OnboardingForm({
   );
 }
 
-function GroupCreationForm({ 
-  onSubmit, 
-  onCancel, 
-  isProcessing 
-}: { 
-  onSubmit: (data: GroupFormData) => void; 
+function GroupCreationForm({
+  onSubmit,
+  onCancel,
+  isProcessing
+}: {
+  onSubmit: (data: GroupFormData) => void;
   onCancel: () => void;
   isProcessing: boolean;
 }) {
@@ -586,6 +576,7 @@ function GroupCreationForm({
             Group Type *
           </label>
           <select
+            title="Group Type"
             value={formData.type}
             onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -659,6 +650,7 @@ function GroupCreationForm({
               >
                 {tag}
                 <button
+                  title="Remove Tag"
                   type="button"
                   onClick={() => removeTag(tag)}
                   className="hover:text-blue-900"
@@ -704,14 +696,14 @@ function GroupCreationForm({
   );
 }
 
-function SessionPlanningForm({ 
-  data, 
-  onSubmit, 
-  onCancel, 
-  isProcessing 
-}: { 
-  data: any; 
-  onSubmit: (data: SessionPlanningFormData) => void; 
+function SessionPlanningForm({
+  data,
+  onSubmit,
+  onCancel,
+  isProcessing
+}: {
+  data: any;
+  onSubmit: (data: SessionPlanningFormData) => void;
   onCancel: () => void;
   isProcessing: boolean;
 }) {
@@ -728,11 +720,11 @@ function SessionPlanningForm({
   });
 
   const [objectiveInput, setObjectiveInput] = useState('');
-  const [interventionInput, setInterventionInput] = useState('');
-  const [materialInput, setMaterialInput] = useState('');
+  // const [interventionInput, setInterventionInput] = useState('');
+  // const [materialInput, setMaterialInput] = useState('');
 
-  const availableClients = data?.availableClients || [];
-  const availableGroups = data?.availableGroups || [];
+  // const availableClients = data?.availableClients || [];
+  // const availableGroups = data?.availableGroups || [];
 
   const sessionTypes = [
     { value: 'individual', label: 'Individual Therapy' },
@@ -751,15 +743,15 @@ function SessionPlanningForm({
     'Evaluate progress'
   ];
 
-  const commonInterventions = [
-    'Cognitive Behavioral Therapy (CBT)',
-    'Dialectical Behavior Therapy (DBT)',
-    'Mindfulness exercises',
-    'Exposure therapy',
-    'Crisis safety planning',
-    'Psychoeducation',
-    'Group facilitation techniques'
-  ];
+  // const commonInterventions = [
+  //   'Cognitive Behavioral Therapy (CBT)',
+  //   'Dialectical Behavior Therapy (DBT)',
+  //   'Mindfulness exercises',
+  //   'Exposure therapy',
+  //   'Crisis safety planning',
+  //   'Psychoeducation',
+  //   'Group facilitation techniques'
+  // ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -786,25 +778,25 @@ function SessionPlanningForm({
     }
   };
 
-  const addIntervention = (intervention?: string) => {
-    const intToAdd = intervention || interventionInput.trim();
-    if (intToAdd && !formData.interventions.includes(intToAdd)) {
-      setFormData({ ...formData, interventions: [...formData.interventions, intToAdd] });
-      setInterventionInput('');
-    }
-  };
+  // const addIntervention = (intervention?: string) => {
+  //   const intToAdd = intervention || interventionInput.trim();
+  //   if (intToAdd && !formData.interventions.includes(intToAdd)) {
+  //     setFormData({ ...formData, interventions: [...formData.interventions, intToAdd] });
+  //     setInterventionInput('');
+  //   }
+  // };
 
-  const addMaterial = () => {
-    if (materialInput.trim() && !formData.materials.includes(materialInput.trim())) {
-      setFormData({ ...formData, materials: [...formData.materials, materialInput.trim()] });
-      setMaterialInput('');
-    }
-  };
+  // const addMaterial = () => {
+  //   if (materialInput.trim() && !formData.materials.includes(materialInput.trim())) {
+  //     setFormData({ ...formData, materials: [...formData.materials, materialInput.trim()] });
+  //     setMaterialInput('');
+  //   }
+  // };
 
   const removeItem = (array: string[], item: string, field: keyof SessionPlanningFormData) => {
-    setFormData({ 
-      ...formData, 
-      [field]: array.filter(i => i !== item) 
+    setFormData({
+      ...formData,
+      [field]: array.filter(i => i !== item)
     });
   };
 
@@ -830,6 +822,7 @@ function SessionPlanningForm({
               Session Type *
             </label>
             <select
+              title="Session Type"
               value={formData.sessionType}
               onChange={(e) => setFormData({ ...formData, sessionType: e.target.value as any })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -878,7 +871,7 @@ function SessionPlanningForm({
                 Add
               </Button>
             </div>
-            
+
             <div className="text-sm text-gray-600">Common objectives:</div>
             <div className="flex flex-wrap gap-2">
               {commonObjectives.map((obj) => (
@@ -893,12 +886,13 @@ function SessionPlanningForm({
                 </button>
               ))}
             </div>
-            
+
             <div className="space-y-2">
               {formData.objectives.map((objective) => (
                 <div key={objective} className="flex items-center justify-between bg-green-50 p-2 rounded">
                   <span className="text-sm">{objective}</span>
                   <button
+                    title="Remove Objective"
                     type="button"
                     onClick={() => removeItem(formData.objectives, objective, 'objectives')}
                     className="text-red-600 hover:text-red-800"
@@ -945,10 +939,10 @@ function SessionPlanningForm({
   );
 }
 
-export default function MayaTherapistInterface({ 
-  therapistId, 
-  clientId, 
-  sessionId: propSessionId, 
+export default function MayaTherapistInterface({
+  therapistId,
+  clientId,
+  sessionId: propSessionId,
   className,
   mode = 'general'
 }: MayaTherapistInterfaceProps) {
@@ -957,9 +951,9 @@ export default function MayaTherapistInterface({
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string>(propSessionId || '');
   const [showTools, setShowTools] = useState(true);
-  const [activeClientId, setActiveClientId] = useState<string>(clientId || '');
+  const [activeClientId] = useState<string>(clientId || '');
   const [mayaAvailable, setMayaAvailable] = useState(true);
-  const [currentInsights, setCurrentInsights] = useState<ClinicalInsight[]>([]);
+  const [, setCurrentInsights] = useState<ClinicalInsight[]>([]);
   const [activeForm, setActiveForm] = useState<InteractiveFormProps | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -973,27 +967,63 @@ export default function MayaTherapistInterface({
   }, [messages]);
 
   const initializeTherapistSession = async () => {
-    const newSessionId = propSessionId || `therapist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    setSessionId(newSessionId);
-    
-    const contextSuffix = activeClientId ? ` for client ${activeClientId}` : '';
-    const modeDescription = {
-      'consultation': 'professional consultation and clinical guidance',
-      'client-focused': `focused support for your work with${contextSuffix}`,
-      'general': 'therapeutic guidance and professional support'
-    };
+    try {
+      // Use orchestration API to start a therapist session
+      const response: any = await api.post('/orchestration/session/start', {
+        memberProfile: { 
+          memberId: therapistId,
+          role: 'therapist',
+          clientId: activeClientId
+        }
+      });
 
-    const welcomeMessage: TherapistMessage = {
-      id: `welcome-${Date.now()}`,
-      content: `Hello Dr. ${therapistId}! I'm Maya, your AI clinical assistant. I'm here to provide ${modeDescription[mode]}.\n\n**Available Support:**\n• Clinical assessments and risk evaluation\n• Evidence-based treatment planning\n• Crisis intervention guidance\n• Progress analysis and insights\n• Group dynamics assessment\n• Documentation assistance\n• Current research and best practices\n\n**Professional Standards:**\n• All guidance follows evidence-based practices\n• HIPAA-compliant interactions\n• Crisis situations escalated appropriately\n• Licensed professional oversight recommended\n\nHow can I assist with your clinical work today?`,
-      type: 'maya',
-      timestamp: new Date(),
-      agentUsed: ['facilitator', 'insight'],
-      confidence: 1.0,
-      clientId: activeClientId
-    };
+      const sessionData = response.data as any;
+      console.log('[Therapist] Session start response:', sessionData);
 
-    setMessages([welcomeMessage]);
+      let sessionId = null;
+      
+      // Check for sessionId at various possible locations
+      if (sessionData.success && sessionData.data?.sessionId) {
+        sessionId = sessionData.data.sessionId;
+      } else if (sessionData.success && sessionData.sessionId) {
+        sessionId = sessionData.sessionId;
+      } else if (sessionData.data?.sessionId) {
+        sessionId = sessionData.data.sessionId;
+      }
+      
+      if (sessionId) {
+        setSessionId(sessionId);
+        setMayaAvailable(true);
+      } else {
+        // Fallback to local session ID
+        const newSessionId = propSessionId || `therapist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        setSessionId(newSessionId);
+        console.warn('[Therapist] Using fallback session ID:', newSessionId);
+      }
+
+      const contextSuffix = activeClientId ? ` for client ${activeClientId}` : '';
+      const modeDescription = {
+        'consultation': 'professional consultation and clinical guidance',
+        'client-focused': `focused support for your work with${contextSuffix}`,
+        'general': 'therapeutic guidance and professional support'
+      };
+
+      const welcomeMessage: TherapistMessage = {
+        id: `welcome-${Date.now()}`,
+        content: `Hello Dr. ${therapistId}! I'm Maya, your AI clinical assistant. I'm here to provide ${modeDescription[mode]}.\n\n**Available Support:**\n• Clinical assessments and risk evaluation\n• Evidence-based treatment planning\n• Crisis intervention guidance\n• Progress analysis and insights\n• Group dynamics assessment\n• Documentation assistance\n• Current research and best practices\n\n**Professional Standards:**\n• All guidance follows evidence-based practices\n• HIPAA-compliant interactions\n• Crisis situations escalated appropriately\n• Licensed professional oversight recommended\n\nHow can I assist with your clinical work today?`,
+        type: 'maya',
+        timestamp: new Date(),
+        agentUsed: ['facilitator', 'insight'],
+        confidence: 1.0,
+        clientId: activeClientId
+      };
+
+      setMessages([welcomeMessage]);
+    } catch (error: any) {
+      console.error('[Therapist] Failed to initialize session:', error);
+      setMayaAvailable(false);
+      toast.error('Unable to connect to Maya. Please try again.');
+    }
   };
 
   const scrollToBottom = () => {
@@ -1015,7 +1045,7 @@ export default function MayaTherapistInterface({
     setActiveForm(null);
 
     try {
-      // Create the user account
+      // Create the member account
       const response = await api.register({
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -1030,7 +1060,7 @@ export default function MayaTherapistInterface({
       if (formData.preferredGroups.length > 0) {
         for (const groupId of formData.preferredGroups) {
           await api.post(`/therapist/groups/${groupId}/members`, {
-            userId: response.user.id,
+            memberId: response.member.id,
             role: 'member'
           }).catch(console.error);
         }
@@ -1047,7 +1077,7 @@ export default function MayaTherapistInterface({
 - **Wellness Goals:** ${formData.wellnessGoals.join(', ') || 'None specified'}
 - **Assigned Groups:** ${formData.preferredGroups.length} groups
 
-A temporary password has been sent to the user's email. They can log in and complete their profile setup.
+A temporary password has been sent to the member's email. They can log in and complete their profile setup.
 
 **Next Steps:**
 1. Schedule an initial assessment session
@@ -1061,10 +1091,10 @@ Would you like me to help you schedule their first session?
       addSystemMessage(successMessage);
       toast.success('User onboarded successfully!');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Onboarding error:', error);
       addSystemMessage(`❌ Error during onboarding: ${error.message}\n\nPlease try again or contact support if the issue persists.`);
-      toast.error('Failed to onboard user');
+      toast.error('Failed to onboard member');
     } finally {
       setIsProcessingAction(false);
     }
@@ -1076,19 +1106,19 @@ Would you like me to help you schedule their first session?
 
     try {
       const response = await api.post('/therapist/groups', formData);
-      const groupId = response.data.group.id;
-      
+      const groupId = (response as any).data.group.id;
+
       // Automatically add the therapist as a member/facilitator of the group
       try {
         await api.post(`/therapist/groups/${groupId}/members`, {
-          userId: therapistId,
+          memberId: therapistId,
           role: 'facilitator'
         });
-      } catch (membershipError) {
+      } catch (membershipError: any) {
         console.warn('Could not auto-add therapist to group:', membershipError);
         // Continue with success message even if membership fails
       }
-      
+
       const successMessage = `
 **✅ Group Successfully Created!**
 
@@ -1117,7 +1147,7 @@ You can now view the full group details including chat messages. Would you like 
       addSystemMessage(successMessage);
       toast.success('Group created successfully! You are now a member of this group.');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Group creation error:', error);
       addSystemMessage(`❌ Error creating group: ${error.message}\n\nPlease try again or contact support if the issue persists.`);
       toast.error('Failed to create group');
@@ -1132,7 +1162,7 @@ You can now view the full group details including chat messages. Would you like 
 
     try {
       const response = await api.post('/therapist/sessions', formData);
-      
+
       const successMessage = `
 **✅ Session Successfully Planned!**
 
@@ -1143,7 +1173,7 @@ You can now view the full group details including chat messages. Would you like 
 - **Objectives:** ${formData.objectives.length} objectives defined
 - **Interventions:** ${formData.interventions.length} interventions planned
 
-**Session ID:** ${response.data.session.id}
+**Session ID:** ${(response as any).data.session.id}
 
 The session has been scheduled and is ready for implementation.
 
@@ -1159,7 +1189,7 @@ Would you like me to help you prepare documentation for this session?
       addSystemMessage(successMessage);
       toast.success('Session planned successfully!');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Session planning error:', error);
       addSystemMessage(`❌ Error planning session: ${error.message}\n\nPlease try again or contact support if the issue persists.`);
       toast.error('Failed to plan session');
@@ -1171,14 +1201,14 @@ Would you like me to help you prepare documentation for this session?
   const handleAdministrativeTask = async (content: string, sessionId: string): Promise<AgentCallResponse> => {
     // Determine which administrative function is being requested
     const lowerContent = content.toLowerCase();
-    
+
     if (lowerContent.includes('onboard')) {
       return await handleUserOnboarding(content, sessionId);
     } else if (lowerContent.includes('create group')) {
       return await handleGroupCreation(content, sessionId);
     } else if (lowerContent.includes('manage group')) {
       return await handleGroupManagement(content, sessionId);
-    } else if (lowerContent.includes('user management')) {
+    } else if (lowerContent.includes('member management')) {
       return await handleUserManagement(content, sessionId);
     } else if (lowerContent.includes('session planning')) {
       return await handleSessionPlanning(content, sessionId);
@@ -1191,25 +1221,25 @@ Would you like me to help you prepare documentation for this session?
   const handleUserOnboarding = async (content: string, sessionId: string): Promise<AgentCallResponse> => {
     try {
       // Get platform data to provide context for onboarding
-      const [users, groups] = await Promise.all([
-        api.getAllUsers().catch(() => []),
+      const [members, groups] = await Promise.all([
+        api.getAllMembers().catch(() => []),
         api.getAllGroups().catch(() => [])
       ]);
 
-      // Check if user wants to start the onboarding process
-      const wantsToStart = content.toLowerCase().includes('start') || 
+      // Check if member wants to start the onboarding process
+      const wantsToStart = content.toLowerCase().includes('start') ||
                           content.toLowerCase().includes('begin') ||
-                          content.toLowerCase().includes('new user');
+                          content.toLowerCase().includes('new member');
 
       if (wantsToStart) {
         // Create onboarding form
         const onboardingResponse = `
 **Starting User Onboarding Process**
 
-I'll guide you through creating a new user account. Let me prepare the onboarding form for you.
+I'll guide you through creating a new member account. Let me prepare the onboarding form for you.
 
 **Available Groups for Matching:** ${groups.length} groups
-**Current Platform Users:** ${users.length} users
+**Current Platform Users:** ${members.length} members
 
 Click the **"Start Onboarding"** button below to begin the guided onboarding process.
         `;
@@ -1228,17 +1258,13 @@ Click the **"Start Onboarding"** button below to begin the guided onboarding pro
             }
           });
         }, 500);
-
         return {
-          recommendation: 'facilitator',
-          result: {
-            success: true,
-            response: onboardingResponse,
-            agentUsed: ['system', 'matching'],
-            toolsUsed: ['getUserData', 'getGroupData', 'onboardingForm'],
-            confidence: 0.95,
-            metadata: { isAdministrative: true, taskType: 'onboarding', showForm: true }
-          }
+          success: true,
+          response: onboardingResponse,
+          agentUsed: 'system',
+          toolsUsed: ['getUserData', 'getGroupData', 'onboardingForm'],
+          confidence: 0.95,
+          metadata: { isAdministrative: true, taskType: 'onboarding', showForm: true }
         };
       }
 
@@ -1246,7 +1272,7 @@ Click the **"Start Onboarding"** button below to begin the guided onboarding pro
 **User Onboarding Assistant**
 
 Available Groups: ${groups.length} groups
-Current Users: ${users.length} users
+Current Users: ${members.length} members
 
 **Onboarding Process:**
 1. **Initial Assessment**
@@ -1270,22 +1296,19 @@ Current Users: ${users.length} users
    - Introduction timeline
    - Check-in schedule
 
-Would you like to **start onboarding a new user** now? Just say "start onboarding" and I'll guide you through the process.
+Would you like to **start onboarding a new member** now? Just say "start onboarding" and I'll guide you through the process.
       `;
 
       return {
-        recommendation: 'facilitator',
-        result: {
-          success: true,
-          response: onboardingContext,
-          agentUsed: ['system', 'matching'],
-          toolsUsed: ['getUserData', 'getGroupData', 'onboardingGuidance'],
-          confidence: 0.95,
-          metadata: { isAdministrative: true, taskType: 'onboarding' }
-        }
+        success: true,
+        response: onboardingContext,
+        agentUsed: 'facilitator',
+        toolsUsed: ['getUserData', 'getGroupData', 'onboardingGuidance'],
+        confidence: 0.95,
+        metadata: { isAdministrative: true, taskType: 'onboarding' }
       };
     } catch (error) {
-      console.error('Error in user onboarding:', error);
+      console.error('Error in member onboarding:', error);
       return await agentService.callAgent('facilitator', content, sessionId);
     }
   };
@@ -1293,9 +1316,9 @@ Would you like to **start onboarding a new user** now? Just say "start onboardin
   const handleGroupCreation = async (content: string, sessionId: string): Promise<AgentCallResponse> => {
     try {
       const groups = await api.getAllGroups().catch(() => []);
-      
-      // Check if user wants to start the creation process
-      const wantsToStart = content.toLowerCase().includes('start') || 
+
+      // Check if member wants to start the creation process
+      const wantsToStart = content.toLowerCase().includes('start') ||
                           content.toLowerCase().includes('create') ||
                           content.toLowerCase().includes('new group');
 
@@ -1326,18 +1349,15 @@ Click the **"Create Group"** button below to begin setting up your new therapeut
         }, 500);
 
         return {
-          recommendation: 'facilitator',
-          result: {
-            success: true,
-            response: creationResponse,
-            agentUsed: ['system', 'matching'],
-            toolsUsed: ['getGroupData', 'groupCreationForm'],
-            confidence: 0.95,
-            metadata: { isAdministrative: true, taskType: 'groupCreation', showForm: true }
-          }
+          success: true,
+          response: creationResponse,
+          agentUsed: 'facilitator',
+          toolsUsed: ['getGroupData', 'groupCreationForm'],
+          confidence: 0.95,
+          metadata: { isAdministrative: true, taskType: 'groupCreation', showForm: true }
         };
       }
-      
+
       const groupCreationContext = `
 **Group Creation Assistant**
 
@@ -1378,15 +1398,12 @@ Would you like to **create a new group** now? Just say "create group" and I'll g
       `;
 
       return {
-        recommendation: 'facilitator',
-        result: {
-          success: true,
-          response: groupCreationContext,
-          agentUsed: ['system', 'matching'],
-          toolsUsed: ['getGroupData', 'groupCreationGuidance'],
-          confidence: 0.95,
-          metadata: { isAdministrative: true, taskType: 'groupCreation' }
-        }
+        success: true,
+        response: groupCreationContext,
+        agentUsed: 'facilitator',
+        toolsUsed: ['getGroupData', 'groupCreationGuidance'],
+        confidence: 0.95,
+        metadata: { isAdministrative: true, taskType: 'groupCreation' }
       };
     } catch (error) {
       console.error('Error in group creation:', error);
@@ -1397,7 +1414,7 @@ Would you like to **create a new group** now? Just say "create group" and I'll g
   const handleGroupManagement = async (content: string, sessionId: string): Promise<AgentCallResponse> => {
     try {
       const groups = await api.getAllGroups().catch(() => []);
-      
+
       const groupManagementContext = `
 **Group Management Assistant**
 
@@ -1430,7 +1447,7 @@ Active Groups: ${groups.length}
    - Handle technical issues
 
 **Recent Group Activity:**
-${groups.slice(0, 5).map((group: any) => 
+${groups.slice(0, 5).map((group: any) =>
   `- ${group.name} (${group.memberCount || 0} members) - ${group.type}`
 ).join('\n')}
 
@@ -1438,15 +1455,12 @@ Which group would you like to manage, or what specific management task do you ne
       `;
 
       return {
-        recommendation: 'facilitator',
-        result: {
-          success: true,
-          response: groupManagementContext,
-          agentUsed: ['system', 'facilitator'],
-          toolsUsed: ['getGroupData', 'groupManagementTools'],
-          confidence: 0.95,
-          metadata: { isAdministrative: true, taskType: 'groupManagement' }
-        }
+        success: true,
+        response: groupManagementContext,
+        agentUsed: 'facilitator',
+        toolsUsed: ['getGroupData', 'groupManagementTools'],
+        confidence: 0.95,
+        metadata: { isAdministrative: true, taskType: 'groupManagement' }
       };
     } catch (error) {
       console.error('Error in group management:', error);
@@ -1456,17 +1470,17 @@ Which group would you like to manage, or what specific management task do you ne
 
   const handleUserManagement = async (content: string, sessionId: string): Promise<AgentCallResponse> => {
     try {
-      const users = await api.getAllUsers().catch(() => []);
-      
-      const userManagementContext = `
+      const members = await api.getAllMembers().catch(() => []);
+
+      const memberManagementContext = `
 **User Management Assistant**
 
-Total Platform Users: ${users.length}
+Total Platform Users: ${members.length}
 
 **User Management Functions:**
 
 1. **Profile Management**
-   - Update user information
+   - Update member information
    - Adjust privacy settings
    - Modify therapeutic goals
    - Update group assignments
@@ -1478,7 +1492,7 @@ Total Platform Users: ${users.length}
    - Technical issue resolution
 
 3. **Progress Monitoring**
-   - Review user engagement
+   - Review member engagement
    - Track therapeutic progress
    - Monitor group participation
    - Assess platform utilization
@@ -1490,26 +1504,23 @@ Total Platform Users: ${users.length}
    - Maintain privacy compliance
 
 **User Statistics:**
-- Active Members: ${users.filter((u: any) => u.role === 'member').length}
-- Facilitators: ${users.filter((u: any) => u.role === 'facilitator').length}
-- Therapists: ${users.filter((u: any) => u.role === 'therapist').length}
+- Active Members: ${members.filter((u: any) => u.role === 'member').length}
+- Facilitators: ${members.filter((u: any) => u.role === 'facilitator').length}
+- Therapists: ${members.filter((u: any) => u.role === 'therapist').length}
 
-What user management task do you need assistance with?
+What member management task do you need assistance with?
       `;
 
       return {
-        recommendation: 'facilitator',
-        result: {
-          success: true,
-          response: userManagementContext,
-          agentUsed: ['system', 'facilitator'],
-          toolsUsed: ['getUserData', 'userManagementTools'],
-          confidence: 0.95,
-          metadata: { isAdministrative: true, taskType: 'userManagement' }
-        }
+        success: true,
+        response: memberManagementContext,
+        agentUsed: 'facilitator',
+        toolsUsed: ['getUserData', 'memberManagementTools'],
+        confidence: 0.95,
+        metadata: { isAdministrative: true, taskType: 'memberManagement' }
       };
     } catch (error) {
-      console.error('Error in user management:', error);
+      console.error('Error in member management:', error);
       return await agentService.callAgent('facilitator', content, sessionId);
     }
   };
@@ -1517,12 +1528,12 @@ What user management task do you need assistance with?
   const handleSessionPlanning = async (content: string, sessionId: string): Promise<AgentCallResponse> => {
     try {
       const [clients, groups] = await Promise.all([
-        api.getAllUsers().catch(() => []),
+        api.getAllMembers().catch(() => []),
         api.getAllGroups().catch(() => [])
       ]);
 
-      // Check if user wants to start the planning process
-      const wantsToStart = content.toLowerCase().includes('start') || 
+      // Check if member wants to start the planning process
+      const wantsToStart = content.toLowerCase().includes('start') ||
                           content.toLowerCase().includes('plan') ||
                           content.toLowerCase().includes('schedule');
 
@@ -1555,15 +1566,12 @@ Click the **"Plan Session"** button below to begin creating your session plan.
         }, 500);
 
         return {
-          recommendation: 'facilitator',
-          result: {
-            success: true,
-            response: planningResponse,
-            agentUsed: ['system', 'scheduling'],
-            toolsUsed: ['getClientData', 'getGroupData', 'sessionPlanningForm'],
-            confidence: 0.95,
-            metadata: { isAdministrative: true, taskType: 'sessionPlanning', showForm: true }
-          }
+          success: true,
+          response: planningResponse,
+          agentUsed: 'facilitator',
+          toolsUsed: ['getClientData', 'getGroupData', 'sessionPlanningForm'],
+          confidence: 0.95,
+          metadata: { isAdministrative: true, taskType: 'sessionPlanning', showForm: true }
         };
       }
 
@@ -1601,7 +1609,7 @@ Available Groups: ${groups.length}
 
 **Session Types:**
 - Initial Intake Sessions
-- Regular Therapy Sessions  
+- Regular Therapy Sessions
 - Group Facilitation Sessions
 - Crisis Intervention Sessions
 - Progress Review Sessions
@@ -1617,15 +1625,12 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
       `;
 
       return {
-        recommendation: 'facilitator',
-        result: {
-          success: true,
-          response: sessionPlanningContext,
-          agentUsed: ['system', 'facilitator'],
-          toolsUsed: ['getClientData', 'getGroupData', 'sessionPlanningGuidance'],
-          confidence: 0.95,
-          metadata: { isAdministrative: true, taskType: 'sessionPlanning' }
-        }
+        success: true,
+        response: sessionPlanningContext,
+        agentUsed: 'facilitator',
+        toolsUsed: ['getClientData', 'getGroupData', 'sessionPlanningGuidance'],
+        confidence: 0.95,
+        metadata: { isAdministrative: true, taskType: 'sessionPlanning' }
       };
     } catch (error) {
       console.error('Error in session planning:', error);
@@ -1662,51 +1667,71 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
     setIsLoading(true);
 
     try {
-      let response: AgentCallResponse;
-      
       // Check if this is an administrative tool call
-      const adminToolKeywords = ['onboard', 'create group', 'manage group', 'user management', 'session planning', 'plan session'];
-      const isAdminTool = adminToolKeywords.some(keyword => 
+      const adminToolKeywords = ['onboard', 'create group', 'manage group', 'member management', 'session planning', 'plan session'];
+      const isAdminTool = adminToolKeywords.some(keyword =>
         content.toLowerCase().includes(keyword.toLowerCase())
       );
+
+      let response: AgentCallResponse;
+      let clinicalInsights: ClinicalInsight[] = [];
       
       if (isAdminTool) {
         // Handle administrative functions with enhanced context
         response = await handleAdministrativeTask(contextualContent, sessionId);
       } else {
-        // Use multiple agents for comprehensive clinical assessment
-        response = await agentService.callAgent(
-          'facilitator', // Primary agent for therapeutic guidance
-          contextualContent,
-          sessionId
-        );
-      }
-      
-      // Get additional insights from other agents
-      let clinicalInsights: ClinicalInsight[] = [];
-      
-      if (activeClientId || isToolCall) {
+        // Use orchestration API for intelligent agent routing
         try {
-          // Run sentiment analysis for emotional assessment
-          const sentimentResponse = await agentService.callAgent(
-            'sentiment',
-            contextualContent,
-            sessionId
-          );
-          
-          // Run insight agent for progress analysis
-          const insightResponse = await agentService.callAgent(
-            'insight',
-            contextualContent,
-            sessionId
-          );
+          const orchestrationResponse: any = await api.post('/orchestration/message', {
+            content: contextualContent,
+            sessionId,
+            messageType: 'therapist'
+          });
 
-          clinicalInsights = extractClinicalInsights([response, sentimentResponse, insightResponse]);
-        } catch (insightError) {
-          console.warn('Additional clinical insights unavailable:', insightError);
+          // The API returns data directly, not nested in a .data property
+          const responseData = orchestrationResponse as OrchestrationResponse;
+
+          console.log('[Therapist] Orchestration response received:', {
+            success: responseData?.success,
+            hasResponse: !!responseData?.response,
+            agentUsed: responseData?.agentUsed
+          });
+
+          if (!responseData) {
+            throw new Error('No data received from server');
+          }
+          
+          if (responseData.success === false) {
+            throw new Error(responseData.error || 'Failed to process message');
+          }
+          
+          // Convert orchestration response to AgentCallResponse format
+          response = {
+            success: true,
+            response: responseData.response || 'I received your message. How can I help you with your clinical work?',
+            agentUsed: Array.isArray(responseData.agentUsed) 
+              ? responseData.agentUsed.join(', ') 
+              : (responseData.agentUsed || 'facilitator'),
+            confidence: responseData.confidence || 0.85,
+            metadata: responseData.metadata || {}
+          };
+          
+          // Extract clinical insights from the response metadata if available
+          if (responseData.metadata?.clinicalInsights) {
+            clinicalInsights = responseData.metadata.clinicalInsights;
+          }
+          
+        } catch (error: any) {
+          console.error('[Therapist] Orchestration API error:', error);
+          // Fallback to direct agent call
+          response = await agentService.callAgent(
+            'facilitator',
+            contextualContent,
+            sessionId
+          );
         }
       }
-      
+
       // Remove loading message and add Maya's response
       setMessages(prev => {
         const filtered = prev.filter(msg => !msg.isLoading);
@@ -1715,9 +1740,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
           content: enhanceTherapistResponse(response.response, clinicalInsights),
           type: 'maya',
           timestamp: new Date(),
-          agentUsed: Array.isArray(response.agentUsed) 
-            ? response.agentUsed 
-            : [response.agentUsed],
+          agentUsed: [response.agentUsed],
           confidence: response.confidence,
           clinicalInsights,
           clientId: activeClientId,
@@ -1738,7 +1761,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
 
     } catch (error) {
       console.error('Maya clinical consultation error:', error);
-      
+
       setMessages(prev => {
         const filtered = prev.filter(msg => !msg.isLoading);
         const errorMessage: TherapistMessage = {
@@ -1808,10 +1831,10 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
 
   const extractClinicalInsights = (responses: AgentCallResponse[]): ClinicalInsight[] => {
     const insights: ClinicalInsight[] = [];
-    
+
     responses.forEach(response => {
       const content = response.response.toLowerCase();
-      
+
       // Risk assessment insights
       if (content.includes('crisis') || content.includes('suicide') || content.includes('danger')) {
         insights.push({
@@ -1823,7 +1846,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
           evidence: ['Crisis-related language patterns']
         });
       }
-      
+
       // Progress insights
       if (content.includes('progress') || content.includes('improvement') || content.includes('better')) {
         insights.push({
@@ -1835,9 +1858,9 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
           evidence: ['Positive language patterns', 'Progress-related content']
         });
       }
-      
+
       // Emotional state insights
-      if (response.agentUsed.includes('sentiment')) {
+      if (response.agentUsed === 'sentiment') {
         insights.push({
           type: 'assessment',
           summary: 'Emotional state analysis completed',
@@ -1856,7 +1879,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
     const hasUrgentInsights = insights.some(i => i.priority === 'urgent');
     const hasRiskInsights = insights.some(i => i.type === 'risk');
     const content = response.toLowerCase();
-    
+
     if (hasUrgentInsights || content.includes('crisis') || content.includes('immediate')) {
       return 'critical';
     }
@@ -1901,7 +1924,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
 
         <div className={cn(
           'max-w-[85%] rounded-lg px-4 py-3',
-          isTherapist 
+          isTherapist
             ? 'bg-blue-500 text-white'
             : isSystem
             ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
@@ -1923,7 +1946,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
                   p: ({ children }) => <div className="mb-2">{children}</div>,
                   ul: ({ children }) => <ul className="list-disc list-inside mb-2">{children}</ul>,
                   ol: ({ children }) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
-                  li: ({ children }) => <li className="mb-1">{children}</li>,
+                  li: ({ children }) => <span className="block mb-1">{children}</span>,
                   h1: ({ children }) => <h1 className="text-lg font-bold mb-2">{children}</h1>,
                   h2: ({ children }) => <h2 className="text-base font-bold mb-2">{children}</h2>,
                   h3: ({ children }) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
@@ -1949,7 +1972,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
                 </span>
               )}
             </div>
-            
+
             <div className="flex items-center gap-2">
               {message.riskLevel && (
                 <span className={cn(
@@ -2061,7 +2084,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
                 {THERAPIST_TOOLS.map(tool => {
                   const Icon = tool.icon;
                   const isDisabled = tool.requiresClientId && !activeClientId;
-                  
+
                   return (
                     <button
                       key={tool.id}
@@ -2080,7 +2103,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
                   );
                 })}
               </div>
-              
+
               {!activeClientId && (
                 <div className="mt-3 p-2 bg-blue-50 rounded text-sm text-blue-700">
                   <strong>Tip:</strong> Set a client ID to access personalized clinical tools and assessments.
@@ -2158,7 +2181,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
           <div className="flex gap-3 justify-center">
             {messages[messages.length - 1].metadata?.taskType === 'onboarding' && (
               <Button
-                onClick={() => handleToolSelect({ id: 'onboard-user' } as any)}
+                onClick={() => handleToolSelect({ id: 'onboard-member' } as any)}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
@@ -2209,7 +2232,7 @@ Would you like to **plan a session** now? Just say "plan session" and I'll guide
             )}
           </Button>
         </form>
-        
+
         <div className="mt-2 text-xs text-gray-500 text-center">
           Maya provides clinical guidance to licensed professionals • HIPAA compliant • Not a replacement for clinical judgment
         </div>

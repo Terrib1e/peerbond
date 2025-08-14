@@ -8,16 +8,16 @@ interface RoleBasedRedirectProps {
 }
 
 /**
- * Component that redirects users to appropriate portals based on their role
+ * Component that redirects members to appropriate portals based on their role
  */
-export default function RoleBasedRedirect({ 
-  children, 
-  allowedRoles = [], 
-  redirectTo 
+export default function RoleBasedRedirect({
+  children,
+  allowedRoles = [],
+  redirectTo
 }: RoleBasedRedirectProps) {
-  const { user } = useAuthStore();
+  const { member } = useAuthStore();
 
-  if (!user) {
+  if (!member) {
     return <Navigate to="/login" replace />;
   }
 
@@ -26,9 +26,9 @@ export default function RoleBasedRedirect({
     return <>{children}</>;
   }
 
-  // Check if user's role is in allowed roles
-  if (!allowedRoles.includes(user.role)) {
-    // Redirect to appropriate portal based on user role
+  // Check if member's role is in allowed roles
+  if (!allowedRoles.includes(member.role)) {
+    // Redirect to appropriate portal based on member role
     const roleRedirects: Record<string, string> = {
       'admin': '/admin',
       'therapist': '/therapist',
@@ -36,7 +36,7 @@ export default function RoleBasedRedirect({
       'facilitator': '/app'
     };
 
-    const defaultRedirect = roleRedirects[user.role] || '/app';
+    const defaultRedirect = roleRedirects[member.role] || '/app';
     return <Navigate to={redirectTo || defaultRedirect} replace />;
   }
 
@@ -44,25 +44,25 @@ export default function RoleBasedRedirect({
 }
 
 /**
- * Hook to get the default portal URL for a user's role
+ * Hook to get the default portal URL for a member's role
  */
 export function useRoleBasedDefaultRoute() {
-  const { user } = useAuthStore();
+  const { member } = useAuthStore();
 
-  if (!user) return '/login';
+  if (!member) return '/login';
 
   const roleDefaults: Record<string, string> = {
     'admin': '/admin',
-    'therapist': '/therapist', 
+    'therapist': '/therapist',
     'member': '/app',
     'facilitator': '/app'
   };
 
-  return roleDefaults[user.role] || '/app';
+  return roleDefaults[member.role] || '/app';
 }
 
 /**
- * Component that automatically redirects users to their default portal
+ * Component that automatically redirects members to their default portal
  */
 export function PortalRedirect() {
   const defaultRoute = useRoleBasedDefaultRoute();

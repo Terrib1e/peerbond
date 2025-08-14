@@ -1,4 +1,4 @@
-import { User, Group, Message, ActionItem, Insight } from '@/types';
+import { Member, Group, Message, ActionItem, Insight } from '@/types';
 import { nanoid } from 'nanoid';
 
 export interface DatabaseConfig {
@@ -9,23 +9,23 @@ export interface DatabaseConfig {
 export class Database {
   private config: DatabaseConfig;
   private data: {
-    users: Map<string, User>;
+    members: Map<string, Member>;
     groups: Map<string, Group>;
     messages: Map<string, Message[]>;
     actionItems: Map<string, ActionItem[]>;
     insights: Map<string, Insight[]>;
-    userSessions: Map<string, { userId: string; expiresAt: Date }>;
+    memberSessions: Map<string, { memberId: string; expiresAt: Date }>;
   };
 
   constructor(config: DatabaseConfig = { storage: 'localStorage' }) {
     this.config = config;
     this.data = {
-      users: new Map(),
+      members: new Map(),
       groups: new Map(),
       messages: new Map(),
       actionItems: new Map(),
       insights: new Map(),
-      userSessions: new Map(),
+      memberSessions: new Map(),
     };
 
     this.loadFromStorage();
@@ -37,12 +37,12 @@ export class Database {
         const stored = localStorage.getItem('peerbond_data');
         if (stored) {
           const parsed = JSON.parse(stored);
-          this.data.users = new Map(parsed.users || []);
+          this.data.members = new Map(parsed.members || []);
           this.data.groups = new Map(parsed.groups || []);
           this.data.messages = new Map(parsed.messages || []);
           this.data.actionItems = new Map(parsed.actionItems || []);
           this.data.insights = new Map(parsed.insights || []);
-          this.data.userSessions = new Map(parsed.userSessions || []);
+          this.data.memberSessions = new Map(parsed.memberSessions || []);
         }
       } catch (error) {
         console.error('Failed to load data from localStorage:', error);
@@ -54,12 +54,12 @@ export class Database {
     if (this.config.storage === 'localStorage' && typeof window !== 'undefined') {
       try {
         const toStore = {
-          users: Array.from(this.data.users.entries()),
+          members: Array.from(this.data.members.entries()),
           groups: Array.from(this.data.groups.entries()),
           messages: Array.from(this.data.messages.entries()),
           actionItems: Array.from(this.data.actionItems.entries()),
           insights: Array.from(this.data.insights.entries()),
-          userSessions: Array.from(this.data.userSessions.entries()),
+          memberSessions: Array.from(this.data.memberSessions.entries()),
         };
         localStorage.setItem('peerbond_data', JSON.stringify(toStore));
       } catch (error) {
@@ -68,53 +68,53 @@ export class Database {
     }
   }
 
-  // User operations
-  async createUser(userData: Omit<User, 'id' | 'createdAt'>): Promise<User> {
-    const user: User = {
+  // Member operations
+  async createMember(memberData: Omit<Member, 'id' | 'createdAt'>): Promise<Member> {
+    const member: Member = {
       id: nanoid(),
-      ...userData,
+      ...memberData,
       createdAt: new Date(),
       lastActive: new Date(),
     };
 
-    this.data.users.set(user.id, user);
+    this.data.members.set(member.id, member);
     await this.saveToStorage();
-    return user;
+    return member;
   }
 
-  async getUserByEmail(email: string): Promise<User | null> {
-    for (const user of this.data.users.values()) {
-      if (user.email === email) {
-        return user;
+  async getMemberByEmail(email: string): Promise<Member | null> {
+    for (const member of this.data.members.values()) {
+      if (member.email === email) {
+        return member;
       }
     }
     return null;
   }
 
-  async getUserById(id: string): Promise<User | null> {
-    return this.data.users.get(id) || null;
+  async getMemberById(id: string): Promise<Member | null> {
+    return this.data.members.get(id) || null;
   }
 
-  async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
-    const user = this.data.users.get(id);
-    if (!user) return null;
+  async updateMember(id: string, updates: Partial<Member>): Promise<Member | null> {
+    const member = this.data.members.get(id);
+    if (!member) return null;
 
-    const updatedUser = { ...user, ...updates, lastActive: new Date() };
-    this.data.users.set(id, updatedUser);
+    const updatedUser = { ...member, ...updates, lastActive: new Date() };
+    this.data.members.set(id, updatedUser);
     await this.saveToStorage();
     return updatedUser;
   }
 
-  async deleteUser(id: string): Promise<boolean> {
-    const deleted = this.data.users.delete(id);
+  async deleteMember(id: string): Promise<boolean> {
+    const deleted = this.data.members.delete(id);
     if (deleted) {
       await this.saveToStorage();
     }
     return deleted;
   }
 
-  async getAllUsers(): Promise<User[]> {
-    return Array.from(this.data.users.values());
+  async getAllMembers(): Promise<Member[]> {
+    return Array.from(this.data.members.values());
   }
 
   // Group operations
@@ -163,9 +163,9 @@ export class Database {
     return Array.from(this.data.groups.values());
   }
 
-  async getUserGroups(userId: string): Promise<Group[]> {
+  async getMemberGroups(_memberId: string): Promise<Group[]> {
     const groups = Array.from(this.data.groups.values());
-    return groups.filter(group => group.members.some(memberId => memberId === userId));
+    return groups.filter(group => group.members.some(memberId => memberId === memberId));
   }
 
   // Message operations
@@ -259,28 +259,28 @@ export class Database {
   }
 
   // Session management
-  async createSession(userId: string, expiresIn: number = 86400000): Promise<string> {
+  async createSession(memberId: string, expiresIn: number = 86400000): Promise<string> {
     const sessionId = nanoid();
     const expiresAt = new Date(Date.now() + expiresIn);
 
-    this.data.userSessions.set(sessionId, { userId, expiresAt });
+    this.data.memberSessions.set(sessionId, { memberId, expiresAt });
     await this.saveToStorage();
     return sessionId;
   }
 
-  async getSessionUser(sessionId: string): Promise<User | null> {
-    const session = this.data.userSessions.get(sessionId);
+  async getSessionMember(sessionId: string): Promise<Member | null> {
+    const session = this.data.memberSessions.get(sessionId);
     if (!session || session.expiresAt < new Date()) {
-      this.data.userSessions.delete(sessionId);
+      this.data.memberSessions.delete(sessionId);
       await this.saveToStorage();
       return null;
     }
 
-    return this.getUserById(session.userId);
+    return this.getMemberById(session.memberId);
   }
 
   async deleteSession(sessionId: string): Promise<boolean> {
-    const deleted = this.data.userSessions.delete(sessionId);
+    const deleted = this.data.memberSessions.delete(sessionId);
     if (deleted) {
       await this.saveToStorage();
     }
@@ -297,28 +297,28 @@ export class Database {
   }> {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const users = Array.from(this.data.users.values());
+    const members = Array.from(this.data.members.values());
     const groups = Array.from(this.data.groups.values());
     const allMessages = Array.from(this.data.messages.values()).flat();
 
     return {
-      totalUsers: users.length,
+      totalUsers: members.length,
       totalGroups: groups.length,
       totalMessages: allMessages.length,
-      activeUsers: users.filter(user => user.lastActive && user.lastActive > dayAgo).length,
+      activeUsers: members.filter(member => member.lastActive && member.lastActive > dayAgo).length,
       activeGroups: groups.filter(group => group.lastActivity > dayAgo).length,
     };
   }
 
   // Search functionality
-  async searchUsers(query: string): Promise<User[]> {
-    const users = Array.from(this.data.users.values());
+  async searchMembers(query: string): Promise<Member[]> {
+    const members = Array.from(this.data.members.values());
     const searchQuery = query.toLowerCase();
 
-    return users.filter(user =>
-      user.firstName.toLowerCase().includes(searchQuery) ||
-      user.lastName.toLowerCase().includes(searchQuery) ||
-      user.email.toLowerCase().includes(searchQuery)
+    return members.filter(member =>
+      member.firstName.toLowerCase().includes(searchQuery) ||
+      member.lastName.toLowerCase().includes(searchQuery) ||
+      member.email.toLowerCase().includes(searchQuery)
     );
   }
 

@@ -1,4 +1,4 @@
-import { User, Group, Message, ActionItem, Insight } from '@/types';
+import { Member, Group, Message, ActionItem, Insight } from '@/types';
 
 export interface LoginRequest {
   email: string;
@@ -27,7 +27,7 @@ export interface CreateGroupRequest {
 export interface SendMessageRequest {
   groupId: string;
   content: string;
-  type?: 'text' | 'user' | 'system' | 'ai_facilitator';
+  type?: 'text' | 'member' | 'system' | 'ai_facilitator';
 }
 
 // AI Orchestration interfaces
@@ -35,7 +35,7 @@ export interface OrchestrationMessageRequest {
   content: string;
   sessionId?: string;
   groupId?: string;
-  messageType?: 'user' | 'system';
+  messageType?: 'member' | 'system';
 }
 
 export interface OrchestrationResponse {
@@ -54,7 +54,7 @@ export interface OrchestrationResponse {
 
 export interface SessionStartRequest {
   groupId?: string;
-  userProfile?: {
+  memberProfile?: {
     interests?: string[];
     experience?: string;
     goals?: string[];
@@ -72,12 +72,12 @@ export interface SessionAnalytics {
 export type OrchestrationSystem = 'simple' | 'production' | 'main' | 'working';
 
 export interface AdminStats {
-  totalUsers: number;
-  activeUsers: number;
+  totalMembers: number;
+  activeMembers: number;
   totalGroups: number;
   activeGroups: number;
   totalMessages: number;
-  premiumUsers: number;
+  premiumMembers: number;
   monthlyGrowth: number;
   avgEngagement: number;
 }
@@ -226,24 +226,24 @@ export class ApiService {
   }
 
   // Authentication methods
-  async login(credentials: LoginRequest): Promise<{ user: User; token: string }> {
-    const response = await this.makeRequest<{ data: { user: User; token: string; expiresAt: string } }>('/auth/login', {
+  async login(credentials: LoginRequest): Promise<{ member: Member; token: string }> {
+    const response = await this.makeRequest<{ data: { member: Member; token: string; expiresAt: string } }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
 
     this.saveToken(response.data.token);
-    return { user: response.data.user, token: response.data.token };
+    return { member: response.data.member, token: response.data.token };
   }
 
-  async register(userData: RegisterRequest): Promise<{ user: User; token: string }> {
-    const response = await this.makeRequest<{ data: { user: User; token: string; expiresAt: string } }>('/auth/register', {
+  async register(memberData: RegisterRequest): Promise<{ member: Member; token: string }> {
+    const response = await this.makeRequest<{ data: { member: Member; token: string; expiresAt: string } }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify(userData),
+      body: JSON.stringify(memberData),
     });
 
     this.saveToken(response.data.token);
-    return { user: response.data.user, token: response.data.token };
+    return { member: response.data.member, token: response.data.token };
   }
 
   async logout(): Promise<void> {
@@ -258,16 +258,16 @@ export class ApiService {
     }
   }
 
-  async getCurrentUser(): Promise<User | null> {
+  async getCurrentMember(): Promise<Member | null> {
     if (!this.token) {
       return null;
     }
 
     try {
-      const response = await this.makeRequest<{ data: { user: User } }>('/auth/me');
-      return response.data.user;
+      const response = await this.makeRequest<{ data: { member: Member } }>('/auth/me');
+      return response.data.member;
     } catch (error) {
-      console.error('Get current user error:', error);
+      console.error('Get current member error:', error);
       this.clearToken();
       return null;
     }
@@ -298,13 +298,13 @@ export class ApiService {
     return response.data;
   }
 
-  // User methods
-  async updateProfile(updates: Partial<User>): Promise<User> {
-    const response = await this.makeRequest<{ user: User }>('/users/profile', {
+  // Member methods
+  async updateProfile(updates: Partial<Member>): Promise<Member> {
+    const response = await this.makeRequest<{ member: Member }>('/members/profile', {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
-    return response.user;
+    return response.member;
   }
 
   // Group methods
@@ -335,12 +335,12 @@ export class ApiService {
     });
   }
 
-  async getUserAvailableGroups(): Promise<Group[]> {
+  async getMemberAvailableGroups(): Promise<Group[]> {
     const response = await this.makeRequest<{ data: { groups: Group[] } }>('/groups/available');
     return response.data.groups;
   }
 
-  async getUserAssignedGroups(): Promise<Group[]> {
+  async getMemberAssignedGroups(): Promise<Group[]> {
     const response = await this.makeRequest<{ data: { assignedGroups: Group[] } }>('/groups/assigned');
     return response.data.assignedGroups;
   }
@@ -395,9 +395,9 @@ export class ApiService {
     return this.makeRequest<AdminStats>('/admin/stats');
   }
 
-  async getAllUsers(): Promise<User[]> {
-    const response = await this.makeRequest<{ data: { users: User[] } }>('/admin/users');
-    return response.data.users;
+  async getAllMembers(): Promise<Member[]> {
+    const response = await this.makeRequest<{ data: { members: Member[] } }>('/admin/members');
+    return response.data.members;
   }
 
   async getAllGroups(): Promise<Group[]> {
@@ -405,18 +405,31 @@ export class ApiService {
     return response.data.groups;
   }
 
-  async deleteUser(userId: string): Promise<void> {
-    await this.makeRequest(`/admin/users/${userId}`, {
+  async createMember(memberData: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  }): Promise<Member> {
+    const response = await this.makeRequest<{ member: Member }>('/admin/members', {
+      method: 'POST',
+      body: JSON.stringify(memberData),
+    });
+    return response.member;
+  }
+
+  async deleteMember(memberId: string): Promise<void> {
+    await this.makeRequest(`/admin/members/${memberId}`, {
       method: 'DELETE',
     });
   }
 
-  async updateUser(userId: string, updates: Partial<User>): Promise<User> {
-    const response = await this.makeRequest<{ user: User }>(`/admin/users/${userId}`, {
+  async updateMember(memberId: string, updates: Partial<Member>): Promise<Member> {
+    const response = await this.makeRequest<{ member: Member }>(`/admin/members/${memberId}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
-    return response.user;
+    return response.member;
   }
 
   // Analytics methods
@@ -458,15 +471,15 @@ export class ApiService {
   private getOrchestrationPath(system: OrchestrationSystem): string {
     switch (system) {
       case 'simple':
-        return '/production-orchestration';
+        return '/orchestration';
       case 'production':
-        return '/production-orchestration';
+        return '/orchestration';
       case 'main':
-        return '/production-orchestration';
+        return '/orchestration';
       case 'working':
-        return '/production-orchestration';
+        return '/orchestration';
       default:
-        return '/production-orchestration'; // All use production orchestration
+        return '/orchestration'; // All use production orchestration
     }
   }
 
@@ -696,7 +709,7 @@ export class ApiService {
     };
   }
 
-  // Check if user is authenticated
+  // Check if member is authenticated
   isAuthenticated(): boolean {
     return !!this.token;
   }

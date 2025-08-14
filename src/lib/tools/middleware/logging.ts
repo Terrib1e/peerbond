@@ -24,7 +24,7 @@ export function createLoggingMiddleware(options: LoggingOptions = {}): ToolMiddl
       id: logId,
       toolName: tool.name,
       agentId: context.agentId,
-      userId: context.userId,
+      memberId: context.memberId,
       sessionId: context.sessionId,
       timestamp: new Date(),
       args: includeArgs ? args : undefined
@@ -53,7 +53,7 @@ export function createLoggingMiddleware(options: LoggingOptions = {}): ToolMiddl
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       const executionLog: ToolExecutionLog = {
         ...log as ToolExecutionLog,
         duration,

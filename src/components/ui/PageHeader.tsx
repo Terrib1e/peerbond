@@ -1,7 +1,6 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
 import { getPortalTheme } from '@/lib/design-system';
 
@@ -25,12 +24,11 @@ const PageHeader: React.FC<PageHeaderProps> = ({
   portalType = 'member',
   className,
 }) => {
-  const theme = getPortalTheme(portalType);
 
   return (
     <div className={cn('mb-6', className)}>
       {backTo && (
-        <Link 
+        <Link
           to={backTo.path}
           className={cn(
             'inline-flex items-center text-sm font-medium mb-4 transition-colors',
@@ -41,7 +39,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
           {backTo.label}
         </Link>
       )}
-      
+
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -53,7 +51,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
             </p>
           )}
         </div>
-        
+
         {actions && (
           <div className="flex items-center gap-3 ml-6">
             {actions}

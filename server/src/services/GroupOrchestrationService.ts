@@ -3,7 +3,7 @@
  * Extends the production orchestrator with group-specific functionality
  */
 
-import { ProductionOrchestratorService, AgentResponse } from '../orchestration/production-ready-fixed';
+import { ProductionOrchestratorService, AgentResponse } from '../orchestration/orchestrator';
 import { DatabaseService } from './database';
 import { logger } from '../utils/logger';
 import ToolExecutor, { ToolAuditLog } from '../tools/executor';
@@ -69,7 +69,7 @@ export class GroupOrchestrationService extends ProductionOrchestratorService {
     super();
     this.dbService = new DatabaseService();
     this.toolExecutor = new ToolExecutor();
-    
+
     // Initialize database-integrated tools
     this.initializeDatabaseTools();
   }
@@ -92,24 +92,24 @@ export class GroupOrchestrationService extends ProductionOrchestratorService {
    */
   async processGroupMessage(params: {
     groupId: string;
-    userId: string;
+    memberId: string;
     message: string;
     sessionId?: string;
     messageId?: string;
   }): Promise<GroupAIResponse> {
     try {
-      const { groupId, userId, message, messageId } = params;
+      const { groupId, memberId, message, messageId } = params;
 
       // Get or create session for the group
       let sessionId = params.sessionId || this.groupSessionsMap.get(groupId);
       if (!sessionId) {
-        const session = await this.startSession(userId, groupId);
+        const session = await this.startSession(memberId, groupId);
         sessionId = session.sessionId;
         this.groupSessionsMap.set(groupId, sessionId);
       }
 
       // Check for meta-queries about the AI system itself
-      const metaResponse = await this.handleMetaQueries(message, sessionId, userId);
+      const metaResponse = await this.handleMetaQueries(message, sessionId, memberId);
       if (metaResponse) {
         const groupContext = await this.buildGroupContext(groupId);
         return {
@@ -137,10 +137,10 @@ export class GroupOrchestrationService extends ProductionOrchestratorService {
 
       // Process through AI orchestration
       const response = await this.processMessage({
-        userId,
+        memberId,
         sessionId,
         content: contextualizedMessage,
-        messageType: 'user'
+        messageType: 'member'
       });
 
       // Analyze for group-specific insights
@@ -187,7 +187,7 @@ export class GroupOrchestrationService extends ProductionOrchestratorService {
 
       // Build context for insight agent
       const messagesContext = recentMessages
-        .map(msg => `${msg.timestamp.toISOString()}: ${msg.user?.firstName || 'User'}: ${msg.content}`)
+        .map(msg => `${msg.timestamp.toISOString()}: ${msg.member?.firstName || 'User'}: ${msg.content}`)
         .join('\n');
 
       const insightPrompt = `
@@ -264,12 +264,12 @@ Provide insights on:
   async handleGroupCrisis(params: {
     groupId: string;
     messageId: string;
-    userId: string;
+    memberId: string;
     severity: 'mild' | 'moderate' | 'severe';
     content: string;
   }): Promise<GroupAIResponse> {
     try {
-      const { groupId, messageId, userId, severity, content } = params;
+      const { groupId, messageId, memberId, severity, content } = params;
 
       const sessionId = this.groupSessionsMap.get(groupId);
       if (!sessionId) {
@@ -295,7 +295,7 @@ Provide:
 4. Escalation recommendations
 `;
 
-      const response = await this.callAgentDirectly('crisis', crisisPrompt, sessionId, userId);
+      const response = await this.callAgentDirectly('crisis', crisisPrompt, sessionId, memberId);
 
       // Update group context to reflect crisis
       groupContext.groupMood = 'crisis';
@@ -322,15 +322,69 @@ Provide:
   }
 
   /**
+   * Override to use enhanced orchestrator for available agents and tools
+   */
+  public getAvailableAgentsAndTools(): {
+    agents: Array<{
+      id: string;
+      name: string;
+      description: string;
+      capabilities: string[];
+      tools: string[];
+    }>;
+    tools: Array<{
+      name: string;
+      description: string;
+      agent: string;
+    }>;
+  } {
+    // Always use parent implementation (ProductionOrchestratorService)
+    return super.getAvailableAgentsAndTools();
+  }
+
+  /**
+   * Override callAgentDirectly to use enhanced orchestrator
+   */
+  public async callAgentDirectly(
+    agentId: string,
+    message: string,
+    sessionId: string,
+    memberId: string,
+    toolName?: string
+  ): Promise<{
+    success: boolean;
+    response: string;
+    agentUsed: string;
+    toolsUsed?: string[];
+    confidence: number;
+    metadata?: any;
+  }> {
+    // Always use parent implementation (ProductionOrchestratorService)
+    return super.callAgentDirectly(agentId, message, sessionId, memberId, toolName);
+  }
+
+  private getGroupIdFromSession(sessionId: string): string | undefined {
+    // Reverse lookup groupId from sessionId
+    for (const [groupId, sid] of this.groupSessionsMap.entries()) {
+      if (sid === sessionId) {
+        return groupId;
+      }
+    }
+    return undefined;
+  }
+
+
+
+  /**
    * Override base processMessage to include meta-query detection and multi-agent processing
    */
   async processMessage(params: {
-    userId: string;
+    memberId: string;
     sessionId: string;
     content: string;
-    messageType: 'user' | 'system';
+    messageType: 'member' | 'system';
   }): Promise<AgentResponse> {
-    const { userId, sessionId, content, messageType } = params;
+    const { memberId, sessionId, content, messageType } = params;
 
     console.log('[GroupOrchestration] Processing message with enhanced multi-agent processing:', {
       content: content.slice(0, 100),
@@ -338,8 +392,10 @@ Provide:
       sessionId: sessionId.slice(0, 20) + '...'
     });
 
+
+
     // Check for meta-queries first
-    const metaResponse = await this.handleMetaQueries(content, sessionId, userId);
+    const metaResponse = await this.handleMetaQueries(content, sessionId, memberId);
     if (metaResponse) {
       console.log('[GroupOrchestration] Meta-query detected and handled:', {
         query: content,
@@ -350,7 +406,7 @@ Provide:
 
     // Intelligent multi-agent processing - use the right agents for the job
     console.log('[GroupOrchestration] Starting intelligent multi-agent processing');
-    
+
     const agentsUsed: string[] = [];
     const toolResults: any[] = [];
     let finalResponse = '';
@@ -362,13 +418,13 @@ Provide:
 
       // Step 1: Always run sentiment and crisis detection for safety
       console.log('[GroupOrchestration] Step 1: Running safety checks (sentiment + crisis)');
-      
+
       const [sentimentResult, crisisResult] = await Promise.all([
-        this.callAgentWithTools('sentiment', content, sessionId, userId).catch(err => {
+        this.callAgentWithTools('sentiment', content, sessionId, memberId).catch(err => {
           console.warn('[GroupOrchestration] Sentiment agent failed:', err);
           return { response: '', confidence: 0, agentUsed: [], toolResults: [] };
         }),
-        this.callAgentWithTools('crisis', content, sessionId, userId).catch(err => {
+        this.callAgentWithTools('crisis', content, sessionId, memberId).catch(err => {
           console.warn('[GroupOrchestration] Crisis agent failed:', err);
           return { response: '', confidence: 0, agentUsed: [], toolResults: [], needsCrisisIntervention: false };
         })
@@ -387,7 +443,7 @@ Provide:
       } else {
         // Step 2: Determine primary agent based on content
         let primaryAgent = 'facilitator'; // default
-        
+
         if (contentLower.includes('progress') || contentLower.includes('how am i') || contentLower.includes('journey') || contentLower.includes('doing')) {
           primaryAgent = 'insight';
         } else if (contentLower.includes('group') || contentLower.includes('community') || contentLower.includes('others like me') || contentLower.includes('find')) {
@@ -395,26 +451,26 @@ Provide:
         }
 
         console.log(`[GroupOrchestration] Step 2: Using ${primaryAgent} as primary agent`);
-        
+
         // Get primary response
-        const primaryResult = await this.callAgentWithTools(primaryAgent, content, sessionId, userId);
+        const primaryResult = await this.callAgentWithTools(primaryAgent, content, sessionId, memberId);
         agentsUsed.push(primaryAgent);
         if (primaryResult.toolResults) toolResults.push(...primaryResult.toolResults);
-        
+
         finalResponse = primaryResult.response;
         highestConfidence = primaryResult.confidence;
 
         // Step 3: Add facilitator if we used a specialized agent
         if (primaryAgent !== 'facilitator') {
           console.log('[GroupOrchestration] Step 3: Adding facilitator support');
-          const facilitatorResult = await this.callAgentWithTools('facilitator', content, sessionId, userId).catch(err => {
+          const facilitatorResult = await this.callAgentWithTools('facilitator', content, sessionId, memberId).catch(err => {
             console.warn('[GroupOrchestration] Facilitator agent failed:', err);
             return { response: '', confidence: 0, agentUsed: [], toolResults: [] };
           });
-          
+
           agentsUsed.push('facilitator');
           if (facilitatorResult.toolResults) toolResults.push(...facilitatorResult.toolResults);
-          
+
           // Combine responses intelligently
           if (facilitatorResult.response && facilitatorResult.response.length > 50) {
             finalResponse = this.combineAgentResponses(primaryResult.response, facilitatorResult.response, primaryAgent);
@@ -450,9 +506,9 @@ Provide:
 
     } catch (error) {
       console.error('[GroupOrchestration] Error in multi-agent processing:', error);
-      
+
       // Fallback to single agent
-      const fallbackResult = await this.callAgentWithTools('facilitator', content, sessionId, userId);
+      const fallbackResult = await this.callAgentWithTools('facilitator', content, sessionId, memberId);
       return {
         ...fallbackResult,
         agentUsed: ['facilitator', 'fallback'],
@@ -468,7 +524,7 @@ Provide:
   /**
    * Handle meta-queries about the AI system itself
    */
-  private async handleMetaQueries(message: string, sessionId: string, userId: string): Promise<AgentResponse | null> {
+  private async handleMetaQueries(message: string, sessionId: string, memberId: string): Promise<AgentResponse | null> {
     const lowerMessage = message.toLowerCase();
 
     console.log('[GroupOrchestration] Checking for meta-query:', { message: lowerMessage });
@@ -612,7 +668,7 @@ Each agent has specific expertise to provide the best possible support for your 
 • generateGroupRecommendations - Personalized suggestions
 
 📈 **Insight Tools:**
-• analyzeUserProgress - Track growth patterns
+• analyzeMemberProgress - Track growth patterns
 • generateProgressInsights - Journey analysis
 • identifyPatterns - Behavioral insights
 
@@ -732,7 +788,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
     toolName: string,
     parameters: any,
     context: {
-      userId: string;
+      memberId: string;
       sessionId: string;
       groupId?: string;
       messageId?: string;
@@ -741,7 +797,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
   ): Promise<any> {
     try {
       const toolContext: ToolContext = {
-        userId: context.userId,
+        memberId: context.memberId,
         sessionId: context.sessionId,
         groupId: context.groupId,
         messageId: context.messageId,
@@ -752,7 +808,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
 
       console.log(`[GroupOrchestration] Executing tool: ${toolName}`, {
         agent: context.agent,
-        userId: context.userId,
+        memberId: context.memberId,
         sessionId: context.sessionId.slice(0, 20) + '...'
       });
 
@@ -789,7 +845,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
     agentId: string,
     message: string,
     sessionId: string,
-    userId: string,
+    memberId: string,
     groupId?: string
   ): Promise<AgentResponse> {
     console.log(`[GroupOrchestration] Calling agent with tools: ${agentId}`, { message: message.slice(0, 50) });
@@ -802,7 +858,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
           conversationHistory: [],
           groupContext: groupId ? await this.buildGroupContext(groupId) : undefined
         }, {
-          userId,
+          memberId,
           sessionId,
           groupId,
           agent: 'ai-router'
@@ -821,7 +877,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
               intentResult.suggestedAgent,
               message,
               sessionId,
-              userId,
+              memberId,
               groupId
             );
           }
@@ -830,7 +886,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
 
       // Execute agent-specific tools
       let toolResult = null;
-      const context = { userId, sessionId, groupId, agent: agentId };
+      const context = { memberId, sessionId, groupId, agent: agentId };
 
       switch (agentId) {
         case 'facilitator':
@@ -843,13 +899,13 @@ I'm here to support your group's healing journey with intelligent, compassionate
             const emotionalState = this.mapSentimentToEmotionalState(sentimentResult.overallSentiment);
 
             toolResult = await this.executeToolSafely('provideSupportiveResponse', {
-              userMessage: message,
+              memberMessage: message,
               emotionalState,
               therapeuticApproach: 'validation',
               sessionContext: {
                 isFirstMessage: false,
                 previousTopics: [],
-                userGoals: []
+                memberGoals: []
               }
             }, context);
           }
@@ -866,7 +922,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
           // First detect crisis level
           const crisisDetection = await this.executeToolSafely('detectCrisis', {
             message,
-            userHistory: [],
+            memberHistory: [],
             contextualCues: {}
           }, { ...context, agent: 'sentiment' });
 
@@ -881,9 +937,9 @@ I'm here to support your group's healing journey with intelligent, compassionate
           break;
 
         case 'insight':
-          // Analyze user progress and generate insights
-          toolResult = await this.executeToolSafely('analyzeUserProgress', {
-            userMessage: message,
+          // Analyze member progress and generate insights
+          toolResult = await this.executeToolSafely('analyzeMemberProgress', {
+            memberMessage: message,
             conversationHistory: [],
             timeframe: '30days',
             focusAreas: ['emotional_wellbeing', 'coping_strategies', 'social_connection']
@@ -893,8 +949,8 @@ I'm here to support your group's healing journey with intelligent, compassionate
         case 'matching':
           // Search for relevant groups and generate recommendations
           toolResult = await this.executeToolSafely('searchGroups', {
-            userMessage: message,
-            userInterests: [],
+            memberMessage: message,
+            memberInterests: [],
             supportNeeds: ['peer_support', 'group_therapy'],
             location: 'online',
             groupType: 'recovery'
@@ -921,7 +977,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
       }
 
       // Fall back to parent class behavior if no tools executed
-      const parentResponse = await super.callAgentDirectly(agentId, message, sessionId, userId);
+      const parentResponse = await super.callAgentDirectly(agentId, message, sessionId, memberId);
       return {
         ...parentResponse,
         agentUsed: Array.isArray(parentResponse.agentUsed) ? parentResponse.agentUsed : [parentResponse.agentUsed]
@@ -929,7 +985,7 @@ I'm here to support your group's healing journey with intelligent, compassionate
 
     } catch (error) {
       console.error(`[GroupOrchestration] Error in callAgentWithTools:`, error);
-      const parentResponse = await super.callAgentDirectly(agentId, message, sessionId, userId);
+      const parentResponse = await super.callAgentDirectly(agentId, message, sessionId, memberId);
       return {
         ...parentResponse,
         agentUsed: Array.isArray(parentResponse.agentUsed) ? parentResponse.agentUsed : [parentResponse.agentUsed]
@@ -985,12 +1041,12 @@ I'm here to support your group's healing journey with intelligent, compassionate
    */
   private combineAgentResponses(primaryResponse: string, facilitatorResponse: string, primaryAgent: string): string {
     console.log('[GroupOrchestration] Combining responses from', primaryAgent, 'and facilitator');
-    
+
     // If primary response is very short, use facilitator response
     if (primaryResponse.length < 50) {
       return facilitatorResponse;
     }
-    
+
     // If facilitator response is very short or generic, use primary
     if (facilitatorResponse.length < 50 || facilitatorResponse.includes('Thank you for sharing')) {
       return primaryResponse;
@@ -1000,12 +1056,12 @@ I'm here to support your group's healing journey with intelligent, compassionate
     if (primaryAgent === 'insight') {
       return `${primaryResponse}\n\n${facilitatorResponse}`;
     }
-    
+
     // For matching agent, add therapeutic framing
     if (primaryAgent === 'matching') {
       return `${facilitatorResponse}\n\n${primaryResponse}`;
     }
-    
+
     // Default: use primary response with facilitator support
     return primaryResponse;
   }
@@ -1197,7 +1253,7 @@ User message: ${message}
   }
 
   private getLastAIIntervention(messages: any[]): Date | null {
-    const aiMessage = messages.find(msg => msg.type === 'ai_facilitator' || msg.userId === 'ai-facilitator');
+    const aiMessage = messages.find(msg => msg.type === 'ai_facilitator' || msg.memberId === 'ai-facilitator');
     return aiMessage ? new Date(aiMessage.timestamp) : null;
   }
 
@@ -1205,8 +1261,8 @@ User message: ${message}
     const participationCounts = new Map<string, number>();
 
     messages.forEach(msg => {
-      const count = participationCounts.get(msg.userId) || 0;
-      participationCounts.set(msg.userId, count + 1);
+      const count = participationCounts.get(msg.memberId) || 0;
+      participationCounts.set(msg.memberId, count + 1);
     });
 
     const sortedParticipation = Array.from(participationCounts.entries())
@@ -1218,13 +1274,13 @@ User message: ${message}
     return {
       activeMembers: sortedParticipation
         .filter(([, count]) => count > averagePerMember)
-        .map(([userId]) => userId),
+        .map(([memberId]) => memberId),
       quietMembers: members.filter(memberId =>
         (participationCounts.get(memberId) || 0) < averagePerMember * 0.5
       ),
       dominatingMembers: sortedParticipation
         .filter(([, count]) => count > averagePerMember * 2)
-        .map(([userId]) => userId)
+        .map(([memberId]) => memberId)
     };
   }
 
@@ -1256,13 +1312,13 @@ User message: ${message}
 
   private analyzeAIEngagement(messages: any[]) {
     const aiMessages = messages.filter(msg =>
-      msg.type === 'ai_facilitator' || msg.userId === 'ai-facilitator'
+      msg.type === 'ai_facilitator' || msg.memberId === 'ai-facilitator'
     );
 
     return {
       lastIntervention: aiMessages.length > 0 ? new Date(aiMessages[0].timestamp) : null,
       interventionFrequency: (aiMessages.length > 10 ? 'high' : aiMessages.length > 3 ? 'moderate' : 'low') as 'high' | 'moderate' | 'low',
-      effectivenessScore: 0.75 // Would calculate based on user responses
+      effectivenessScore: 0.75 // Would calculate based on member responses
     };
   }
 }

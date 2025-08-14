@@ -45,10 +45,10 @@ export default function AddClientModal({ onClose, onSuccess }: AddClientModalPro
         relationship: data.emergencyContactRelation
       } : undefined;
 
-      const response = await api.post<{ 
-        client: any; 
-        tempPassword: string; 
-        message: string 
+      const response = await api.post<{
+        client: any;
+        tempPassword: string;
+        message: string
       }>('/therapist/clients', {
         ...data,
         emergencyContact
@@ -56,7 +56,7 @@ export default function AddClientModal({ onClose, onSuccess }: AddClientModalPro
 
       setTempPassword(response.tempPassword);
       toast.success('Client added successfully');
-      
+
       // Show password for a moment before closing
       setTimeout(() => {
         onSuccess();
@@ -77,6 +77,7 @@ export default function AddClientModal({ onClose, onSuccess }: AddClientModalPro
               <h2 className="text-xl font-semibold">Add New Client</h2>
             </div>
             <button
+              title="Close Modal"
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg"
             >

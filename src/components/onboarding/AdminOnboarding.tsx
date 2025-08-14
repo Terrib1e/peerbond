@@ -32,7 +32,7 @@ const securitySchema = z.object({
 });
 
 const permissionsSchema = z.object({
-  userManagement: z.boolean(),
+  memberManagement: z.boolean(),
   therapistApproval: z.boolean(),
   systemConfiguration: z.boolean(),
   auditAccess: z.boolean(),
@@ -56,10 +56,10 @@ type TrainingFormData = z.infer<typeof trainingSchema>;
 
 interface AdminOnboardingProps {
   onComplete: () => void;
-  userId: string;
+  memberId: string;
 }
 
-export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingProps) {
+export default function AdminOnboarding({ onComplete, memberId }: AdminOnboardingProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [onboardingData, setOnboardingData] = useState<any>({});
@@ -97,7 +97,7 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
   const permissionsForm = useForm<PermissionsFormData>({
     resolver: zodResolver(permissionsSchema),
     defaultValues: {
-      userManagement: false,
+      memberManagement: false,
       therapistApproval: false,
       systemConfiguration: false,
       auditAccess: false,
@@ -121,7 +121,7 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
 
   const handleStepSubmit = async (stepData: any) => {
     setOnboardingData((prev: any) => ({ ...prev, ...stepData }));
-    
+
     if (currentStep < totalSteps) {
       setCurrentStep((prev: number) => prev + 1);
     } else {
@@ -133,7 +133,7 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
     setIsSubmitting(true);
     try {
       await api.post('/admin/onboarding/complete', {
-        userId,
+        memberId,
         ...data
       });
       toast.success('Admin onboarding completed successfully.');
@@ -151,7 +151,7 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
         const Icon = step.icon;
         const isActive = currentStep === step.number;
         const isCompleted = currentStep > step.number;
-        
+
         return (
           <div key={step.number} className="flex items-center">
             <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
@@ -190,20 +190,20 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
                 <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                   Welcome to the PeerBond Admin Portal. As an administrator, you'll have significant responsibilities and access to sensitive information. Let's ensure your account is properly secured and configured.
                 </p>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                   <div className="text-center p-6 bg-red-50 rounded-lg">
                     <Shield className="w-12 h-12 text-red-600 mx-auto mb-4" />
                     <h3 className="font-semibold text-gray-900">Security Control</h3>
                     <p className="text-sm text-gray-600">Enhanced security features and access controls</p>
                   </div>
-                  
+
                   <div className="text-center p-6 bg-blue-50 rounded-lg">
                     <Users className="w-12 h-12 text-blue-600 mx-auto mb-4" />
                     <h3 className="font-semibold text-gray-900">User Management</h3>
-                    <p className="text-sm text-gray-600">Manage therapists, clients, and platform users</p>
+                    <p className="text-sm text-gray-600">Manage therapists, clients, and platform members</p>
                   </div>
-                  
+
                   <div className="text-center p-6 bg-green-50 rounded-lg">
                     <Activity className="w-12 h-12 text-green-600 mx-auto mb-4" />
                     <h3 className="font-semibold text-gray-900">System Monitoring</h3>
@@ -369,16 +369,16 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <h3 className="font-semibold text-gray-900 border-b pb-2">User Management</h3>
-                    
+
                     <label className="flex items-start p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
                       <input
                         type="checkbox"
-                        {...permissionsForm.register('userManagement')}
+                        {...permissionsForm.register('memberManagement')}
                         className="mt-1 mr-3"
                       />
                       <div>
                         <span className="font-medium">User Account Management</span>
-                        <p className="text-sm text-gray-600">Create, modify, and deactivate user accounts</p>
+                        <p className="text-sm text-gray-600">Create, modify, and deactivate member accounts</p>
                       </div>
                     </label>
 
@@ -421,7 +421,7 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
 
                   <div className="space-y-4">
                     <h3 className="font-semibold text-gray-900 border-b pb-2">System Administration</h3>
-                    
+
                     <label className="flex items-start p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
                       <input
                         type="checkbox"
@@ -563,7 +563,7 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
                       <div className="flex-1">
                         <h3 className="font-semibold text-green-900 mb-2">Platform Administration</h3>
                         <p className="text-sm text-green-700 mb-4">
-                          Learn PeerBond's admin interface, user management tools, and system monitoring capabilities.
+                          Learn PeerBond's admin interface, member management tools, and system monitoring capabilities.
                         </p>
                         <Button variant="outline" size="sm" className="mb-3">
                           <Users className="w-4 h-4 mr-2" />
@@ -757,7 +757,7 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
                 <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
                   <Check className="w-8 h-8 text-red-600" />
                 </div>
-                
+
                 <h2 className="text-3xl font-bold text-gray-900">Admin Setup Complete!</h2>
                 <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                   Your administrative account has been configured with enhanced security and all required training. You now have access to the PeerBond Admin Portal.
@@ -766,7 +766,7 @@ export default function AdminOnboarding({ onComplete, userId }: AdminOnboardingP
                 <div className="bg-gray-50 rounded-lg p-6 max-w-md mx-auto">
                   <h3 className="font-semibold text-gray-900 mb-3">Your Admin Capabilities</h3>
                   <ul className="text-sm text-gray-600 space-y-2 text-left">
-                    <li>• Full user and therapist management</li>
+                    <li>• Full member and therapist management</li>
                     <li>• System monitoring and configuration</li>
                     <li>• Crisis alert management</li>
                     <li>• Compliance reporting and audit access</li>

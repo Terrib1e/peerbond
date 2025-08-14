@@ -1,7 +1,7 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
-import { getComponentClasses, getPortalTheme } from '@/lib/design-system';
+import { getPortalComponentClasses } from '@/lib/design-system';
 import { cn } from '@/utils/cn';
 
 interface StatsCardProps {
@@ -17,6 +17,7 @@ interface StatsCardProps {
   size?: 'sm' | 'base' | 'lg';
   className?: string;
   isLoading?: boolean;
+  variant?: 'default' | 'interactive';
 }
 
 const StatsCard: React.FC<StatsCardProps> = ({
@@ -28,31 +29,35 @@ const StatsCard: React.FC<StatsCardProps> = ({
   size = 'base',
   className,
   isLoading = false,
+  variant = 'default',
 }) => {
-  const theme = getPortalTheme(portalType);
-  
-  const sizeClasses = {
-    sm: 'p-4',
-    base: 'p-6',
-    lg: 'p-8',
+  const portalClasses = getPortalComponentClasses(portalType);
+
+  const sizeConfig = {
+    sm: { 
+      padding: 'p-4' as const,
+      iconSize: 20,
+      valueText: 'text-xl',
+    },
+    base: { 
+      padding: 'p-6' as const,
+      iconSize: 24,
+      valueText: 'text-2xl',
+    },
+    lg: { 
+      padding: 'p-8' as const,
+      iconSize: 32,
+      valueText: 'text-3xl',
+    },
   };
 
-  const iconSizes = {
-    sm: 20,
-    base: 24,
-    lg: 32,
-  };
-
-  const valueSizes = {
-    sm: 'text-xl',
-    base: 'text-2xl',
-    lg: 'text-3xl',
-  };
+  const config = sizeConfig[size];
+  const cardVariant = variant === 'interactive' ? 'interactive' : 'hover';
 
   if (isLoading) {
     return (
-      <Card className={cn(getComponentClasses.card('hover'), className)}>
-        <CardContent className={sizeClasses[size]}>
+      <Card className={cn(portalClasses.card(cardVariant), className)}>
+        <CardContent className={config.padding}>
           <div className="animate-pulse">
             <div className="flex items-center justify-between mb-2">
               <div className="h-4 bg-gray-200 rounded w-20"></div>
@@ -67,14 +72,14 @@ const StatsCard: React.FC<StatsCardProps> = ({
   }
 
   return (
-    <Card className={cn(getComponentClasses.card('hover'), className)}>
-      <CardContent className={sizeClasses[size]}>
+    <Card className={cn(portalClasses.card(cardVariant), className)}>
+      <CardContent className={config.padding}>
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
             <p className={cn(
               'font-bold text-gray-900 mb-1',
-              valueSizes[size]
+              config.valueText
             )}>
               {value}
             </p>
@@ -92,18 +97,8 @@ const StatsCard: React.FC<StatsCardProps> = ({
               </div>
             )}
           </div>
-          <div className={cn(
-            'flex-shrink-0 p-2 rounded-full',
-            `bg-${portalType === 'member' ? 'blue' : portalType === 'therapist' ? 'green' : 'purple'}-100`
-          )}>
-            <Icon 
-              size={iconSizes[size]} 
-              className={cn(
-                portalType === 'member' && 'text-blue-600',
-                portalType === 'therapist' && 'text-green-600',
-                portalType === 'admin' && 'text-purple-600'
-              )}
-            />
+          <div className={portalClasses.statsCardIcon()}>
+            <Icon size={config.iconSize} />
           </div>
         </div>
       </CardContent>

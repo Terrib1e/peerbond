@@ -12,7 +12,7 @@ import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/utils/cn';
 
 function AIToolsPage() {
-  const { user } = useAuthStore();
+  const { member } = useAuthStore();
   const [systemStatus, setSystemStatus] = useState<{
     [key in OrchestrationSystem]: 'checking' | 'healthy' | 'error';
   }>({
@@ -86,7 +86,7 @@ function AIToolsPage() {
     }
   };
 
-  if (!user) {
+  if (!member) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-6">
         <Card className="p-8 text-center">
@@ -142,7 +142,7 @@ function AIToolsPage() {
       {selectedDemo === 'chat' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <AIChatInterface currentUser={user} className="h-[600px]" />
+            <AIChatInterface currentMember={member} className="h-[600px]" />
           </div>
           <div className="space-y-4">
             <Card className="p-4">

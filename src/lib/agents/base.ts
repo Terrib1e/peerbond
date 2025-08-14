@@ -13,7 +13,7 @@ export abstract class BaseAgent implements Agent {
   abstract tools: string[];
   abstract model: string;
   abstract provider: string;
-  
+
   config: AgentConfig;
   private sessions = new Map<string, AgentSession>();
 
@@ -28,11 +28,11 @@ export abstract class BaseAgent implements Agent {
     };
   }
 
-  async createSession(userId: string, initialContext?: Record<string, any>): Promise<AgentSession> {
+  async createSession(memberId: string, initialContext?: Record<string, any>): Promise<AgentSession> {
     const session: AgentSession = {
       id: nanoid(),
       agentId: this.id,
-      userId,
+      memberId,
       messages: [{
         role: 'system',
         content: this.systemPrompt
@@ -52,7 +52,7 @@ export abstract class BaseAgent implements Agent {
 
   async processMessage(
     sessionId: string,
-    userMessage: string,
+    memberMessage: string,
     context?: Record<string, any>
   ): Promise<{ message: string; toolResults?: any[] }> {
     const session = await this.getSession(sessionId);
@@ -60,10 +60,10 @@ export abstract class BaseAgent implements Agent {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    // Add user message
+    // Add member message
     session.messages.push({
-      role: 'user',
-      content: userMessage
+      role: 'member',
+      content: memberMessage
     });
 
     // Update context
@@ -73,7 +73,7 @@ export abstract class BaseAgent implements Agent {
 
     // Get LLM provider
     const provider = ProviderRegistry.get(this.provider as any);
-    
+
     // Prepare tools
     const availableTools = this.tools
       .map(toolName => ToolRegistry.get(toolName))
@@ -95,7 +95,7 @@ export abstract class BaseAgent implements Agent {
 
     const choice = response.choices[0];
     const assistantMessage = choice.message;
-    
+
     // Handle tool calls
     const toolResults: any[] = [];
     if (assistantMessage.toolCalls) {
@@ -142,7 +142,7 @@ export abstract class BaseAgent implements Agent {
 
   private async executeTool(toolCall: ToolCall, session: AgentSession) {
     const toolContext: ToolContext = {
-      userId: session.userId,
+      memberId: session.memberId,
       sessionId: session.id,
       agentId: this.id,
       timestamp: new Date(),
@@ -158,7 +158,7 @@ export abstract class BaseAgent implements Agent {
 
   private trimMessages(messages: Message[]): Message[] {
     const limit = this.config.memoryLimit || 20;
-    
+
     if (messages.length <= limit) {
       return messages;
     }
@@ -182,11 +182,11 @@ export abstract class BaseAgent implements Agent {
 
   async streamMessage(
     sessionId: string,
-    userMessage: string,
+    memberMessage: string,
     onChunk: (chunk: string) => void
   ): Promise<void> {
     if (!this.config.stream) {
-      const result = await this.processMessage(sessionId, userMessage);
+      const result = await this.processMessage(sessionId, memberMessage);
       onChunk(result.message);
       return;
     }
@@ -197,12 +197,12 @@ export abstract class BaseAgent implements Agent {
     }
 
     session.messages.push({
-      role: 'user',
-      content: userMessage
+      role: 'member',
+      content: memberMessage
     });
 
     const provider = ProviderRegistry.get(this.provider as any);
-    
+
     if (!provider.streamChat) {
       throw new Error(`Provider ${this.provider} doesn't support streaming`);
     }
@@ -215,7 +215,7 @@ export abstract class BaseAgent implements Agent {
     });
 
     let fullResponse = '';
-    
+
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.message.content || '';
       if (content) {
@@ -228,7 +228,7 @@ export abstract class BaseAgent implements Agent {
       role: 'assistant',
       content: fullResponse
     });
-    
+
     session.updatedAt = new Date();
   }
 
@@ -236,8 +236,8 @@ export abstract class BaseAgent implements Agent {
     this.sessions.delete(sessionId);
   }
 
-  async listSessions(userId: string): Promise<AgentSession[]> {
+  async listSessions(memberId: string): Promise<AgentSession[]> {
     return Array.from(this.sessions.values())
-      .filter(session => session.userId === userId);
+      .filter(session => session.memberId === memberId);
   }
 }

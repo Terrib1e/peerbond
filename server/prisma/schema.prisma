@@ -10,7 +10,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+model Member {
   id               String   @id @default(cuid())
   email            String   @unique
   password         String
@@ -38,7 +38,7 @@ model User {
   therapistProfile TherapistProfile?
   sessions         Session[]
   groupAssignments GroupAssignment[]
-  assignedGroups   GroupAssignment[] @relation("UserAssignments")
+  assignedGroups   GroupAssignment[] @relation("MemberAssignments")
   therapistClients TherapistClientAssignment[] @relation("TherapistClients")
   clientTherapists TherapistClientAssignment[] @relation("ClientTherapists")
 
@@ -46,7 +46,7 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  @@map("users")
+  @@map("members")
 }
 
 model Group {
@@ -77,30 +77,30 @@ model Group {
 
 model GroupMember {
   id       String @id @default(cuid())
-  userId   String
+  memberId   String
   groupId  String
   role     String @default("member")
   joinedAt DateTime  @default(now())
 
   // Relationships
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, groupId])
+  @@unique([memberId, groupId])
   @@map("group_members")
 }
 
 model Message {
   id        String      @id @default(cuid())
   groupId   String
-  userId    String
-  authorId  String?     // Add authorId for compatibility (can be same as userId)
+  memberId    String
+  authorId  String?     // Add authorId for compatibility (can be same as memberId)
   content   String
-  type      String      @default("user")
+  type      String      @default("member")
   isEdited  Boolean     @default(false)
 
   // Relationships
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member      Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
   group     Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   reactions Reaction[]
 
@@ -114,7 +114,7 @@ model Message {
 model Reaction {
   id        String @id @default(cuid())
   messageId String
-  userId    String
+  memberId    String
   emoji     String
 
   // Relationships
@@ -123,7 +123,7 @@ model Reaction {
   // Audit fields
   createdAt DateTime @default(now())
 
-  @@unique([messageId, userId, emoji])
+  @@unique([messageId, memberId, emoji])
   @@map("reactions")
 }
 
@@ -140,7 +140,7 @@ model ActionItem {
 
   // Relationships
   group       Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  assignee    User             @relation(fields: [assignedTo], references: [id], onDelete: Cascade)
+  assignee    Member             @relation(fields: [assignedTo], references: [id], onDelete: Cascade)
 
   // Audit fields
   createdAt   DateTime         @default(now())
@@ -169,7 +169,7 @@ model Insight {
 
 model Subscription {
   id                 String             @id @default(cuid())
-  userId             String             @unique
+  memberId             String             @unique
   type               String             @default("free")
   status             String             @default("active")
   stripeCustomerId   String?
@@ -179,7 +179,7 @@ model Subscription {
   priceId            String?
 
   // Relationships
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member               Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   // Audit fields
   createdAt          DateTime           @default(now())
@@ -190,14 +190,14 @@ model Subscription {
 
 model TherapistProfile {
   id                String   @id @default(cuid())
-  userId            String   @unique
+  memberId            String   @unique
   licenseNumber     String
   specializations   String?  // JSON string
   bio               String?
   isVerified        Boolean  @default(false)
 
   // Relationships
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member              Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   // Audit fields
   createdAt         DateTime @default(now())
@@ -223,12 +223,12 @@ model AIFacilitator {
 
 model Session {
   id        String   @id @default(cuid())
-  userId    String
+  memberId    String
   token     String   @unique
   expiresAt DateTime
 
   // Relationships
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member      Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   // Audit fields
   createdAt DateTime @default(now())
@@ -240,7 +240,7 @@ model Session {
 
 model ToolExecution {
   id            String   @id @default(cuid())
-  userId        String
+  memberId        String
   toolName      String
   arguments     String?  // JSON string
   result        String?  // JSON string
@@ -259,13 +259,13 @@ model ToolExecution {
 
 model AuditLog {
   id          String   @id @default(cuid())
-  userId      String
+  memberId      String
   action      String
   entityType  String?
   entityId    String?
   details     String?  // JSON string
   ipAddress   String?
-  userAgent   String?
+  memberAgent   String?
   timestamp   DateTime? // Add field expected by code
   createdAt   DateTime @default(now())
 
@@ -274,7 +274,7 @@ model AuditLog {
 
 model MoodEntry {
   id          String   @id @default(cuid())
-  userId      String
+  memberId      String
   score       Int
   emotions    String?  // JSON string
   triggers    String?  // JSON string
@@ -286,7 +286,7 @@ model MoodEntry {
 
 model CrisisAlert {
   id          String   @id @default(cuid())
-  userId      String
+  memberId      String
   groupId     String?
   severity    String
   indicators  String?  // JSON string
@@ -301,7 +301,7 @@ model CrisisAlert {
 
 model Notification {
   id          String   @id @default(cuid())
-  userId      String
+  memberId      String
   type        String
   title       String
   message     String
@@ -329,7 +329,7 @@ model SessionSummary {
 
 model ResourceProvision {
   id           String   @id @default(cuid())
-  userId       String
+  memberId       String
   resourceType String
   type         String?  // Add field expected by code
   severity     String?  // Add field expected by code
@@ -341,7 +341,7 @@ model ResourceProvision {
 
 model EmergencySession {
   id           String   @id @default(cuid())
-  userId       String
+  memberId       String
   crisisAlertId String? // Add field expected by code
   type         String?  // Add field expected by code
   scheduledFor DateTime
@@ -353,7 +353,7 @@ model EmergencySession {
 
 model GroupRestriction {
   id              String   @id @default(cuid())
-  userId          String
+  memberId          String
   groupId         String
   restrictionType String
   type            String?  // Add field expected by code
@@ -367,7 +367,7 @@ model GroupRestriction {
 
 model GroupAssignment {
   id          String   @id @default(cuid())
-  userId      String
+  memberId      String
   groupId     String
   assignedBy  String   // therapist or admin who assigned the group
   assignedAt  DateTime @default(now())
@@ -375,11 +375,11 @@ model GroupAssignment {
   notes       String?  // optional notes about why this group was assigned
 
   // Relationships
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member        Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
   group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  assigner    User     @relation("UserAssignments", fields: [assignedBy], references: [id], onDelete: Cascade)
+  assigner    Member     @relation("MemberAssignments", fields: [assignedBy], references: [id], onDelete: Cascade)
 
-  @@unique([userId, groupId])
+  @@unique([memberId, groupId])
   @@map("group_assignments")
 }
 
@@ -393,8 +393,8 @@ model TherapistClientAssignment {
   createdBy     String?  // who created this assignment (admin, self-assigned, etc.)
 
   // Relationships
-  therapist     User     @relation("TherapistClients", fields: [therapistId], references: [id], onDelete: Cascade)
-  client        User     @relation("ClientTherapists", fields: [clientId], references: [id], onDelete: Cascade)
+  therapist     Member     @relation("TherapistClients", fields: [therapistId], references: [id], onDelete: Cascade)
+  client        Member     @relation("ClientTherapists", fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([therapistId, clientId])
   @@map("therapist_client_assignments")
@@ -402,7 +402,7 @@ model TherapistClientAssignment {
 
 model TherapistAlert {
   id           String   @id @default(cuid())
-  userId       String
+  memberId       String
   alertType    String
   type         String?  // Add field expected by code
   severity     String

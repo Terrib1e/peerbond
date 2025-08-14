@@ -22,14 +22,14 @@ interface MoodLogResult {
 
 export class LogMoodTool extends BaseTool<LogMoodArgs, MoodLogResult> {
   name = 'logMood';
-  description = 'Logs a user\'s current mood state and analyzes trends';
+  description = 'Logs a member\'s current mood state and analyzes trends';
   schema = LogMoodSchema;
-  permissions = ['mood:write', 'user:write'];
+  permissions = ['mood:write', 'member:write'];
   rateLimit = { requests: 20, window: 3600 }; // 20 logs per hour
 
   protected async run(args: LogMoodArgs, context: ToolContext): Promise<MoodLogResult> {
-    const logId = `mood_${Date.now()}_${context.userId}`;
-    
+    const logId = `mood_${Date.now()}_${context.memberId}`;
+
     // In a real implementation, this would:
     // 1. Store in time-series database
     // 2. Calculate trend based on historical data
@@ -41,7 +41,7 @@ export class LogMoodTool extends BaseTool<LogMoodArgs, MoodLogResult> {
     const alertTriggered = this.checkCrisisPattern(args);
 
     // Log the mood entry
-    console.log(`Mood logged for user ${context.userId}:`, {
+    console.log(`Mood logged for member ${context.memberId}:`, {
       logId,
       mood: args.mood,
       score: args.score,
@@ -68,7 +68,7 @@ export class LogMoodTool extends BaseTool<LogMoodArgs, MoodLogResult> {
   private checkCrisisPattern(args: LogMoodArgs): boolean {
     // Check for crisis indicators
     const crisisKeywords = [
-      'suicide', 'self-harm', 'hopeless', 'worthless', 
+      'suicide', 'self-harm', 'hopeless', 'worthless',
       'end it all', 'no point', 'can\'t go on'
     ];
 
@@ -76,7 +76,7 @@ export class LogMoodTool extends BaseTool<LogMoodArgs, MoodLogResult> {
     const triggersText = (args.triggers || []).join(' ').toLowerCase();
     const allText = `${noteText} ${triggersText}`;
 
-    const hasCrisisKeyword = crisisKeywords.some(keyword => 
+    const hasCrisisKeyword = crisisKeywords.some(keyword =>
       allText.includes(keyword)
     );
 

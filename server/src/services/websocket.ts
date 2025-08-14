@@ -3,13 +3,13 @@ import { Server as HTTPServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { DatabaseService } from './database';
 import { GeminiService } from './geminiService';
-import { ProductionOrchestratorService } from '../orchestration/production-ready-fixed';
+import { ProductionOrchestratorService } from '../orchestration/orchestrator';
 import { GroupOrchestrationService } from './GroupOrchestrationService';
 import { logger } from '../utils/logger';
-import { WebSocketMessage, User, Message, Group } from '../types';
+import { WebSocketMessage, Member, Message, Group } from '../types';
 
 export interface AuthenticatedSocket extends Socket {
-  user?: User;
+  member?: Member;
 }
 
 export class WebSocketService {
@@ -19,8 +19,8 @@ export class WebSocketService {
   private geminiService: GeminiService;
   private orchestratorService: ProductionOrchestratorService;
   private groupOrchestrationService: GroupOrchestrationService;
-  private connectedUsers: Map<string, string> = new Map(); // userId -> socketId
-  private typingUsers: Map<string, Set<string>> = new Map(); // groupId -> Set of userIds
+  private connectedUsers: Map<string, string> = new Map(); // memberId -> socketId
+  private typingUsers: Map<string, Set<string>> = new Map(); // groupId -> Set of memberIds
   private groupSessions: Map<string, string> = new Map(); // groupId -> sessionId
 
   constructor(server: HTTPServer, dbService: DatabaseService) {
@@ -61,18 +61,18 @@ export class WebSocketService {
           return next(new Error('JWT secret not configured'));
         }
 
-        const decoded = jwt.verify(token, jwtSecret) as { userId: string };
-        const user = await this.dbService.getUserById(decoded.userId);
+        const decoded = jwt.verify(token, jwtSecret) as { memberId: string };
+        const member = await this.dbService.getMemberById(decoded.memberId);
 
-        if (!user) {
+        if (!member) {
           return next(new Error('Authentication error: User not found'));
         }
 
-        if (!user.isActive) {
+        if (!member.isActive) {
           return next(new Error('Authentication error: User account is disabled'));
         }
 
-        socket.user = user;
+        socket.member = member;
         next();
       } catch (error) {
         logger.error('WebSocket authentication error:', error);
@@ -83,14 +83,14 @@ export class WebSocketService {
 
   private setupEventHandlers() {
     this.io.on('connection', (socket: AuthenticatedSocket) => {
-      const user = socket.user!;
-      logger.info(`User connected: ${user.email} (${socket.id})`);
+      const member = socket.member!;
+      logger.info(`User connected: ${member.email} (${socket.id})`);
 
-      // Track connected user
-      this.connectedUsers.set(user.id, socket.id);
+      // Track connected member
+      this.connectedUsers.set(member.id, socket.id);
 
-      // Join user's groups
-      this.joinUserGroups(socket, user);
+      // Join member's groups
+      this.joinMemberGroups(socket, member);
 
       // Handle joining specific group
       socket.on('join_group', async (groupId: string) => {
@@ -127,7 +127,7 @@ export class WebSocketService {
       });
 
       // AI Orchestration Events
-      socket.on('ai:start_session', async (data: { groupId: string; userProfile?: any }) => {
+      socket.on('ai:start_session', async (data: { groupId: string; memberProfile?: any }) => {
         await this.handleAISessionStart(socket, data);
       });
 
@@ -150,28 +150,28 @@ export class WebSocketService {
     });
   }
 
-  private async joinUserGroups(socket: AuthenticatedSocket, user: User) {
+  private async joinMemberGroups(socket: AuthenticatedSocket, member: Member) {
     try {
-      const groups = await this.dbService.getUserGroups(user.id);
+      const groups = await this.dbService.getMemberGroups(member.id);
 
       for (const group of groups) {
         socket.join(group.id);
 
-        // Notify group members that user is online
-        socket.to(group.id).emit('user_status', {
-          userId: user.id,
+        // Notify group members that member is online
+        socket.to(group.id).emit('member_status', {
+          memberId: member.id,
           status: 'online',
           timestamp: new Date()
         });
       }
     } catch (error) {
-      logger.error(`Error joining user groups for ${user.email}:`, error);
+      logger.error(`Error joining member groups for ${member.email}:`, error);
     }
   }
 
   private async handleJoinGroup(socket: AuthenticatedSocket, groupId: string) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       const group = await this.dbService.getGroupById(groupId);
 
       if (!group) {
@@ -179,7 +179,7 @@ export class WebSocketService {
         return;
       }
 
-      if (!group.members.includes(user.id)) {
+      if (!group.members.includes(member.id)) {
         socket.emit('error', { message: 'Access denied' });
         return;
       }
@@ -187,13 +187,13 @@ export class WebSocketService {
       socket.join(groupId);
 
       // Notify group members
-      socket.to(groupId).emit('user_joined', {
-        userId: user.id,
-        userName: `${user.firstName} ${user.lastName}`,
+      socket.to(groupId).emit('member_joined', {
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
         timestamp: new Date()
       });
 
-      logger.info(`User ${user.email} joined group ${groupId}`);
+      logger.info(`User ${member.email} joined group ${groupId}`);
     } catch (error) {
       logger.error(`Error joining group ${groupId}:`, error);
       socket.emit('error', { message: 'Failed to join group' });
@@ -202,17 +202,17 @@ export class WebSocketService {
 
   private async handleLeaveGroup(socket: AuthenticatedSocket, groupId: string) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       socket.leave(groupId);
 
       // Notify group members
-      socket.to(groupId).emit('user_left', {
-        userId: user.id,
-        userName: `${user.firstName} ${user.lastName}`,
+      socket.to(groupId).emit('member_left', {
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
         timestamp: new Date()
       });
 
-      logger.info(`User ${user.email} left group ${groupId}`);
+      logger.info(`User ${member.email} left group ${groupId}`);
     } catch (error) {
       logger.error(`Error leaving group ${groupId}:`, error);
     }
@@ -220,12 +220,12 @@ export class WebSocketService {
 
   private async handleSendMessage(socket: AuthenticatedSocket, data: { groupId: string; content: string; type?: string }) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       const { groupId, content, type = 'text' } = data;
 
-      // Verify user access to group
+      // Verify member access to group
       const group = await this.dbService.getGroupById(groupId);
-      if (!group || !group.members.includes(user.id)) {
+      if (!group || !group.members.includes(member.id)) {
         socket.emit('error', { message: 'Access denied' });
         return;
       }
@@ -233,7 +233,7 @@ export class WebSocketService {
       // Create message
       const message = await this.dbService.createMessage({
         groupId,
-        userId: user.id,
+        memberId: member.id,
         content,
         type
       });
@@ -241,23 +241,23 @@ export class WebSocketService {
       // Broadcast to group members
       const messageData = {
         ...message,
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          profilePicture: user.profilePicture
+        member: {
+          id: member.id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          profilePicture: member.profilePicture
         }
       };
 
       this.io.to(groupId).emit('new_message', messageData);
 
       // Clear typing indicator
-      this.clearTyping(groupId, user.id);
+      this.clearTyping(groupId, member.id);
 
       // Enhanced AI orchestration for group messages
-      await this.processGroupMessageWithAI(groupId, message, user);
+      await this.processGroupMessageWithAI(groupId, message, member);
 
-      logger.info(`Message sent in group ${groupId} by ${user.email}`);
+      logger.info(`Message sent in group ${groupId} by ${member.email}`);
     } catch (error) {
       logger.error('Error sending message:', error);
       socket.emit('error', { message: 'Failed to send message' });
@@ -267,18 +267,18 @@ export class WebSocketService {
   /**
    * Process group message through AI orchestration pipeline
    */
-  private async processGroupMessageWithAI(groupId: string, message: any, user: User) {
+  private async processGroupMessageWithAI(groupId: string, message: any, member: Member) {
     try {
       console.log('[WebSocket] Processing group message with AI:', {
         groupId,
         messageContent: message.content,
-        userId: user.id
+        memberId: member.id
       });
 
       // Process message through group orchestration service
       const aiResponse = await this.groupOrchestrationService.processGroupMessage({
         groupId,
-        userId: user.id,
+        memberId: member.id,
         message: message.content,
         messageId: message.id
       });
@@ -309,7 +309,7 @@ export class WebSocketService {
         // Create AI message in database
         const aiMessage = await this.dbService.createMessage({
           groupId,
-          userId: aiResponse.metadata?.isMetaQuery ? 'ai-system' : 'ai-facilitator',
+          memberId: aiResponse.metadata?.isMetaQuery ? 'ai-system' : 'ai-facilitator',
           content: aiResponse.response,
           type: aiResponse.metadata?.isMetaQuery ? 'system' : 'ai_facilitator'
         });
@@ -364,7 +364,7 @@ export class WebSocketService {
     // Create crisis alert message
     const crisisMessage = await this.dbService.createMessage({
       groupId,
-      userId: 'ai-crisis',
+      memberId: 'ai-crisis',
       content: aiResponse.response,
       type: 'crisis_intervention'
     });
@@ -433,7 +433,7 @@ export class WebSocketService {
   }
 
   private handleTyping(socket: AuthenticatedSocket, data: { groupId: string; isTyping: boolean }) {
-    const user = socket.user!;
+    const member = socket.member!;
     const { groupId, isTyping } = data;
 
     if (!this.typingUsers.has(groupId)) {
@@ -443,30 +443,30 @@ export class WebSocketService {
     const typingSet = this.typingUsers.get(groupId)!;
 
     if (isTyping) {
-      typingSet.add(user.id);
+      typingSet.add(member.id);
     } else {
-      typingSet.delete(user.id);
+      typingSet.delete(member.id);
     }
 
     // Broadcast typing status to group (excluding sender)
     socket.to(groupId).emit('typing_update', {
       groupId,
-      typingUsers: Array.from(typingSet).filter(id => id !== user.id),
+      typingUsers: Array.from(typingSet).filter(id => id !== member.id),
       timestamp: new Date()
     });
 
     // Auto-clear typing after 5 seconds
     if (isTyping) {
       setTimeout(() => {
-        this.clearTyping(groupId, user.id);
+        this.clearTyping(groupId, member.id);
       }, 5000);
     }
   }
 
-  private clearTyping(groupId: string, userId: string) {
+  private clearTyping(groupId: string, memberId: string) {
     const typingSet = this.typingUsers.get(groupId);
     if (typingSet) {
-      typingSet.delete(userId);
+      typingSet.delete(memberId);
 
       this.io.to(groupId).emit('typing_update', {
         groupId,
@@ -478,7 +478,7 @@ export class WebSocketService {
 
   private async handleAddReaction(socket: AuthenticatedSocket, data: { messageId: string; emoji: string }) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       const { messageId, emoji } = data;
 
       const message = await this.dbService.getMessageById(messageId);
@@ -487,25 +487,25 @@ export class WebSocketService {
         return;
       }
 
-      // Verify user access to group
+      // Verify member access to group
       const group = await this.dbService.getGroupById(message.groupId);
-      if (!group || !group.members.includes(user.id)) {
+      if (!group || !group.members.includes(member.id)) {
         socket.emit('error', { message: 'Access denied' });
         return;
       }
 
-      const updatedMessage = await this.dbService.addMessageReaction(messageId, user.id, emoji);
+      const updatedMessage = await this.dbService.addMessageReaction(messageId, member.id, emoji);
 
       // Broadcast to group members
       this.io.to(message.groupId).emit('reaction_added', {
         messageId,
         emoji,
-        userId: user.id,
+        memberId: member.id,
         reactions: updatedMessage.reactions,
         timestamp: new Date()
       });
 
-      logger.info(`Reaction added to message ${messageId} by ${user.email}`);
+      logger.info(`Reaction added to message ${messageId} by ${member.email}`);
     } catch (error) {
       logger.error('Error adding reaction:', error);
       socket.emit('error', { message: 'Failed to add reaction' });
@@ -514,7 +514,7 @@ export class WebSocketService {
 
   private async handleRemoveReaction(socket: AuthenticatedSocket, data: { messageId: string; emoji: string }) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       const { messageId, emoji } = data;
 
       const message = await this.dbService.getMessageById(messageId);
@@ -523,14 +523,14 @@ export class WebSocketService {
         return;
       }
 
-      // Verify user access to group
+      // Verify member access to group
       const group = await this.dbService.getGroupById(message.groupId);
-      if (!group || !group.members.includes(user.id)) {
+      if (!group || !group.members.includes(member.id)) {
         socket.emit('error', { message: 'Access denied' });
         return;
       }
 
-      await this.dbService.removeMessageReaction(messageId, user.id, emoji);
+      await this.dbService.removeMessageReaction(messageId, member.id, emoji);
 
       // Get updated message to get reactions
       const updatedMessage = await this.dbService.getMessageById(messageId);
@@ -539,12 +539,12 @@ export class WebSocketService {
       this.io.to(message.groupId).emit('reaction_removed', {
         messageId,
         emoji,
-        userId: user.id,
+        memberId: member.id,
         reactions: updatedMessage?.reactions || {},
         timestamp: new Date()
       });
 
-      logger.info(`Reaction removed from message ${messageId} by ${user.email}`);
+      logger.info(`Reaction removed from message ${messageId} by ${member.email}`);
     } catch (error) {
       logger.error('Error removing reaction:', error);
       socket.emit('error', { message: 'Failed to remove reaction' });
@@ -552,15 +552,15 @@ export class WebSocketService {
   }
 
   private handleDisconnect(socket: AuthenticatedSocket) {
-    const user = socket.user!;
+    const member = socket.member!;
 
-    // Remove from connected users
-    this.connectedUsers.delete(user.id);
+    // Remove from connected members
+    this.connectedUsers.delete(member.id);
 
     // Clear typing indicators
     for (const [groupId, typingSet] of this.typingUsers.entries()) {
-      if (typingSet.has(user.id)) {
-        typingSet.delete(user.id);
+      if (typingSet.has(member.id)) {
+        typingSet.delete(member.id);
         this.io.to(groupId).emit('typing_update', {
           groupId,
           typingUsers: Array.from(typingSet),
@@ -569,14 +569,14 @@ export class WebSocketService {
       }
     }
 
-    // Notify groups that user is offline
-    this.io.emit('user_status', {
-      userId: user.id,
+    // Notify groups that member is offline
+    this.io.emit('member_status', {
+      memberId: member.id,
       status: 'offline',
       timestamp: new Date()
     });
 
-    logger.info(`User disconnected: ${user.email} (${socket.id})`);
+    logger.info(`User disconnected: ${member.email} (${socket.id})`);
   }
 
   // Public methods for external use
@@ -584,8 +584,8 @@ export class WebSocketService {
     this.io.to(groupId).emit(event, data);
   }
 
-  public broadcastToUser(userId: string, event: string, data: any) {
-    const socketId = this.connectedUsers.get(userId);
+  public broadcastToUser(memberId: string, event: string, data: any) {
+    const socketId = this.connectedUsers.get(memberId);
     if (socketId) {
       this.io.to(socketId).emit(event, data);
     }
@@ -599,17 +599,17 @@ export class WebSocketService {
     return Array.from(this.connectedUsers.keys());
   }
 
-  public isUserConnected(userId: string): boolean {
-    return this.connectedUsers.has(userId);
+  public isUserConnected(memberId: string): boolean {
+    return this.connectedUsers.has(memberId);
   }
 
   public getTypingUsers(groupId: string): string[] {
     return Array.from(this.typingUsers.get(groupId) || new Set());
   }
 
-  private async triggerAIFacilitatorResponse(groupId: string, userMessage: Message, group: Group) {
+  private async triggerAIFacilitatorResponse(groupId: string, memberMessage: Message, group: Group) {
     try {
-      logger.info(`🤖 Checking AI trigger for group ${groupId}, type: ${group.type}, message: "${userMessage.content}"`);
+      logger.info(`🤖 Checking AI trigger for group ${groupId}, type: ${group.type}, message: "${memberMessage.content}"`);
 
       // Trigger AI for recovery, support, wellness, and general groups
       const aiEnabledTypes = ['recovery', 'support', 'wellness', 'general'];
@@ -627,20 +627,20 @@ export class WebSocketService {
       const activeUsers = await this.dbService.getGroupMembers(groupId);
 
       // Check if AI should interject based on conversation flow
-      const shouldRespond = await this.shouldAIRespond(recentMessages, userMessage, group);
+      const shouldRespond = await this.shouldAIRespond(recentMessages, memberMessage, group);
 
-      logger.info(`🎯 Should AI respond? ${shouldRespond} for message: "${userMessage.content}"`);
+      logger.info(`🎯 Should AI respond? ${shouldRespond} for message: "${memberMessage.content}"`);
 
       if (!shouldRespond) {
         logger.info(`❌ AI decided not to respond based on conversation flow`);
         return;
       }
 
-      logger.info(`✅ AI will respond to message: "${userMessage.content}"`);
+      logger.info(`✅ AI will respond to message: "${memberMessage.content}"`);
 
       // Generate AI facilitator response using Gemini
       const aiResponse = await this.geminiService.generateFacilitatorResponse(
-        userMessage,
+        memberMessage,
         recentMessages,
         group,
         activeUsers
@@ -653,7 +653,7 @@ export class WebSocketService {
       // Create AI message in database
       const aiMessage = await this.dbService.createMessage({
         groupId,
-        userId: 'ai-facilitator',
+        memberId: 'ai-facilitator',
         content: aiResponse.message,
         type: 'ai_facilitator'
       });
@@ -662,7 +662,7 @@ export class WebSocketService {
       setTimeout(() => {
         this.io.to(groupId).emit('new_message', {
           ...aiMessage,
-          user: {
+          member: {
             id: 'ai-facilitator',
             firstName: 'AI',
             lastName: 'Facilitator',
@@ -694,24 +694,24 @@ export class WebSocketService {
     }
   }
 
-  private async shouldAIRespond(recentMessages: Message[], userMessage: Message, group: Group): Promise<boolean> {
-    logger.info(`🔍 Checking if Maya should respond to: "${userMessage.content}"`);
+  private async shouldAIRespond(recentMessages: Message[], memberMessage: Message, group: Group): Promise<boolean> {
+    logger.info(`🔍 Checking if Maya should respond to: "${memberMessage.content}"`);
 
     // Get AI messages in recent conversation
     const aiMessages = recentMessages.filter(m => m.type === 'ai_facilitator');
-    const userMessages = recentMessages.filter(m => m.type === 'user' || m.type === 'text');
+    const memberMessages = recentMessages.filter(m => m.type === 'member' || m.type === 'text');
 
-    logger.info(`📊 Recent messages: ${userMessages.length} user messages, ${aiMessages.length} AI messages`);
+    logger.info(`📊 Recent messages: ${memberMessages.length} member messages, ${aiMessages.length} AI messages`);
 
-    // More relaxed frequency check - only prevent if there are more AI messages than user messages recently
-    if (aiMessages.length > userMessages.length && aiMessages.length > 2) {
-      logger.info(`⏸️ Too many recent AI messages (${aiMessages.length} AI vs ${userMessages.length} user) - skipping`);
+    // More relaxed frequency check - only prevent if there are more AI messages than member messages recently
+    if (aiMessages.length > memberMessages.length && aiMessages.length > 2) {
+      logger.info(`⏸️ Too many recent AI messages (${aiMessages.length} AI vs ${memberMessages.length} member) - skipping`);
       return false;
     }
 
     // Check for crisis language using Gemini (if available)
     try {
-      const isCrisis = await this.geminiService.checkCrisisLanguage(userMessage.content);
+      const isCrisis = await this.geminiService.checkCrisisLanguage(memberMessage.content);
       if (isCrisis) {
         logger.info(`🚨 Crisis language detected - Maya responding immediately`);
         return true; // Always respond to crisis indicators
@@ -725,7 +725,7 @@ export class WebSocketService {
       'maya', 'facilitator', 'ai', 'help me', 'need help', 'support',
       'guidance', 'advice', 'what should i do'
     ];
-    const messageContent = userMessage.content.toLowerCase();
+    const messageContent = memberMessage.content.toLowerCase();
     const matchedMention = directMentions.find(mention => messageContent.includes(mention));
     if (matchedMention) {
       logger.info(`🎯 Direct facilitator request detected: "${matchedMention}" - Maya responding with 100% chance`);
@@ -808,12 +808,12 @@ export class WebSocketService {
 
   private async handleFacilitatorRequest(socket: AuthenticatedSocket, data: { groupId: string; type?: string }) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       const { groupId, type = 'general' } = data;
 
-      // Verify user access to group
+      // Verify member access to group
       const group = await this.dbService.getGroupById(groupId);
-      if (!group || !group.members.includes(user.id)) {
+      if (!group || !group.members.includes(member.id)) {
         socket.emit('error', { message: 'Access denied' });
         return;
       }
@@ -832,14 +832,14 @@ export class WebSocketService {
         const welcomeMessage = await this.geminiService.generateWelcomeMessage(group);
         aiResponse = { message: welcomeMessage, confidenceScore: 0.9 };
       } else {
-        // Create a dummy user message to trigger contextual response
+        // Create a dummy member message to trigger contextual response
         const dummyMessage = {
           id: 'msg_dummy',
           groupId: group.id,
-          userId: 'system',
+          memberId: 'system',
           authorId: 'system', // Add missing authorId field
           content: 'Test message for conversation analysis',
-          type: 'user' as const,
+          type: 'member' as const,
           timestamp: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -863,7 +863,7 @@ export class WebSocketService {
       // Create AI message in database
       const aiMessage = await this.dbService.createMessage({
         groupId,
-        userId: 'ai-facilitator',
+        memberId: 'ai-facilitator',
         content: aiResponse.message,
         type: 'ai_facilitator'
       });
@@ -871,7 +871,7 @@ export class WebSocketService {
       // Broadcast AI response to group
       this.io.to(groupId).emit('new_message', {
         ...aiMessage,
-        user: {
+        member: {
           id: 'ai-facilitator',
           firstName: 'Maya',
           lastName: 'AI Facilitator',
@@ -897,7 +897,7 @@ export class WebSocketService {
         });
       }
 
-      logger.info(`Manual facilitator response generated for group ${groupId} by ${user.email}`);
+      logger.info(`Manual facilitator response generated for group ${groupId} by ${member.email}`);
     } catch (error) {
       logger.error('Error handling facilitator request:', error);
       socket.emit('error', { message: 'Failed to request facilitator response' });
@@ -905,20 +905,20 @@ export class WebSocketService {
   }
 
   // AI Orchestration Event Handlers
-  private async handleAISessionStart(socket: AuthenticatedSocket, data: { groupId: string; userProfile?: any }) {
+  private async handleAISessionStart(socket: AuthenticatedSocket, data: { groupId: string; memberProfile?: any }) {
     try {
-      const user = socket.user!;
-      const { groupId, userProfile } = data;
+      const member = socket.member!;
+      const { groupId, memberProfile } = data;
 
-      // Verify user access to group
+      // Verify member access to group
       const group = await this.dbService.getGroupById(groupId);
-      if (!group || !group.members.includes(user.id)) {
+      if (!group || !group.members.includes(member.id)) {
         socket.emit('ai:error', { message: 'Access denied to group' });
         return;
       }
 
       // Start orchestration session for the group
-      const session = await this.orchestratorService.startSession(user.id, groupId, userProfile);
+      const session = await this.orchestratorService.startSession(member.id, groupId, memberProfile);
 
       // Store the session ID for this group
       this.groupSessions.set(groupId, session.sessionId);
@@ -938,7 +938,7 @@ export class WebSocketService {
         timestamp: new Date()
       });
 
-      logger.info(`AI orchestration session started for group ${groupId} by ${user.email}`);
+      logger.info(`AI orchestration session started for group ${groupId} by ${member.email}`);
     } catch (error) {
       logger.error('Error starting AI session:', error);
       socket.emit('ai:error', { message: 'Failed to start AI session' });
@@ -947,18 +947,18 @@ export class WebSocketService {
 
   private async handleAIAgentCall(socket: AuthenticatedSocket, data: { groupId: string; agentId: string; message: string; sessionId: string }) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       const { groupId, agentId, message, sessionId } = data;
 
-      // Verify user access to group
+      // Verify member access to group
       const group = await this.dbService.getGroupById(groupId);
-      if (!group || !group.members.includes(user.id)) {
+      if (!group || !group.members.includes(member.id)) {
         socket.emit('ai:error', { message: 'Access denied to group' });
         return;
       }
 
       // Call the specific agent
-      const response = await this.orchestratorService.callAgentDirectly(agentId, message, sessionId, user.id);
+      const response = await this.orchestratorService.callAgentDirectly(agentId, message, sessionId, member.id);
 
       // Emit AI typing indicator
       this.io.to(groupId).emit('ai:typing', {
@@ -972,7 +972,7 @@ export class WebSocketService {
         // Create AI message in database
         const aiMessage = await this.dbService.createMessage({
           groupId,
-          userId: 'ai-facilitator',
+          memberId: 'ai-facilitator',
           content: response.response,
           type: 'ai_facilitator'
         });
@@ -1007,7 +1007,7 @@ export class WebSocketService {
 
       }, 1500);
 
-      logger.info(`AI agent ${agentId} called for group ${groupId} by ${user.email}`);
+      logger.info(`AI agent ${agentId} called for group ${groupId} by ${member.email}`);
     } catch (error) {
       logger.error('Error handling AI agent call:', error);
       socket.emit('ai:error', { message: 'Failed to call AI agent' });
@@ -1016,12 +1016,12 @@ export class WebSocketService {
 
   private async handleCrisisIntervention(socket: AuthenticatedSocket, data: { groupId: string; messageId: string; severity: string }) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       const { groupId, messageId, severity } = data;
 
-      // Verify user has facilitator permissions
+      // Verify member has facilitator permissions
       const group = await this.dbService.getGroupById(groupId);
-      if (!group || (!group.facilitators.includes(user.id) && user.role !== 'admin')) {
+      if (!group || (!group.facilitators.includes(member.id) && member.role !== 'admin')) {
         socket.emit('ai:error', { message: 'Insufficient permissions for crisis intervention' });
         return;
       }
@@ -1044,13 +1044,13 @@ export class WebSocketService {
         'crisis',
         `Crisis intervention needed for message: "${message.content}". Severity: ${severity}`,
         sessionId,
-        user.id
+        member.id
       );
 
       // Create crisis intervention message
       const crisisMessage = await this.dbService.createMessage({
         groupId,
-        userId: 'ai-crisis',
+        memberId: 'ai-crisis',
         content: crisisResponse.response,
         type: 'crisis_intervention'
       });
@@ -1078,7 +1078,7 @@ export class WebSocketService {
         });
       });
 
-      logger.info(`Crisis intervention triggered for group ${groupId} by ${user.email}`);
+      logger.info(`Crisis intervention triggered for group ${groupId} by ${member.email}`);
     } catch (error) {
       logger.error('Error handling crisis intervention:', error);
       socket.emit('ai:error', { message: 'Failed to handle crisis intervention' });
@@ -1087,12 +1087,12 @@ export class WebSocketService {
 
   private async handleGroupInsightsRequest(socket: AuthenticatedSocket, data: { groupId: string }) {
     try {
-      const user = socket.user!;
+      const member = socket.member!;
       const { groupId } = data;
 
-      // Verify user access to group
+      // Verify member access to group
       const group = await this.dbService.getGroupById(groupId);
-      if (!group || !group.members.includes(user.id)) {
+      if (!group || !group.members.includes(member.id)) {
         socket.emit('ai:error', { message: 'Access denied to group' });
         return;
       }
@@ -1108,7 +1108,7 @@ export class WebSocketService {
       const recentMessagesResult = await this.dbService.getMessages(groupId, 50);
       const recentMessages = recentMessagesResult.messages;
       const messagesContext = recentMessages
-        .map(msg => `${msg.user?.firstName || 'User'}: ${msg.content}`)
+        .map(msg => `${msg.member?.firstName || 'User'}: ${msg.content}`)
         .join('\n');
 
       // Call insight agent
@@ -1116,7 +1116,7 @@ export class WebSocketService {
         'insight',
         `Generate insights for group discussion. Recent messages:\n${messagesContext}`,
         sessionId,
-        user.id
+        member.id
       );
 
       // Emit insights to group
@@ -1134,7 +1134,7 @@ export class WebSocketService {
         timestamp: new Date()
       });
 
-      logger.info(`Group insights generated for group ${groupId} by ${user.email}`);
+      logger.info(`Group insights generated for group ${groupId} by ${member.email}`);
     } catch (error) {
       logger.error('Error generating group insights:', error);
       socket.emit('ai:error', { message: 'Failed to generate group insights' });

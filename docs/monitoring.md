@@ -15,39 +15,39 @@ graph TB
         Agents[AI Agents]
         Orchestrator[Orchestrator]
     end
-    
+
     subgraph "Telemetry Collection"
         OTel[OpenTelemetry SDK]
         Prometheus_Client[Prometheus Client]
         Winston[Winston Logger]
     end
-    
+
     subgraph "Data Storage"
         Prometheus[Prometheus TSDB]
         Jaeger[Jaeger Backend]
         Elasticsearch[Elasticsearch]
     end
-    
+
     subgraph "Visualization & Alerting"
         Grafana[Grafana Dashboards]
         Jaeger_UI[Jaeger UI]
         AlertManager[Alert Manager]
         PagerDuty[PagerDuty]
     end
-    
+
     API --> OTel
     Agents --> OTel
     Orchestrator --> Winston
-    
+
     OTel --> Prometheus_Client
     OTel --> Jaeger
     Winston --> Elasticsearch
-    
+
     Prometheus_Client --> Prometheus
     Prometheus --> Grafana
     Prometheus --> AlertManager
     AlertManager --> PagerDuty
-    
+
     Jaeger --> Jaeger_UI
     Elasticsearch --> Grafana
 ```
@@ -92,11 +92,11 @@ import { OrchestrationTelemetry } from '../monitoring/telemetry';
 class ProductionOrchestratorService {
   async processMessage(input: MessageInput): Promise<AgentResponse> {
     const startTime = Date.now();
-    
+
     try {
       // Process message through agents
       const result = await this.processWithAgents(session, input.content);
-      
+
       // Record metrics
       OrchestrationTelemetry.recordMessageProcessed(
         result.agentUsed,
@@ -104,7 +104,7 @@ class ProductionOrchestratorService {
         Date.now() - startTime,
         result.needsCrisisIntervention
       );
-      
+
       return result;
     } catch (error) {
       OrchestrationTelemetry.recordError('processMessage', error.name, error.message);
@@ -172,7 +172,7 @@ groups:
       # Average response time
       - record: peerbond:response_time:avg5m
         expr: |
-          rate(http_request_duration_ms_sum[5m]) / 
+          rate(http_request_duration_ms_sum[5m]) /
           rate(http_request_duration_ms_count[5m])
 
       # Crisis alert rate
@@ -517,14 +517,14 @@ export class ProductionOrchestratorService {
       'orchestration.process_message',
       async (span) => {
         span.setAttributes({
-          'user.id': input.userId,
+          'member.id': input.memberId,
           'session.id': input.sessionId,
           'message.length': input.content.length,
         });
 
         // Process through agents with child spans
         const result = await this.processWithAgents(session, input.content);
-        
+
         span.setAttributes({
           'response.confidence': result.confidence,
           'agents.used': result.agentUsed.join(','),
@@ -542,11 +542,11 @@ export class ProductionOrchestratorService {
       async (span) => {
         span.setAttributes({
           'agent.model': 'gpt-4',
-          'message.type': 'user_input',
+          'message.type': 'member_input',
         });
 
         const result = await this.agent.process(content);
-        
+
         span.setAttributes({
           'agent.confidence': result.confidence,
           'response.length': result.response.length,
@@ -577,7 +577,7 @@ tag:"error:true" AND operation:"agent.*"
 tag:"response.confidence:>0.9"
 
 // Find sessions with multiple crisis alerts
-tag:"user.id:user_123" AND tag:"crisis.detected:true"
+tag:"member.id:member_123" AND tag:"crisis.detected:true"
 ```
 
 ## Log Management
@@ -597,14 +597,14 @@ export class ProductionOrchestratorService {
 
   async processMessage(input: MessageInput): Promise<AgentResponse> {
     const sessionLogger = OrchestrationLogger.withSession(
-      input.sessionId, 
-      input.userId
+      input.sessionId,
+      input.memberId
     );
 
     sessionLogger.logSessionEvent(
       'message_processed',
       input.sessionId,
-      input.userId,
+      input.memberId,
       {
         messageLength: input.content.length,
         messageType: input.messageType
@@ -613,11 +613,11 @@ export class ProductionOrchestratorService {
 
     try {
       const result = await this.processWithAgents(session, input.content);
-      
+
       if (result.needsCrisisIntervention) {
         sessionLogger.logCrisisIntervention(
           input.sessionId,
-          input.userId,
+          input.memberId,
           'severe',
           ['suicide_ideation'],
           { confidence: result.confidence }
@@ -628,7 +628,7 @@ export class ProductionOrchestratorService {
     } catch (error) {
       sessionLogger.logError(error, 'processMessage', {
         sessionId: input.sessionId,
-        userId: input.userId
+        memberId: input.memberId
       });
       throw error;
     }
@@ -688,25 +688,25 @@ filter {
         add_tag => ["crisis", "high_priority"]
       }
     }
-    
+
     if [level] == "error" {
       mutate {
         add_tag => ["error", "needs_attention"]
       }
     }
-    
-    # Extract user ID for correlation
-    if [userId] {
+
+    # Extract member ID for correlation
+    if [memberId] {
       mutate {
-        add_field => { "user_hash" => "%{userId}" }
+        add_field => { "member_hash" => "%{memberId}" }
       }
-      
-      # Hash user ID for privacy
+
+      # Hash member ID for privacy
       ruby {
         code => "
           require 'digest'
-          event.set('user_hash', Digest::SHA256.hexdigest(event.get('userId'))[0..8])
-          event.remove('userId')
+          event.set('member_hash', Digest::SHA256.hexdigest(event.get('memberId'))[0..8])
+          event.remove('memberId')
         "
       }
     }
@@ -718,7 +718,7 @@ output {
     hosts => ["elasticsearch:9200"]
     index => "peerbond-%{+YYYY.MM.dd}"
   }
-  
+
   if "crisis" in [tags] {
     # Send crisis alerts to separate index
     elasticsearch {
@@ -739,15 +739,15 @@ slas:
   api_availability:
     target: 99.9%
     measurement: up{job="peerbond-api"}
-    
+
   response_time:
     target: "95% of requests < 2s"
     measurement: histogram_quantile(0.95, rate(orchestration_response_time_seconds_bucket[5m]))
-    
+
   crisis_response_time:
     target: "100% of crisis alerts < 30s"
     measurement: histogram_quantile(1.0, rate(orchestration_response_time_seconds_bucket{operation="crisis"}[5m]))
-    
+
   error_rate:
     target: "< 1% error rate"
     measurement: rate(orchestration_errors_total[5m]) / rate(orchestration_messages_total[5m])
@@ -771,10 +771,10 @@ const synthetics = {
 
   // Session creation test
   sessionCreation: {
-    url: 'https://api.peerbond.com/api/production-orchestration/session/start',
+    url: 'https://api.peerbond.com/api/orchestration/session/start',
     method: 'POST',
     headers: { 'Authorization': 'Bearer {{auth_token}}' },
-    body: { userProfile: { goals: ['synthetic-test'] } },
+    body: { memberProfile: { goals: ['synthetic-test'] } },
     interval: '5m',
     assertions: [
       { property: 'status', operator: 'equals', value: 200 },
@@ -785,7 +785,7 @@ const synthetics = {
 
   // Message processing test
   messageProcessing: {
-    url: 'https://api.peerbond.com/api/production-orchestration/message',
+    url: 'https://api.peerbond.com/api/orchestration/message',
     method: 'POST',
     headers: { 'Authorization': 'Bearer {{auth_token}}' },
     body: {
@@ -817,7 +817,7 @@ const synthetics = {
 
 ## Investigation Steps
 1. Check recent crisis alert logs in Kibana
-2. Identify affected users (search by session IDs)
+2. Identify affected members (search by session IDs)
 3. Verify automatic crisis response was sent
 4. Check if external crisis services are reachable
 
@@ -856,4 +856,4 @@ const synthetics = {
 4. Scale API service instances
 ```
 
-This comprehensive monitoring guide ensures PeerBond maintains high availability, performance, and reliability while providing deep insights into system behavior and user experience.
+This comprehensive monitoring guide ensures PeerBond maintains high availability, performance, and reliability while providing deep insights into system behavior and member experience.

@@ -1,4 +1,4 @@
-import { Message, User, ActionItem, Insight } from '@/types';
+import { Message, Member, ActionItem, Insight } from '@/types';
 import { db } from '@/lib/database';
 
 export interface AITool {
@@ -26,7 +26,7 @@ export interface AIResponse {
 export interface ConversationContext {
   groupId: string;
   messages: Message[];
-  participants: User[];
+  participants: Member[];
   groupType: string;
   sessionDuration: number;
   lastFacilitatorMessage?: Date;
@@ -82,22 +82,22 @@ export class AIService {
       parameters: {
         type: 'object',
         properties: {
-          userId: { type: 'string', description: 'User ID to analyze' },
+          memberId: { type: 'string', description: 'User ID to analyze' },
           timeframe: { type: 'string', enum: ['current', 'recent', 'session'] },
         },
-        required: ['userId'],
+        required: ['memberId'],
       },
     },
     {
       name: 'check_wellness',
-      description: 'Check in on a specific user\'s wellness',
+      description: 'Check in on a specific member\'s wellness',
       parameters: {
         type: 'object',
         properties: {
-          userId: { type: 'string', description: 'User ID to check on' },
+          memberId: { type: 'string', description: 'User ID to check on' },
           concern: { type: 'string', description: 'Specific concern to address' },
         },
-        required: ['userId'],
+        required: ['memberId'],
       },
     },
   ];
@@ -243,7 +243,7 @@ export class AIService {
     messages.forEach(msg => {
       const content = msg.content.toLowerCase();
       if (supportIndicators.some(indicator => content.includes(indicator))) {
-        needsSupport.push(msg.userId);
+        needsSupport.push(msg.memberId);
       }
     });
 
@@ -319,7 +319,7 @@ export class AIService {
     );
   }
 
-  private static shouldGenerateInsight(messages: Message[], _participants: User[]): boolean {
+  private static shouldGenerateInsight(messages: Message[], _participants: Member[]): boolean {
     return messages.length > 10 && _participants.length > 2;
   }
 
@@ -330,11 +330,11 @@ export class AIService {
     );
   }
 
-  private static generateActionItemCall(messages: Message[], participants: User[]): AIToolCall | null {
+  private static generateActionItemCall(messages: Message[], participants: Member[]): AIToolCall | null {
     const lastMessage = messages[messages.length - 1];
-    const user = participants.find(p => p.id === lastMessage.userId);
+    const member = participants.find(p => p.id === lastMessage.memberId);
 
-    if (!user) return null;
+    if (!member) return null;
 
     const actionDescriptions = [
       'Practice the breathing technique we discussed for 5 minutes daily',
@@ -351,14 +351,14 @@ export class AIService {
       tool: 'create_action_item',
       parameters: {
         description: actionDescriptions[Math.floor(Math.random() * actionDescriptions.length)],
-        assignedTo: user.id,
+        assignedTo: member.id,
         dueDate: dueDate.toISOString(),
         priority: 'medium',
       },
     };
   }
 
-  private static generateInsightCall(_messages: Message[], participants: User[]): AIToolCall | null {
+  private static generateInsightCall(_messages: Message[], participants: Member[]): AIToolCall | null {
     const insights = [
       {
         title: 'Strong Group Cohesion',
@@ -505,11 +505,11 @@ export class AIService {
   }
 
   private static async executeAnalyzeSentiment(parameters: any, context: ConversationContext): Promise<any> {
-    const userMessages = context.messages.filter(msg => msg.userId === parameters.userId);
-    const emotions = this.analyzeEmotions(userMessages);
+    const memberMessages = context.messages.filter(msg => msg.memberId === parameters.memberId);
+    const emotions = this.analyzeEmotions(memberMessages);
 
     return {
-      userId: parameters.userId,
+      memberId: parameters.memberId,
       sentiment: emotions,
       analyzedAt: new Date(),
     };
@@ -518,7 +518,7 @@ export class AIService {
   private static async executeCheckWellness(parameters: any, _context: ConversationContext): Promise<any> {
     // In a real implementation, this would trigger a wellness check workflow
     return {
-      userId: parameters.userId,
+      memberId: parameters.memberId,
       concern: parameters.concern,
       checkInitiated: true,
       checkedAt: new Date(),

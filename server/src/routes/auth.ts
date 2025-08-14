@@ -7,7 +7,7 @@ import { validateRequest } from '../middleware/validation';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
-import { LoginRequest, RegisterRequest, User } from '../types';
+import { LoginRequest, RegisterRequest, Member } from '../types';
 import { emailService } from '../services/emailService';
 
 const router = Router();
@@ -29,20 +29,20 @@ const registerValidation = [
 ];
 
 // Helper function to generate JWT token
-const generateToken = (user: User): string => {
+const generateToken = (member: Member): string => {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
     throw new Error('JWT_SECRET environment variable not set');
   }
 
   return jwt.sign(
-    { 
-      userId: user.id, 
-      email: user.email 
+    {
+      memberId: member.id,
+      email: member.email
     },
     jwtSecret,
-    { 
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d' 
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || '7d'
     } as jwt.SignOptions
   );
 };
@@ -51,8 +51,8 @@ const generateToken = (user: User): string => {
 router.post('/register', validateRequest(registerValidation), asyncHandler(async (req, res) => {
   const { firstName, lastName, email, password, role, recoveryGoals, wellnessGoals, experienceLevel }: RegisterRequest = req.body;
 
-  // Check if user already exists
-  const existingUser = await dbService.getUserByEmail(email);
+  // Check if member already exists
+  const existingUser = await dbService.getMemberByEmail(email);
   if (existingUser) {
     return res.status(409).json({
       success: false,
@@ -61,16 +61,12 @@ router.post('/register', validateRequest(registerValidation), asyncHandler(async
     });
   }
 
-  // Hash password
-  const saltRounds = 12;
-  const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-  // Create user
-  const newUser = await dbService.createUser({
+  // Create member (password will be hashed by createMember)
+  const newUser = await dbService.createMember({
     firstName,
     lastName,
     email,
-    password: hashedPassword,
+    password: password, // Pass plain password - createMember will hash it
     role: role || 'member',
     recoveryGoals: recoveryGoals || [],
     wellnessGoals: wellnessGoals || [],
@@ -83,21 +79,21 @@ router.post('/register', validateRequest(registerValidation), asyncHandler(async
   // Create session
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
-  
+
   await dbService.createSession({
-    userId: newUser.id,
+    memberId: newUser.id,
     token,
     expiresAt,
   });
 
   // Log audit event
   await dbService.createAuditLog({
-    userId: newUser.id,
-    action: 'user_register',
-    resource: 'user',
+    memberId: newUser.id,
+    action: 'member_register',
+    resource: 'member',
     resourceId: newUser.id,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
   });
 
   logger.info(`User registered: ${email}`);
@@ -106,12 +102,12 @@ router.post('/register', validateRequest(registerValidation), asyncHandler(async
   await emailService.sendWelcomeEmail(email, firstName);
 
   // Remove password from response
-  const { password: _, ...userWithoutPassword } = newUser;
+  const { password: _, ...memberWithoutPassword } = newUser;
 
   res.status(201).json({
     success: true,
     data: {
-      user: userWithoutPassword,
+      member: memberWithoutPassword,
       token,
       expiresAt
     },
@@ -123,9 +119,9 @@ router.post('/register', validateRequest(registerValidation), asyncHandler(async
 router.post('/login', validateRequest(loginValidation), asyncHandler(async (req, res) => {
   const { email, password }: LoginRequest = req.body;
 
-  // Find user
-  const user = await dbService.getUserByEmail(email);
-  if (!user) {
+  // Find member
+  const member = await dbService.getMemberByEmail(email);
+  if (!member) {
     return res.status(401).json({
       success: false,
       error: 'Invalid credentials',
@@ -133,8 +129,8 @@ router.post('/login', validateRequest(loginValidation), asyncHandler(async (req,
     });
   }
 
-  // Check if user is active
-  if (!user.isActive) {
+  // Check if member is active
+  if (!member.isActive) {
     return res.status(401).json({
       success: false,
       error: 'Account is deactivated',
@@ -143,15 +139,15 @@ router.post('/login', validateRequest(loginValidation), asyncHandler(async (req,
   }
 
   // Verify password
-  const isPasswordValid = await bcrypt.compare(password, user.password!);
+  const isPasswordValid = await bcrypt.compare(password, member.password!);
   if (!isPasswordValid) {
     // Log failed login attempt
     await dbService.createAuditLog({
-      userId: user.id,
+      memberId: member.id,
       action: 'login_failed',
       resource: 'auth',
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent') || 'unknown',
+      memberAgent: req.get('User-Agent') || 'unknown',
     });
 
     return res.status(401).json({
@@ -162,39 +158,39 @@ router.post('/login', validateRequest(loginValidation), asyncHandler(async (req,
   }
 
   // Generate token
-  const token = generateToken(user);
+  const token = generateToken(member);
 
   // Create session
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
-  
+
   await dbService.createSession({
-    userId: user.id,
+    memberId: member.id,
     token,
     expiresAt,
   });
 
   // Update last active
-  await dbService.updateUser(user.id, { lastActive: new Date() });
+  await dbService.updateMember(member.id, { lastActive: new Date() });
 
   // Log successful login
   await dbService.createAuditLog({
-    userId: user.id,
+    memberId: member.id,
     action: 'login_success',
     resource: 'auth',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
   });
 
   logger.info(`User logged in: ${email}`);
 
   // Remove password from response
-  const { password: _, ...userWithoutPassword } = user;
+  const { password: _, ...memberWithoutPassword } = member;
 
   res.json({
     success: true,
     data: {
-      user: userWithoutPassword,
+      member: memberWithoutPassword,
       token,
       expiresAt
     },
@@ -202,24 +198,24 @@ router.post('/login', validateRequest(loginValidation), asyncHandler(async (req,
   });
 }));
 
-// Get current user
+// Get current member
 router.get('/me', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const user = await dbService.getUserById(req.user!.id);
-  if (!user) {
+  const member = await dbService.getMemberById(req.member!.id);
+  if (!member) {
     return res.status(404).json({
       success: false,
-      error: 'User not found',
+      error: 'Member not found',
       timestamp: new Date().toISOString()
     });
   }
 
   // Remove password from response
-  const { password: _, ...userWithoutPassword } = user;
+  const { password: _, ...memberWithoutPassword } = member;
 
   res.json({
     success: true,
     data: {
-      user: userWithoutPassword
+      member: memberWithoutPassword
     },
     timestamp: new Date().toISOString()
   });
@@ -228,7 +224,7 @@ router.get('/me', authenticateToken, asyncHandler(async (req: AuthenticatedReque
 // Test email endpoint
 router.post('/test-email', asyncHandler(async (req, res) => {
   const { email } = req.body;
-  
+
   if (!email) {
     return res.status(400).json({
       success: false,
@@ -239,7 +235,7 @@ router.post('/test-email', asyncHandler(async (req, res) => {
 
   try {
     const result = await emailService.sendTestEmail(email);
-    
+
     res.json({
       success: result,
       message: result ? 'Test email sent successfully' : 'Email service not configured or failed',
@@ -268,14 +264,14 @@ router.post('/logout', authenticateToken, asyncHandler(async (req: Authenticated
 
   // Log logout
   await dbService.createAuditLog({
-    userId: req.user!.id,
+    memberId: req.member!.id,
     action: 'logout',
     resource: 'auth',
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent') || 'unknown',
+    memberAgent: req.get('User-Agent') || 'unknown',
   });
 
-  logger.info(`User logged out: ${req.user!.email}`);
+  logger.info(`User logged out: ${req.member!.email}`);
 
   res.json({
     success: true,
@@ -286,24 +282,24 @@ router.post('/logout', authenticateToken, asyncHandler(async (req: Authenticated
 
 // Refresh token endpoint
 router.post('/refresh', authenticateToken, asyncHandler(async (req: AuthenticatedRequest, res) => {
-  const user = await dbService.getUserById(req.user!.id);
-  if (!user) {
+  const member = await dbService.getMemberById(req.member!.id);
+  if (!member) {
     return res.status(404).json({
       success: false,
-      error: 'User not found',
+      error: 'Member not found',
       timestamp: new Date().toISOString()
     });
   }
 
   // Generate new token
-  const token = generateToken(user);
+  const token = generateToken(member);
 
   // Create new session
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
-  
+
   await dbService.createSession({
-    userId: user.id,
+    memberId: member.id,
     token,
     expiresAt,
   });
@@ -333,9 +329,9 @@ router.post('/forgot-password', validateRequest(forgotPasswordValidation), async
   const { email } = req.body;
 
   try {
-    // Find user by email
-    const user = await dbService.getUserByEmail(email);
-    if (!user) {
+    // Find member by email
+    const member = await dbService.getMemberByEmail(email);
+    if (!member) {
       // Don't reveal if email exists or not for security
       return res.json({
         success: true,
@@ -349,8 +345,8 @@ router.post('/forgot-password', validateRequest(forgotPasswordValidation), async
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 1); // 1 hour expiry
 
-    // Save reset token to user
-    await dbService.updateUser(user.id, {
+    // Save reset token to member
+    await dbService.updateMember(member.id, {
       resetToken,
       resetTokenExpiry
     });
@@ -379,8 +375,8 @@ router.post('/reset-password', validateRequest(resetPasswordValidation), asyncHa
   const { token, password } = req.body;
 
   try {
-    // Find user with valid reset token
-    const user = await dbService.client.user.findFirst({
+    // Find member with valid reset token
+    const member = await dbService.client.member.findFirst({
       where: {
         resetToken: token,
         resetTokenExpiry: {
@@ -389,7 +385,7 @@ router.post('/reset-password', validateRequest(resetPasswordValidation), asyncHa
       }
     });
 
-    if (!user) {
+    if (!member) {
       return res.status(400).json({
         success: false,
         error: 'Invalid or expired reset token',
@@ -402,13 +398,13 @@ router.post('/reset-password', validateRequest(resetPasswordValidation), asyncHa
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Update password and clear reset token
-    await dbService.updateUser(user.id, {
+    await dbService.updateMember(member.id, {
       password: hashedPassword,
       resetToken: null,
       resetTokenExpiry: null
     });
 
-    logger.info(`Password reset successful for user ${user.id}`);
+    logger.info(`Password reset successful for member ${member.id}`);
 
     res.json({
       success: true,
@@ -433,7 +429,7 @@ router.post('/verify-reset-token', validateRequest([
   const { token } = req.body;
 
   try {
-    const user = await dbService.client.user.findFirst({
+    const member = await dbService.client.member.findFirst({
       where: {
         resetToken: token,
         resetTokenExpiry: {
@@ -442,7 +438,7 @@ router.post('/verify-reset-token', validateRequest([
       }
     });
 
-    if (!user) {
+    if (!member) {
       return res.status(400).json({
         success: false,
         error: 'Invalid or expired reset token',
@@ -454,7 +450,7 @@ router.post('/verify-reset-token', validateRequest([
       success: true,
       message: 'Reset token is valid',
       data: {
-        email: user.email // Return masked email for confirmation
+        email: member.email // Return masked email for confirmation
       },
       timestamp: new Date().toISOString()
     });
@@ -473,7 +469,7 @@ router.post('/verify-reset-token', validateRequest([
 if (process.env.NODE_ENV === 'development') {
   router.post('/test-email', asyncHandler(async (req, res) => {
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({
         success: false,
@@ -485,9 +481,9 @@ if (process.env.NODE_ENV === 'development') {
     try {
       // Reinitialize email service to pick up new env vars
       emailService.reinitialize();
-      
+
       const sent = await emailService.sendTestEmail(email);
-      
+
       res.json({
         success: true,
         message: sent ? 'Test email sent successfully' : 'Email service not configured - check logs',

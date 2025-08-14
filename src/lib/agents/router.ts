@@ -20,18 +20,18 @@ export interface RouterExecution {
 
 export class AgentRouter {
   /**
-   * Analyze user input and determine the best agent/tool combination
+   * Analyze member input and determine the best agent/tool combination
    */
   async analyzeIntent(
     message: string,
     _context: {
-      userId: string;
+      memberId: string;
       sessionId: string;
       messageHistory?: string[];
     }
   ): Promise<RouterDecision> {
     const lowerMessage = message.toLowerCase();
-    
+
     // Group listing requests (highest priority)
     if (this.isGroupListingRequest(lowerMessage)) {
       return {
@@ -88,7 +88,7 @@ export class AgentRouter {
     decision: RouterDecision,
     message: string,
     context: {
-      userId: string;
+      memberId: string;
       sessionId: string;
       agentId?: string;
     }
@@ -97,7 +97,7 @@ export class AgentRouter {
       console.log(`[AgentRouter] Executing decision: ${decision.primaryAgent} with tools: ${decision.tools.join(', ')}`);
 
       const toolContext: ToolContext = {
-        userId: context.userId,
+        memberId: context.memberId,
         sessionId: context.sessionId,
         agentId: decision.primaryAgent,
         timestamp: new Date()
@@ -113,10 +113,10 @@ export class AgentRouter {
       for (const toolName of decision.tools) {
         try {
           console.log(`[AgentRouter] Executing tool: ${toolName}`);
-          
+
           const args = this.generateToolArgs(toolName, message, context);
           const result = await ToolRegistry.execute(toolName, args, toolContext);
-          
+
           if (result.success) {
             toolsExecuted.push(toolName);
             toolResults.push({ tool: toolName, result: result.data });
@@ -133,16 +133,16 @@ export class AgentRouter {
       const agent = AgentRegistry.getInstance(decision.primaryAgent);
       if (agent && typeof agent.processMessage === 'function') {
         console.log(`[AgentRouter] Processing message with agent: ${decision.primaryAgent}`);
-        
+
         // Check if agent has a session
         let session = await agent.getSession(context.sessionId);
         if (!session) {
-          session = await agent.createSession(context.userId);
+          session = await agent.createSession(context.memberId);
         }
 
         const agentResponse = await agent.processMessage(session.id, message);
         response = agentResponse.message;
-        
+
         // Combine tool results into response if applicable
         if (toolResults.length > 0) {
           response = this.combineToolResultsWithResponse(toolResults, response, decision.primaryAgent);
@@ -170,7 +170,7 @@ export class AgentRouter {
 
     } catch (error) {
       console.error('[AgentRouter] Error executing routing:', error);
-      
+
       return {
         success: false,
         response: "I apologize, but I'm having trouble processing your request right now. How are you feeling today?",
@@ -188,7 +188,7 @@ export class AgentRouter {
   async routeAndExecute(
     message: string,
     context: {
-      userId: string;
+      memberId: string;
       sessionId: string;
       agentId?: string;
       messageHistory?: string[];
@@ -209,7 +209,7 @@ export class AgentRouter {
       'list groups',
       'all available groups'
     ];
-    
+
     return listPatterns.some(pattern => message.includes(pattern)) ||
            (message.includes('groups') && (message.includes('available') || message.includes('list') || message.includes('show')));
   }
@@ -224,7 +224,7 @@ export class AgentRouter {
       'match me with',
       'connect me to'
     ];
-    
+
     return findPatterns.some(pattern => message.includes(pattern));
   }
 
@@ -233,7 +233,7 @@ export class AgentRouter {
       'suicide', 'kill myself', 'end it all', 'better off dead',
       'can\'t go on', 'hopeless', 'no point', 'emergency'
     ];
-    
+
     return crisisKeywords.some(keyword => message.includes(keyword));
   }
 
@@ -245,7 +245,7 @@ export class AgentRouter {
       'track my',
       'log my'
     ];
-    
+
     return moodPatterns.some(pattern => message.includes(pattern)) &&
            (message.includes('today') || message.includes('right now') || message.includes('currently'));
   }
@@ -254,34 +254,34 @@ export class AgentRouter {
     switch (toolName) {
       case 'listAllGroups':
         return {
-          userId: context.userId,
+          memberId: context.memberId,
           limit: 50,
           includeInactive: false
         };
-      
+
       case 'suggestGroup':
         return {
-          userId: context.userId,
+          memberId: context.memberId,
           goals: this.extractGoals(message),
           language: 'en'
         };
-      
+
       case 'logMood':
         return {
           mood: this.extractMood(message),
           score: this.extractMoodScore(message),
           note: message.substring(0, 500)
         };
-      
+
       case 'escalateCrisis':
         return {
           severity: 'high',
-          userId: context.userId,
+          memberId: context.memberId,
           indicators: this.extractCrisisIndicators(message),
           immediateRisk: true,
           context: message
         };
-      
+
       default:
         return {};
     }
@@ -318,31 +318,31 @@ export class AgentRouter {
     // Simple sentiment scoring
     const positiveWords = ['good', 'great', 'happy', 'better', 'amazing'];
     const negativeWords = ['bad', 'terrible', 'sad', 'awful', 'horrible'];
-    
+
     const lowerMessage = message.toLowerCase();
     let score = 0;
-    
+
     positiveWords.forEach(word => {
       if (lowerMessage.includes(word)) score += 0.2;
     });
-    
+
     negativeWords.forEach(word => {
       if (lowerMessage.includes(word)) score -= 0.2;
     });
-    
+
     return Math.max(-1, Math.min(1, score));
   }
 
   private extractCrisisIndicators(message: string): string[] {
     const indicators: string[] = [];
     const crisisKeywords = ['suicide', 'hopeless', 'end it all', 'no point', 'can\'t go on'];
-    
+
     crisisKeywords.forEach(keyword => {
       if (message.toLowerCase().includes(keyword)) {
         indicators.push(keyword);
       }
     });
-    
+
     return indicators as any[];
   }
 
@@ -352,7 +352,7 @@ export class AgentRouter {
       const groupData = toolResults.find(tr => tr.tool === 'listAllGroups')?.result;
       if (groupData && Array.isArray(groupData)) {
         let response = "Here are all the available peer support groups:\n\n";
-        
+
         groupData.forEach((group, index) => {
           response += `**${index + 1}. ${group.name}**\n`;
           response += `${group.description}\n`;
@@ -360,12 +360,12 @@ export class AgentRouter {
           response += `• Members: ${group.memberCount}/${group.maxMembers}\n`;
           response += `• Schedule: ${group.meetingSchedule || 'TBD'}\n\n`;
         });
-        
+
         response += "Would you like me to help you join one of these groups or learn more about any specific group?";
         return response;
       }
     }
-    
+
     return agentResponse;
   }
 

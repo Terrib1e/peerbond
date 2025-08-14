@@ -20,14 +20,14 @@ import { Input } from '@/components/ui/Input';
 
 interface AuditLog {
   id: string;
-  userId: string;
-  userName: string;
+  memberId: string;
+  memberName: string;
   action: string;
   resource: string;
   resourceId?: string;
   details?: any;
   ipAddress: string;
-  userAgent: string;
+  memberAgent: string;
   createdAt: string;
   metadata?: any;
   severity: 'info' | 'warning' | 'error' | 'critical';
@@ -35,7 +35,7 @@ interface AuditLog {
 
 interface AuditFilters {
   search: string;
-  userId: string;
+  memberId: string;
   action: string;
   resource: string;
   severity: string;
@@ -47,7 +47,7 @@ interface AuditFilters {
 export default function AuditLogs() {
   const [filters, setFilters] = useState<AuditFilters>({
     search: '',
-    userId: '',
+    memberId: '',
     action: '',
     resource: '',
     severity: '',
@@ -55,7 +55,7 @@ export default function AuditLogs() {
     startDate: '',
     endDate: ''
   });
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -68,76 +68,76 @@ export default function AuditLogs() {
         page: currentPage.toString(),
         limit: pageSize.toString(),
         ...(filters.search && { search: filters.search }),
-        ...(filters.userId && { userId: filters.userId }),
+        ...(filters.memberId && { memberId: filters.memberId }),
         ...(filters.action && { action: filters.action }),
         ...(filters.resource && { resource: filters.resource }),
         ...(filters.startDate && { startDate: filters.startDate }),
         ...(filters.endDate && { endDate: filters.endDate })
       });
-      
+
       await api.get(`/admin/audit-logs?${params}`);
-      
+
       // Mock data for demonstration
       const mockLogs: AuditLog[] = [
         {
           id: '1',
-          userId: 'admin-1',
-          userName: 'Admin User',
-          action: 'user_create',
-          resource: 'user',
-          resourceId: 'user-123',
-          details: { email: 'newuser@example.com', role: 'member' },
+          memberId: 'admin-1',
+          memberName: 'Admin Member',
+          action: 'member_create',
+          resource: 'member',
+          resourceId: 'member-123',
+          details: { email: 'newmember@example.com', role: 'member' },
           ipAddress: '192.168.1.100',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          memberAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
           severity: 'info'
         },
         {
           id: '2',
-          userId: 'admin-1',
-          userName: 'Admin User',
+          memberId: 'admin-1',
+          memberName: 'Admin Member',
           action: 'config_update',
           resource: 'system',
           details: { feature: 'aiEnabled', oldValue: false, newValue: true },
           ipAddress: '192.168.1.100',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          memberAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
           severity: 'warning'
         },
         {
           id: '3',
-          userId: 'therapist-1',
-          userName: 'Dr. Smith',
+          memberId: 'therapist-1',
+          memberName: 'Dr. Smith',
           action: 'crisis_escalation',
-          resource: 'user',
-          resourceId: 'user-456',
+          resource: 'member',
+          resourceId: 'member-456',
           details: { reason: 'suicide_ideation', severity: 'high' },
           ipAddress: '10.0.1.50',
-          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          memberAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
           createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
           severity: 'critical'
         },
         {
           id: '4',
-          userId: 'admin-1',
-          userName: 'Admin User',
-          action: 'bulk_user_deactivate',
-          resource: 'user',
-          details: { userIds: ['user-789', 'user-101'], succeeded: 2, failed: 0 },
+          memberId: 'admin-1',
+          memberName: 'Admin Member',
+          action: 'bulk_member_deactivate',
+          resource: 'member',
+          details: { memberIds: ['member-789', 'member-101'], succeeded: 2, failed: 0 },
           ipAddress: '192.168.1.100',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          memberAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
           severity: 'warning'
         },
         {
           id: '5',
-          userId: 'system',
-          userName: 'System',
+          memberId: 'system',
+          memberName: 'System',
           action: 'backup_completed',
           resource: 'system',
           details: { size: '2.5GB', duration: '15m 32s' },
           ipAddress: '127.0.0.1',
-          userAgent: 'System/1.0',
+          memberAgent: 'System/1.0',
           createdAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
           severity: 'info'
         }
@@ -180,24 +180,24 @@ export default function AuditLogs() {
   };
 
   const getActionIcon = (action: string) => {
-    if (action.includes('user')) return <User className="w-4 h-4" />;
+    if (action.includes('member')) return <User className="w-4 h-4" />;
     if (action.includes('config') || action.includes('system')) return <Settings className="w-4 h-4" />;
     if (action.includes('crisis') || action.includes('security')) return <Shield className="w-4 h-4" />;
     return <FileText className="w-4 h-4" />;
   };
 
   const formatAction = (action: string) => {
-    return action.split('_').map(word => 
+    return action.split('_').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   };
 
   const exportLogs = () => {
     const csvContent = [
-      ['Timestamp', 'User', 'Action', 'Resource', 'Severity', 'IP Address'].join(','),
+      ['Timestamp', 'Member', 'Action', 'Resource', 'Severity', 'IP Address'].join(','),
       ...logs.map(log => [
         new Date(log.createdAt).toISOString(),
-        log.userName,
+        log.memberName,
         formatAction(log.action),
         log.resource,
         log.severity,
@@ -221,7 +221,7 @@ export default function AuditLogs() {
           <h2 className="text-3xl font-bold text-gray-900">Audit Logs</h2>
           <p className="text-gray-600 mt-1">Security and compliance audit trail</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -247,7 +247,7 @@ export default function AuditLogs() {
                 className="pl-10"
               />
             </div>
-            
+
             <select
               title="Action Filter"
               value={filters.action}
@@ -255,14 +255,14 @@ export default function AuditLogs() {
               className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All Actions</option>
-              <option value="user_create">User Create</option>
-              <option value="user_update">User Update</option>
-              <option value="user_delete">User Delete</option>
+              <option value="member_create">Member Create</option>
+              <option value="member_update">Member Update</option>
+              <option value="member_delete">Member Delete</option>
               <option value="config_update">Config Update</option>
               <option value="crisis_escalation">Crisis Escalation</option>
               <option value="backup_completed">Backup</option>
             </select>
-            
+
             <select
               title="Resource Filter"
               value={filters.resource}
@@ -270,12 +270,12 @@ export default function AuditLogs() {
               className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All Resources</option>
-              <option value="user">User</option>
+              <option value="member">Member</option>
               <option value="group">Group</option>
               <option value="system">System</option>
               <option value="message">Message</option>
             </select>
-            
+
             <select
               title="Severity Filter"
               value={filters.severity}
@@ -288,7 +288,7 @@ export default function AuditLogs() {
               <option value="error">Error</option>
               <option value="critical">Critical</option>
             </select>
-            
+
             <select
               title="Date Range"
               value={filters.dateRange}
@@ -301,7 +301,7 @@ export default function AuditLogs() {
               <option value="90d">Last 90 Days</option>
               <option value="custom">Custom Range</option>
             </select>
-            
+
             <Button variant="outline" className="flex items-center gap-2">
               <Filter className="w-4 h-4" />
               More Filters
@@ -324,7 +324,7 @@ export default function AuditLogs() {
                     Timestamp
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
+                    Member
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Action
@@ -359,46 +359,46 @@ export default function AuditLogs() {
                         </div>
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                           <span className="text-xs font-medium text-gray-600">
-                            {log.userName.split(' ').map(n => n[0]).join('')}
+                            {log.memberName.split(' ').map(n => n[0]).join('')}
                           </span>
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{log.userName}</div>
-                          <div className="text-xs text-gray-500">{log.userId}</div>
+                          <div className="text-sm font-medium text-gray-900">{log.memberName}</div>
+                          <div className="text-xs text-gray-500">{log.memberId}</div>
                         </div>
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {getActionIcon(log.action)}
                         <span className="text-sm text-gray-900">{formatAction(log.action)}</span>
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900 capitalize">{log.resource}</div>
                       {log.resourceId && (
                         <div className="text-xs text-gray-500">{log.resourceId}</div>
                       )}
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full border ${getSeverityColor(log.severity)}`}>
                         {getSeverityIcon(log.severity)}
                         <span className="capitalize">{log.severity}</span>
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {log.ipAddress}
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Button
                         variant="ghost"
@@ -413,7 +413,7 @@ export default function AuditLogs() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination */}
           <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-700">
@@ -458,7 +458,7 @@ export default function AuditLogs() {
                   ×
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -466,8 +466,8 @@ export default function AuditLogs() {
                     <p className="text-sm text-gray-900">{new Date(selectedLog.createdAt).toLocaleString()}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">User</label>
-                    <p className="text-sm text-gray-900">{selectedLog.userName}</p>
+                    <label className="block text-sm font-medium text-gray-700">Member</label>
+                    <p className="text-sm text-gray-900">{selectedLog.memberName}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Action</label>
@@ -486,7 +486,7 @@ export default function AuditLogs() {
                     <p className="text-sm text-gray-900">{selectedLog.ipAddress}</p>
                   </div>
                 </div>
-                
+
                 {selectedLog.details && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Details</label>
@@ -495,10 +495,10 @@ export default function AuditLogs() {
                     </pre>
                   </div>
                 )}
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">User Agent</label>
-                  <p className="text-xs text-gray-600 break-all">{selectedLog.userAgent}</p>
+                  <p className="text-xs text-gray-600 break-all">{selectedLog.memberAgent}</p>
                 </div>
               </div>
             </div>

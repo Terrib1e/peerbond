@@ -17,7 +17,7 @@ import { authenticateToken } from './middleware/auth';
 
 // Import route handlers
 import authRoutes from './routes/auth';
-import userRoutes from './routes/users';
+import memberRoutes from './routes/members';
 import groupRoutes from './routes/groups';
 import messageRoutes from './routes/messages';
 import adminRoutes from './routes/admin';
@@ -26,7 +26,7 @@ import onboardingRoutes from './routes/onboarding';
 import analyticsRoutes from './routes/analytics';
 import healthRoutes from './routes/health';
 import testRoutes from './routes/test';
-import orchestrationRoutes from './routes/production-orchestration';
+import orchestrationRoutes from './routes/orchestration';
 import simpleAiRoutes from './routes/simple-ai';
 import basicChatRoutes from './routes/basic-chat';
 import toolRoutes from './routes/tools';
@@ -166,8 +166,8 @@ app.use('/health', healthRoutes);
 // Register main orchestration route
 console.log('[Server] Registering orchestration routes...');
 try {
-  app.use('/api/production-orchestration', orchestrationRoutes);
-  console.log('[Server] ✅ Orchestration routes registered at /api/production-orchestration');
+  app.use('/api/orchestration', orchestrationRoutes);
+  console.log('[Server] ✅ Orchestration routes registered at /api/orchestration');
 } catch (error) {
   console.error('[Server] ❌ Error registering orchestration routes:', error);
 }
@@ -192,7 +192,7 @@ try {
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', authenticateToken, userRoutes);
+app.use('/api/members', authenticateToken, memberRoutes);
 app.use('/api/groups', authenticateToken, groupRoutes);
 app.use('/api/messages', authenticateToken, messageRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);

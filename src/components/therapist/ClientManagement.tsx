@@ -19,7 +19,7 @@ import {
   UserMinus
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { User } from '@/types';
+import { Member } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -45,7 +45,7 @@ interface ClientProgress {
   recentMilestones: string[];
 }
 
-interface ExtendedClient extends User {
+interface ExtendedClient extends Member {
   progress: ClientProgress;
   currentGroups: Array<{
     id: string;
@@ -69,7 +69,7 @@ export default function ClientManagement() {
     groupId: 'all',
     engagementLevel: 'all'
   });
-  
+
   const [selectedClient, setSelectedClient] = useState<ExtendedClient | null>(null);
   const [showClientDetail, setShowClientDetail] = useState(false);
   const [showAssignGroup, setShowAssignGroup] = useState(false);
@@ -93,7 +93,7 @@ export default function ClientManagement() {
         ...(filters.groupId !== 'all' && { groupId: filters.groupId }),
         ...(filters.engagementLevel !== 'all' && { engagementLevel: filters.engagementLevel })
       });
-      
+
       const response = await api.get(`/therapist/clients?${params}`);
       return response as any;
     },
@@ -143,8 +143,8 @@ export default function ClientManagement() {
 
   // Assign client to group
   const assignGroupMutation = useMutation({
-    mutationFn: ({ userId, groupId, notes }: { userId: string; groupId: string; notes?: string }) =>
-      api.post('/therapist/group-assignments', { userId, groupId, notes }),
+    mutationFn: ({ memberId, groupId, notes }: { memberId: string; groupId: string; notes?: string }) =>
+      api.post('/therapist/group-assignments', { memberId, groupId, notes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['therapist-clients'] });
       toast.success('Client assigned to group successfully');
@@ -154,8 +154,8 @@ export default function ClientManagement() {
 
   // Remove client from group
   const removeGroupMutation = useMutation({
-    mutationFn: ({ userId, groupId }: { userId: string; groupId: string }) =>
-      api.delete(`/therapist/group-assignments/${userId}/${groupId}`),
+    mutationFn: ({ memberId, groupId }: { memberId: string; groupId: string }) =>
+      api.delete(`/therapist/group-assignments/${memberId}/${groupId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['therapist-clients'] });
       toast.success('Client removed from group successfully');
@@ -177,7 +177,7 @@ export default function ClientManagement() {
       queryClient.invalidateQueries({ queryKey: ['therapist-clients'] });
       toast.success('Client added successfully');
       setShowAddClient(false);
-      
+
       // Show temporary password in a success message
       if (response?.data?.tempPassword) {
         toast.success(`Temporary password: ${response.data.tempPassword}`, {
@@ -220,7 +220,7 @@ export default function ClientManagement() {
   const getRiskLevel = (client: ExtendedClient) => {
     const riskFactors = client.progress.riskFactors?.length || 0;
     const engagementScore = client.progress.engagementScore;
-    
+
     if (riskFactors >= 3 || engagementScore < 30) return 'high';
     if (riskFactors >= 2 || engagementScore < 50) return 'medium';
     return 'low';
@@ -243,7 +243,7 @@ export default function ClientManagement() {
           <h2 className="text-3xl font-bold text-gray-900">Client Management</h2>
           <p className="text-gray-600 mt-1">Monitor client progress and provide professional oversight</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <Button variant="outline">
             <FileText className="w-4 h-4 mr-2" />
@@ -272,7 +272,7 @@ export default function ClientManagement() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -286,7 +286,7 @@ export default function ClientManagement() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -300,7 +300,7 @@ export default function ClientManagement() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -329,7 +329,7 @@ export default function ClientManagement() {
                 className="pl-10"
               />
             </div>
-            
+
             <select
               title="Risk Level"
               value={filters.riskLevel}
@@ -341,7 +341,7 @@ export default function ClientManagement() {
               <option value="medium">Medium Risk</option>
               <option value="low">Low Risk</option>
             </select>
-            
+
             <select
               title="Progress Trend"
               value={filters.progressTrend}
@@ -354,7 +354,7 @@ export default function ClientManagement() {
               <option value="declining">Declining</option>
               <option value="at_risk">At Risk</option>
             </select>
-            
+
             <select
               title="Group"
               value={filters.groupId}
@@ -366,7 +366,7 @@ export default function ClientManagement() {
                 <option key={group.id} value={group.id}>{group.name}</option>
               ))}
             </select>
-            
+
             <select
               title="Engagement Level"
               value={filters.engagementLevel}
@@ -378,7 +378,7 @@ export default function ClientManagement() {
               <option value="medium">Medium (50-79%)</option>
               <option value="low">Low (&lt;50%)</option>
             </select>
-            
+
             <Button variant="outline" className="flex items-center gap-2">
               <Filter className="w-4 h-4" />
               Advanced
@@ -445,7 +445,7 @@ export default function ClientManagement() {
                           </div>
                         </div>
                       </td>
-                      
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col gap-1">
                           {client.currentGroups?.slice(0, 2).map((group) => (
@@ -458,7 +458,7 @@ export default function ClientManagement() {
                           )}
                         </div>
                       </td>
-                      
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           {getTrendIcon(client.progress?.trend || 'stable')}
@@ -467,14 +467,14 @@ export default function ClientManagement() {
                           </span>
                         </div>
                       </td>
-                      
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className={`text-sm font-medium ${getEngagementColor(client.progress?.engagementScore || 0)}`}>
                             {client.progress?.engagementScore || 0}%
                           </span>
                           <div className="w-16 bg-gray-200 rounded-full h-2">
-                            <div 
+                            <div
                               className={`h-2 rounded-full ${
                                 (client.progress?.engagementScore || 0) >= 80 ? 'bg-green-500' :
                                 (client.progress?.engagementScore || 0) >= 60 ? 'bg-blue-500' :
@@ -485,7 +485,7 @@ export default function ClientManagement() {
                           </div>
                         </div>
                       </td>
-                      
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRiskBadgeColor(riskLevel)}`}>
                           {riskLevel.toUpperCase()}
@@ -496,7 +496,7 @@ export default function ClientManagement() {
                           </div>
                         )}
                       </td>
-                      
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-gray-400" />
@@ -505,7 +505,7 @@ export default function ClientManagement() {
                           </span>
                         </div>
                       </td>
-                      
+
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-2">
                           <Button
@@ -545,7 +545,7 @@ export default function ClientManagement() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination */}
           <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-700">
@@ -585,8 +585,8 @@ export default function ClientManagement() {
                 Client Profile: {selectedClient.firstName} {selectedClient.lastName}
               </DialogTitle>
             </DialogHeader>
-            <ClientDetailView 
-              client={selectedClient} 
+            <ClientDetailView
+              client={selectedClient}
               onClose={() => setShowClientDetail(false)}
               onFlagCrisis={(reason) => flagClientMutation.mutate({ clientId: selectedClient.id, reason })}
             />
@@ -603,11 +603,11 @@ export default function ClientManagement() {
                 Assign {selectedClient.firstName} {selectedClient.lastName} to Group
               </DialogTitle>
             </DialogHeader>
-            <GroupAssignmentDialog 
+            <GroupAssignmentDialog
               client={selectedClient}
               groups={groups}
-              onAssign={(groupId, notes) => assignGroupMutation.mutate({ userId: selectedClient.id, groupId, notes })}
-              onRemove={(groupId) => removeGroupMutation.mutate({ userId: selectedClient.id, groupId })}
+              onAssign={(groupId, notes) => assignGroupMutation.mutate({ memberId: selectedClient.id, groupId, notes })}
+              onRemove={(groupId) => removeGroupMutation.mutate({ memberId: selectedClient.id, groupId })}
               onClose={() => setShowAssignGroup(false)}
             />
           </DialogContent>
@@ -621,7 +621,7 @@ export default function ClientManagement() {
             <DialogHeader>
               <DialogTitle>Add New Client</DialogTitle>
             </DialogHeader>
-            <AddClientDialog 
+            <AddClientDialog
               onSubmit={(data) => addClientMutation.mutate(data)}
               onClose={() => setShowAddClient(false)}
               isLoading={addClientMutation.isPending}
@@ -658,7 +658,7 @@ function AddClientDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Basic validation
     if (!formData.firstName || !formData.lastName || !formData.email) {
       toast.error('Please fill in all required fields');
@@ -745,8 +745,8 @@ function AddClientDialog({
             </label>
             <Input
               value={formData.emergencyContact.name}
-              onChange={(e) => setFormData(prev => ({ 
-                ...prev, 
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
                 emergencyContact: { ...prev.emergencyContact, name: e.target.value }
               }))}
               placeholder="Enter emergency contact name"
@@ -759,8 +759,8 @@ function AddClientDialog({
               </label>
               <Input
                 value={formData.emergencyContact.phone}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
                   emergencyContact: { ...prev.emergencyContact, phone: e.target.value }
                 }))}
                 placeholder="Enter phone number"
@@ -771,9 +771,10 @@ function AddClientDialog({
                 Relationship
               </label>
               <select
+                title="Relationship"
                 value={formData.emergencyContact.relationship}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
                   emergencyContact: { ...prev.emergencyContact, relationship: e.target.value }
                 }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -834,7 +835,7 @@ function GroupAssignmentDialog({
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [notes, setNotes] = useState('');
 
-  const availableGroups = groups.filter(group => 
+  const availableGroups = groups.filter(group =>
     !client.currentGroups?.some(currentGroup => currentGroup.id === group.id)
   );
 
@@ -878,6 +879,7 @@ function GroupAssignmentDialog({
                 Select Group
               </label>
               <select
+                title="Select Group"
                 value={selectedGroupId}
                 onChange={(e) => setSelectedGroupId(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -935,12 +937,12 @@ function GroupAssignmentDialog({
 }
 
 // Client Detail View Component
-function ClientDetailView({ 
-  client, 
-  onClose, 
-  onFlagCrisis 
-}: { 
-  client: ExtendedClient; 
+function ClientDetailView({
+  client,
+  onClose,
+  onFlagCrisis
+}: {
+  client: ExtendedClient;
   onClose: () => void;
   onFlagCrisis: (reason: string) => void;
 }) {
@@ -967,7 +969,7 @@ function ClientDetailView({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <h4 className="font-medium text-gray-900 mb-3">Progress Metrics</h4>
@@ -989,7 +991,7 @@ function ClientDetailView({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <h4 className="font-medium text-gray-900 mb-3">Emergency Contact</h4>
@@ -1030,7 +1032,7 @@ function ClientDetailView({
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1081,17 +1083,17 @@ function ClientDetailView({
           <Shield className="w-4 h-4 mr-2" />
           Flag for Crisis Intervention
         </Button>
-        
+
         <Button variant="outline">
           <MessageCircle className="w-4 h-4 mr-2" />
           Send Secure Message
         </Button>
-        
+
         <Button variant="outline">
           <FileText className="w-4 h-4 mr-2" />
           Generate Report
         </Button>
-        
+
         <Button variant="outline" onClick={onClose}>
           Close
         </Button>

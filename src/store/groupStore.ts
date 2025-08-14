@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { Group, Message, User } from '@/types';
+import { Group, Message, Member } from '@/types';
 import { PeerMatchingService } from '@/services/matchingService';
 import { AIFacilitatorService } from '@/services/aiFacilitatorService';
+import { api } from '@/lib/api';
 
 interface GroupState {
   groups: Group[];
@@ -13,60 +14,14 @@ interface GroupState {
   loadGroups: () => Promise<void>;
   joinGroup: (groupId: string) => Promise<void>;
   leaveGroup: (groupId: string) => Promise<void>;
-  sendMessage: (groupId: string, content: string, userId: string) => Promise<void>;
+  sendMessage: (groupId: string, content: string, memberId: string) => Promise<void>;
   setActiveGroup: (group: Group | null) => void;
-  findSuggestedGroups: (user: User) => Group[];
+  findSuggestedGroups: (member: Member) => Group[];
   createGroup: (groupData: Partial<Group>) => Promise<Group>;
 }
 
 export const useGroupStore = create<GroupState>((set, get) => ({
-  groups: [
-    {
-      id: '1',
-      name: 'Recovery Support Circle',
-      description: 'A safe space for those in recovery to share experiences and support each other',
-      type: 'recovery' as const,
-      createdBy: '1',
-      facilitators: ['1'], // User IDs as strings
-      members: ['1', '2'], // User IDs as strings
-      maxMembers: 8,
-      isPrivate: false,
-      isActive: true,
-      tags: ['recovery', 'support'],
-      createdAt: new Date(),
-      lastActivity: new Date(),
-    },
-    {
-      id: '2',
-      name: 'Anxiety Management Group',
-      description: 'Learn and practice techniques for managing anxiety together',
-      type: 'wellness' as const, // Changed from 'anxiety' to 'wellness'
-      createdBy: '3',
-      facilitators: ['3'],
-      members: ['3', '4'], // User IDs as strings
-      maxMembers: 6,
-      isPrivate: false,
-      isActive: true,
-      tags: ['anxiety', 'coping'],
-      createdAt: new Date(),
-      lastActivity: new Date(),
-    },
-    {
-      id: '3',
-      name: 'Daily Check-ins',
-      description: 'Start your day with positive intention and connection',
-      type: 'general' as const,
-      createdBy: '2',
-      facilitators: ['2'],
-      members: ['1', '2', '3', '4'], // User IDs as strings
-      maxMembers: 10,
-      isPrivate: false,
-      isActive: true,
-      tags: ['daily', 'check-in', 'motivation'],
-      createdAt: new Date(),
-      lastActivity: new Date(),
-    },
-  ] as Group[],
+  groups: [] as Group[],
   activeGroup: null,
   messages: {},
   isLoading: false,
@@ -74,94 +29,51 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   loadGroups: async () => {
     set({ isLoading: true });
     try {
-      // Mock data for development
-      const mockGroups: Group[] = [
-        {
-          id: '1',
-          name: 'Recovery Support Circle',
-          description: 'A safe space for those in recovery to share experiences and support each other',
-          type: 'recovery' as const,
-          createdBy: '1',
-          facilitators: ['1'], // User IDs as strings
-          members: ['1', '2'], // User IDs as strings
-          maxMembers: 8,
-          isPrivate: false,
-          isActive: true,
-          tags: ['recovery', 'support'],
-          createdAt: new Date(),
-          lastActivity: new Date(),
-        },
-        {
-          id: '2',
-          name: 'Anxiety Management Group',
-          description: 'Learn and practice techniques for managing anxiety together',
-          type: 'wellness' as const, // Changed from 'anxiety' to 'wellness'
-          createdBy: '3',
-          facilitators: ['3'],
-          members: ['3', '4'], // User IDs as strings
-          maxMembers: 6,
-          isPrivate: false,
-          isActive: true,
-          tags: ['anxiety', 'coping'],
-          createdAt: new Date(),
-          lastActivity: new Date(),
-        },
-        {
-          id: '3',
-          name: 'Daily Check-ins',
-          description: 'Start your day with positive intention and connection',
-          type: 'general' as const,
-          createdBy: '2',
-          facilitators: ['2'],
-          members: ['1', '2', '3', '4'], // User IDs as strings
-          maxMembers: 10,
-          isPrivate: false,
-          isActive: true,
-          tags: ['daily', 'check-in', 'motivation'],
-          createdAt: new Date(),
-          lastActivity: new Date(),
-        },
-      ];
-
-      set({ groups: mockGroups });
+      // Fetch real groups from API
+      const groups = await api.getMemberAvailableGroups();
+      console.log('Loaded groups from API:', groups);
+      set({ groups });
     } catch (error) {
       console.error('Failed to load groups:', error);
+      set({ groups: [] }); // Empty array on error instead of mock data
     } finally {
       set({ isLoading: false });
     }
   },
 
   joinGroup: async (groupId: string) => {
-    const { groups } = get();
-    const group = groups.find(g => g.id === groupId);
-    if (!group) throw new Error('Group not found');
-
-    if (group.members.length >= group.maxMembers) {
-      throw new Error('Group is full');
+    try {
+      await api.joinGroup(groupId);
+      // Reload groups to get updated membership status
+      await get().loadGroups();
+    } catch (error) {
+      console.error('Failed to join group:', error);
+      throw error;
     }
-
-    console.log(`Joining group: ${group.name}`);
   },
 
   leaveGroup: async (groupId: string) => {
-    const { groups } = get();
-    const group = groups.find(g => g.id === groupId);
-    if (!group) throw new Error('Group not found');
-
-    console.log(`Leaving group: ${group.name}`);
+    try {
+      await api.leaveGroup(groupId);
+      // Reload groups to get updated membership status
+      await get().loadGroups();
+    } catch (error) {
+      console.error('Failed to leave group:', error);
+      throw error;
+    }
   },
 
-  sendMessage: async (groupId: string, content: string, userId: string) => {
+  sendMessage: async (groupId: string, content: string, memberId: string) => {
     const { messages } = get();
     const groupMessages = messages[groupId] || [];
 
     const newMessage: Message = {
       id: Date.now().toString(),
       groupId,
-      userId,
+      memberId,
       content,
       timestamp: new Date(),
-      type: 'user',
+      type: 'member',
       reactions: [],
     };
 
@@ -186,7 +98,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           context: {
             groupType: 'recovery',
             recentMessages: updatedMessages.slice(-5),
-            activeUsers: [],
+            activeMembers: [],
             sessionLength: 30,
             lastActivity: new Date(),
           },
@@ -195,7 +107,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           groupId,
-          userId: 'ai',
+          memberId: 'ai',
           content: facilitatorResponse.message,
           timestamp: new Date(),
           type: 'ai_facilitator',
@@ -217,9 +129,9 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     set({ activeGroup: group });
   },
 
-  findSuggestedGroups: (user: User) => {
+  findSuggestedGroups: (member: Member) => {
     const { groups } = get();
-    return PeerMatchingService.suggestGroupForUser(user, groups);
+    return PeerMatchingService.suggestGroupForMember(member, groups);
   },
 
   createGroup: async (groupData: Partial<Group>) => {

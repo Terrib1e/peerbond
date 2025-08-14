@@ -98,7 +98,7 @@ export default function SystemManagement() {
   const [activeTab, setActiveTab] = useState<'health' | 'config' | 'logs' | 'backup'>('health');
   const [showSecrets, setShowSecrets] = useState(false);
   const [configData, setConfigData] = useState<Partial<SystemConfig>>({});
-  
+
   const queryClient = useQueryClient();
 
   // Fetch system health
@@ -234,7 +234,7 @@ export default function SystemManagement() {
           <h2 className="text-3xl font-bold text-gray-900">System Management</h2>
           <p className="text-gray-600 mt-1">Monitor and configure platform infrastructure</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <Button variant="outline">
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -460,6 +460,7 @@ export default function SystemManagement() {
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
+                        title="Feature Toggle"
                         type="checkbox"
                         checked={enabled}
                         onChange={(e) => setConfigData({
@@ -497,8 +498,8 @@ export default function SystemManagement() {
                     value={configResponse?.limits.maxGroupSize || 12}
                     onChange={(e) => setConfigData({
                       ...configData,
-                      limits: { 
-                        ...(configData.limits || {}), 
+                      limits: {
+                        ...(configData.limits || {}),
                         maxGroupSize: parseInt(e.target.value),
                         maxMessageLength: configData.limits?.maxMessageLength || 2000,
                         rateLimit: configData.limits?.rateLimit || 100,
@@ -514,7 +515,7 @@ export default function SystemManagement() {
                     value={configResponse?.limits.maxMessageLength || 2000}
                     onChange={(e) => setConfigData({
                       ...configData,
-                      limits: { 
+                      limits: {
                         ...(configData.limits || {}),
                         maxMessageLength: parseInt(e.target.value),
                         maxGroupSize: configData.limits?.maxGroupSize || 12,
@@ -531,7 +532,7 @@ export default function SystemManagement() {
                     value={configResponse?.limits.rateLimit || 100}
                     onChange={(e) => setConfigData({
                       ...configData,
-                      limits: { 
+                      limits: {
                         ...(configData.limits || {}),
                         rateLimit: parseInt(e.target.value),
                         maxGroupSize: configData.limits?.maxGroupSize || 12,
@@ -548,7 +549,7 @@ export default function SystemManagement() {
                     value={configResponse?.limits.uploadSizeLimit || 10}
                     onChange={(e) => setConfigData({
                       ...configData,
-                      limits: { 
+                      limits: {
                         ...(configData.limits || {}),
                         uploadSizeLimit: parseInt(e.target.value),
                         maxGroupSize: configData.limits?.maxGroupSize || 12,
@@ -627,13 +628,13 @@ export default function SystemManagement() {
                 <div>[2024-01-20 10:30:15] INFO: Server started on port 3001</div>
                 <div>[2024-01-20 10:30:16] INFO: Database connection established</div>
                 <div>[2024-01-20 10:30:17] INFO: WebSocket server initialized</div>
-                <div>[2024-01-20 10:35:23] INFO: User authentication successful (user: admin@peerbond.com)</div>
+                <div>[2024-01-20 10:35:23] INFO: Member authentication successful (member: admin@peerbond.com)</div>
                 <div>[2024-01-20 10:36:45] INFO: AI model initialized: gpt-4o-mini</div>
                 <div>[2024-01-20 10:37:12] WARN: High memory usage detected: 85%</div>
                 <div>[2024-01-20 10:38:01] INFO: Group created: Recovery Warriors (id: group-123)</div>
-                <div>[2024-01-20 10:39:33] INFO: Crisis intervention triggered for user-456</div>
+                <div>[2024-01-20 10:39:33] INFO: Crisis intervention triggered for member-456</div>
                 <div>[2024-01-20 10:40:15] INFO: Backup process completed successfully</div>
-                <div>[2024-01-20 10:41:22] ERROR: Failed to send notification email to user@example.com</div>
+                <div>[2024-01-20 10:41:22] ERROR: Failed to send notification email to member@example.com</div>
                 <div>[2024-01-20 10:42:08] INFO: Database maintenance completed</div>
               </div>
             </div>
@@ -656,7 +657,7 @@ export default function SystemManagement() {
                 </div>
                 <Button variant="outline">Configure</Button>
               </div>
-              
+
               <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
                 <div>
                   <p className="font-medium text-green-900">Last Backup</p>
@@ -667,7 +668,7 @@ export default function SystemManagement() {
                   Download
                 </Button>
               </div>
-              
+
               <div className="flex gap-3">
                 <Button>
                   <Upload className="w-4 h-4 mr-2" />

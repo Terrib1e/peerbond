@@ -81,7 +81,7 @@ class APIClient {
 
     try {
       const response = await fetch(url, config);
-      
+
       if (!response.ok) {
         throw new APIError(
           `API request failed: ${response.status}`,
@@ -154,18 +154,18 @@ const validateToken = async (token: string): Promise<boolean> => {
 const refreshTokenIfNeeded = async (): Promise<string> => {
   const token = localStorage.getItem('peerbond_token');
   const refreshToken = localStorage.getItem('peerbond_refresh_token');
-  
+
   if (!token || isTokenExpired(token)) {
     if (refreshToken) {
-      const newToken = await api.post('/api/auth/refresh', { 
-        refreshToken 
+      const newToken = await api.post('/api/auth/refresh', {
+        refreshToken
       });
       localStorage.setItem('peerbond_token', newToken.accessToken);
       return newToken.accessToken;
     }
     throw new Error('Session expired. Please sign in again.');
   }
-  
+
   return token;
 };
 ```
@@ -180,23 +180,23 @@ interface UserRole {
 }
 
 const checkPermission = (
-  userRole: string, 
+  memberRole: string,
   requiredPermission: string
 ): boolean => {
   const rolePermissions = {
     member: ['read:own-profile', 'read:public-groups', 'create:messages'],
     facilitator: ['read:group-members', 'moderate:groups', 'create:sessions'],
     therapist: [
-      'read:client-data', 
-      'create:assessments', 
+      'read:client-data',
+      'create:assessments',
       'manage:groups',
-      'create:users',
+      'create:members',
       'plan:sessions'
     ],
     admin: ['*'] // Full access
   };
 
-  const permissions = rolePermissions[userRole] || [];
+  const permissions = rolePermissions[memberRole] || [];
   return permissions.includes('*') || permissions.includes(requiredPermission);
 };
 ```
@@ -245,12 +245,12 @@ class AgentService {
         },
         body: JSON.stringify({
           environment: 'production',
-          userMessage: content,
+          memberMessage: content,
           sessionId: sessionId,
           preferredAgent: agentType,
           context: {
             platform: 'maya-interface',
-            userRole: this.getCurrentUserRole(),
+            memberRole: this.getCurrentUserRole(),
             timestamp: new Date().toISOString()
           }
         }),
@@ -271,7 +271,7 @@ class AgentService {
 
   async startOrchestrationSession(
     environment: string,
-    userProfile: any
+    memberProfile: any
   ): Promise<any> {
     const token = this.authenticateRequest();
 
@@ -283,7 +283,7 @@ class AgentService {
       },
       body: JSON.stringify({
         environment,
-        userProfile,
+        memberProfile,
         platform: 'maya-interface'
       }),
     });
@@ -318,8 +318,8 @@ export const agentService = new AgentService();
 ```typescript
 interface SessionContext {
   sessionId: string;
-  userId: string;
-  userRole: string;
+  memberId: string;
+  memberRole: string;
   conversationHistory: Message[];
   metadata: Record<string, any>;
 }
@@ -327,17 +327,17 @@ interface SessionContext {
 class SessionManager {
   private activeSessions: Map<string, SessionContext> = new Map();
 
-  async createSession(userId: string, userProfile: any): Promise<string> {
+  async createSession(memberId: string, memberProfile: any): Promise<string> {
     const sessionResponse = await agentService.startOrchestrationSession(
       'production',
-      userProfile
+      memberProfile
     );
 
     const sessionId = sessionResponse.sessionId;
     const context: SessionContext = {
       sessionId,
-      userId,
-      userRole: userProfile.role,
+      memberId,
+      memberRole: memberProfile.role,
       conversationHistory: [],
       metadata: {
         createdAt: new Date().toISOString(),
@@ -350,7 +350,7 @@ class SessionManager {
   }
 
   async addMessage(
-    sessionId: string, 
+    sessionId: string,
     message: Message
   ): Promise<void> {
     const context = this.activeSessions.get(sessionId);
@@ -382,22 +382,22 @@ interface OnboardingRequest {
   experienceLevel: string;
 }
 
-const onboardUser = async (userData: OnboardingRequest) => {
-  return await api.post('/api/auth/register', userData);
+const onboardUser = async (memberData: OnboardingRequest) => {
+  return await api.post('/api/auth/register', memberData);
 };
 
 // User retrieval
 const getAllUsers = async (): Promise<User[]> => {
-  return await api.get('/api/admin/users');
+  return await api.get('/api/admin/members');
 };
 
-const getUserById = async (userId: string): Promise<User> => {
-  return await api.get(`/api/admin/users/${userId}`);
+const getUserById = async (memberId: string): Promise<User> => {
+  return await api.get(`/api/admin/members/${memberId}`);
 };
 
 // User updates
-const updateUser = async (userId: string, updates: Partial<User>) => {
-  return await api.put(`/api/admin/users/${userId}`, updates);
+const updateUser = async (memberId: string, updates: Partial<User>) => {
+  return await api.put(`/api/admin/members/${memberId}`, updates);
 };
 ```
 
@@ -428,15 +428,15 @@ const getGroupById = async (groupId: string): Promise<Group> => {
 };
 
 // Group member management
-const addGroupMember = async (groupId: string, userId: string, role: string) => {
+const addGroupMember = async (groupId: string, memberId: string, role: string) => {
   return await api.post(`/api/therapist/groups/${groupId}/members`, {
-    userId,
+    memberId,
     role
   });
 };
 
-const removeGroupMember = async (groupId: string, userId: string) => {
-  return await api.delete(`/api/therapist/groups/${groupId}/members/${userId}`);
+const removeGroupMember = async (groupId: string, memberId: string) => {
+  return await api.delete(`/api/therapist/groups/${groupId}/members/${memberId}`);
 };
 ```
 
@@ -488,9 +488,9 @@ class WebSocketService {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
 
-  connect(userId: string): void {
+  connect(memberId: string): void {
     const token = localStorage.getItem('peerbond_token');
-    const wsURL = `${import.meta.env.VITE_WS_URL}?token=${token}&userId=${userId}`;
+    const wsURL = `${import.meta.env.VITE_WS_URL}?token=${token}&memberId=${memberId}`;
 
     this.ws = new WebSocket(wsURL);
 
@@ -506,7 +506,7 @@ class WebSocketService {
 
     this.ws.onclose = () => {
       console.log('WebSocket disconnected');
-      this.attemptReconnect(userId);
+      this.attemptReconnect(memberId);
     };
 
     this.ws.onerror = (error) => {
@@ -530,11 +530,11 @@ class WebSocketService {
     }
   }
 
-  private attemptReconnect(userId: string): void {
+  private attemptReconnect(memberId: string): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       setTimeout(() => {
         this.reconnectAttempts++;
-        this.connect(userId);
+        this.connect(memberId);
       }, this.reconnectDelay * this.reconnectAttempts);
     }
   }
@@ -734,9 +734,9 @@ class RetryHandler {
 }
 
 // Usage example
-const fetchUserData = async (userId: string) => {
+const fetchUserData = async (memberId: string) => {
   return await RetryHandler.withRetry(
-    () => api.get(`/api/users/${userId}`),
+    () => api.get(`/api/members/${memberId}`),
     3,
     1000
   );
@@ -814,7 +814,7 @@ class CircuitBreaker {
 const agentCircuitBreaker = new CircuitBreaker(3, 30000);
 
 const callAgentWithCircuitBreaker = async (agentType: string, content: string) => {
-  return await agentCircuitBreaker.execute(() => 
+  return await agentCircuitBreaker.execute(() =>
     agentService.callAgent(agentType, content, sessionId)
   );
 };
@@ -918,11 +918,11 @@ const ONBOARDING_SCHEMA: ValidationSchema = {
   email: { required: true, type: 'email' },
   recoveryGoals: { type: 'array' },
   wellnessGoals: { type: 'array' },
-  experienceLevel: { 
-    required: true, 
-    custom: (value) => 
-      ['beginner', 'intermediate', 'advanced'].includes(value) 
-        ? null 
+  experienceLevel: {
+    required: true,
+    custom: (value) =>
+      ['beginner', 'intermediate', 'advanced'].includes(value)
+        ? null
         : 'Invalid experience level'
   }
 };
@@ -930,19 +930,19 @@ const ONBOARDING_SCHEMA: ValidationSchema = {
 const GROUP_CREATION_SCHEMA: ValidationSchema = {
   name: { required: true, type: 'string', minLength: 3, maxLength: 100 },
   description: { required: true, type: 'string', minLength: 10, maxLength: 500 },
-  type: { 
-    required: true, 
-    custom: (value) => 
-      ['recovery', 'wellness', 'general'].includes(value) 
-        ? null 
+  type: {
+    required: true,
+    custom: (value) =>
+      ['recovery', 'wellness', 'general'].includes(value)
+        ? null
         : 'Invalid group type'
   },
-  maxMembers: { 
-    required: true, 
+  maxMembers: {
+    required: true,
     type: 'number',
-    custom: (value) => 
-      value >= 4 && value <= 20 
-        ? null 
+    custom: (value) =>
+      value >= 4 && value <= 20
+        ? null
         : 'Max members must be between 4 and 20'
   }
 };
@@ -986,7 +986,7 @@ const sanitizeFormData = (formData: any): any => {
 
   Object.keys(sanitized).forEach(key => {
     const value = sanitized[key];
-    
+
     if (typeof value === 'string') {
       sanitized[key] = InputSanitizer.sanitizeString(value);
     } else if (Array.isArray(value)) {
@@ -1023,7 +1023,7 @@ class APICache {
 
   get(key: string): any | null {
     const entry = this.cache.get(key);
-    
+
     if (!entry) {
       return null;
     }
@@ -1071,10 +1071,10 @@ const cachedApiCall = async <T>(
 };
 
 // Usage examples
-const getCachedUsers = () => 
-  cachedApiCall('users:all', () => api.get('/api/admin/users'), 2 * 60 * 1000);
+const getCachedUsers = () =>
+  cachedApiCall('members:all', () => api.get('/api/admin/members'), 2 * 60 * 1000);
 
-const getCachedGroups = () => 
+const getCachedGroups = () =>
   cachedApiCall('groups:all', () => api.get('/api/groups'), 5 * 60 * 1000);
 ```
 
@@ -1142,11 +1142,11 @@ class RequestBatcher {
 
 const requestBatcher = new RequestBatcher();
 
-// Usage for user data fetching
-const batchedUserFetch = (userId: string) => 
+// Usage for member data fetching
+const batchedUserFetch = (memberId: string) =>
   requestBatcher.batch(
-    'user-fetch',
-    () => api.get(`/api/users/${userId}`)
+    'member-fetch',
+    () => api.get(`/api/members/${memberId}`)
   );
 ```
 
@@ -1164,7 +1164,7 @@ const configureCompression = () => {
 const optimizeRequestPayload = (data: any): any => {
   // Remove undefined and null values
   const cleaned = JSON.parse(JSON.stringify(data));
-  
+
   // Compress arrays if possible
   if (Array.isArray(cleaned)) {
     return cleaned.filter(item => item !== null && item !== undefined);
@@ -1204,7 +1204,7 @@ class APITestHelper {
     data?: any
   ): Promise<TestResult> {
     const startTime = Date.now();
-    
+
     try {
       const response = await api.request(endpoint, {
         method,
@@ -1235,14 +1235,14 @@ class APITestHelper {
     iterations: number = 100
   ): Promise<LoadTestResult> {
     const results: TestResult[] = [];
-    
+
     for (let i = 0; i < iterations; i++) {
       const promises = Array(concurrentRequests).fill(null).map(() =>
         this.testEndpoint(endpoint)
       );
-      
+
       const batchResults = await Promise.allSettled(promises);
-      results.push(...batchResults.map(r => 
+      results.push(...batchResults.map(r =>
         r.status === 'fulfilled' ? r.value : {
           success: false,
           error: r.reason.message,
@@ -1290,7 +1290,7 @@ class PerformanceMonitor {
   endTiming(timingId: string, operation: string): void {
     performance.mark(`${timingId}_end`);
     performance.measure(timingId, `${timingId}_start`, `${timingId}_end`);
-    
+
     const measure = performance.getEntriesByName(timingId)[0];
     const metric: PerformanceMetric = {
       operation,
@@ -1318,7 +1318,7 @@ class PerformanceMonitor {
 
   getMetrics(operation: string): PerformanceStats {
     const metrics = this.metrics.get(operation) || [];
-    
+
     if (metrics.length === 0) {
       return {
         operation,
@@ -1347,7 +1347,7 @@ class PerformanceMonitor {
     apiCall: () => Promise<T>
   ): Promise<T> {
     const timingId = this.startTiming(operation);
-    
+
     return apiCall().finally(() => {
       this.endTiming(timingId, operation);
     });
@@ -1369,6 +1369,6 @@ const monitoredAPICall = async (endpoint: string) => {
 
 Maya's API integration provides a robust, secure, and performant foundation for AI-powered therapeutic support. The system's comprehensive error handling, caching strategies, and monitoring capabilities ensure reliable operation while maintaining the highest standards of security and compliance required for healthcare applications.
 
-The modular architecture allows for easy extension and maintenance while providing clear separation of concerns between authentication, data management, and AI orchestration. Performance optimizations ensure responsive user experiences even under high load conditions.
+The modular architecture allows for easy extension and maintenance while providing clear separation of concerns between authentication, data management, and AI orchestration. Performance optimizations ensure responsive member experiences even under high load conditions.
 
 This documentation serves as both a technical reference and implementation guide for developers working with Maya's API integration layer.

@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../utils/logger';
-import { Message, Group, User } from '../types';
+import { Message, Group, Member } from '../types';
 
 export interface GeminiFacilitatorResponse {
   message: string;
@@ -11,17 +11,20 @@ export interface GeminiFacilitatorResponse {
 }
 
 export class GeminiService {
-  private genAI: GoogleGenerativeAI;
+  private genAI: GoogleGenerativeAI | null;
   private model: any;
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Check for both GEMINI_API_KEY and GOOGLE_API_KEY for backwards compatibility
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (!apiKey) {
-      console.warn('Warning: GEMINI_API_KEY not provided. AI features will be disabled.');
+      console.warn('Warning: GEMINI_API_KEY or GOOGLE_API_KEY not provided. AI features will be disabled.');
+      console.warn('Please set either GEMINI_API_KEY or GOOGLE_API_KEY in your .env file');
       this.genAI = null;
       this.model = null;
       return;
     }
+    console.log('✅ Gemini API initialized successfully');
 
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({
@@ -36,20 +39,20 @@ export class GeminiService {
   }
 
   async generateFacilitatorResponse(
-    userMessage: Message,
+    memberMessage: Message,
     recentMessages: Message[],
     group: Group,
-    activeUsers: any[]
+    activeMembers: any[]
   ): Promise<any> {
     try {
       // Check if AI service is available
       if (!this.genAI || !this.model) {
         console.log('Gemini AI service not available, using fallback response');
-        return this.getFallbackResponse(userMessage.content);
+        return this.getFallbackResponse(memberMessage.content);
       }
 
       const contextMessages = recentMessages.slice(-5).map(msg =>
-        `${msg.userId === 'ai-facilitator' ? 'Maya (AI Facilitator)' : 'User'}: ${msg.content}`
+        `${msg.memberId === 'ai-facilitator' ? 'Maya (AI Facilitator)' : 'User'}: ${msg.content}`
       ).join('\n');
 
       const prompt = `You are Maya, an AI therapeutic facilitator for a ${group.type} support group called "${group.name}".
@@ -62,11 +65,11 @@ YOUR ROLE AS A THERAPEUTIC TOOL:
 - Quality over quantity - every word should serve a therapeutic purpose
 
 CURRENT SITUATION:
-- Group has ${activeUsers.length} active members
+- Group has ${activeMembers.length} active members
 - Recent conversation context:
 ${contextMessages}
 
-- Latest message from user: "${userMessage.content}"
+- Latest message from member: "${memberMessage.content}"
 
 RESPONSE CRITERIA (you should ONLY respond if the message involves):
 1. **Crisis/Distress** - Someone needs immediate support or intervention
@@ -76,18 +79,18 @@ RESPONSE CRITERIA (you should ONLY respond if the message involves):
 5. **Milestone Celebration** - Significant achievement worth acknowledging
 
 YOUR RESPONSE STYLE:
-- **Concise** (1-2 sentences maximum)
+- **Concise but helpful** (2-3 sentences that provide actual support)
 - **Purposeful** - every word serves a therapeutic function
 - **Professional yet warm** - like a skilled therapist
-- **Question-focused** - encourage self-reflection and peer support
-- **Trauma-informed** - validate without overwhelming
+- **Solution-oriented** - provide actionable guidance when appropriate
+- **Trauma-informed** - validate and offer practical help
 
-PREFERRED RESPONSES:
-- "What's coming up for you as you share this?"
-- "I'm hearing [emotion] - how is the group holding space for you right now?"
-- "Thank you for that courage. What support do you need?"
-- "[Name], how are you experiencing this conversation?"
-- "What wisdom would you offer someone in a similar situation?"
+PREFERRED RESPONSE PATTERNS:
+- Validate their experience + offer a specific coping strategy
+- Acknowledge their courage + provide perspective or insight
+- Reflect their emotion + suggest a helpful technique or approach
+- Recognize their struggle + offer encouragement with practical next steps
+- Celebrate their progress + reinforce their strengths
 
 Remember: Silence is therapeutic. Let the group process and support each other. Only speak when your voice adds essential therapeutic value.
 
@@ -129,19 +132,19 @@ Response:`;
   }
 
   private buildFacilitatorPrompt(
-    userMessage: Message,
+    memberMessage: Message,
     recentMessages: Message[],
     group: Group,
-    activeUsers: User[]
+    activeMembers: Member[]
   ): string {
     const conversationContext = recentMessages
       .slice(-5)
       .map(msg => `${msg.type === 'ai_facilitator' ? 'AI Facilitator' : 'Member'}: ${msg.content}`)
       .join('\n');
 
-    const currentMessage = `Member: ${userMessage.content}`;
+    const currentMessage = `Member: ${memberMessage.content}`;
 
-    return `You are Maya, an AI facilitator for PeerBond, a mental health and recovery support platform. You're facilitating a ${group.type} support group with ${activeUsers.length} members.
+    return `You are Maya, an AI facilitator for PeerBond, a mental health and recovery support platform. You're facilitating a ${group.type} support group with ${activeMembers.length} members.
 
 CRITICAL GUIDELINES:
 - Be warm, empathetic, and supportive
@@ -155,7 +158,7 @@ CRITICAL GUIDELINES:
 
 GROUP CONTEXT:
 - Type: ${group.type} support group
-- Active members: ${activeUsers.length}
+- Active members: ${activeMembers.length}
 - Group description: ${group.description}
 
 RECENT CONVERSATION:
@@ -218,7 +221,7 @@ Your response:`;
     };
   }
 
-  private calculateConfidence(userMessage: Message, response: string): number {
+  private calculateConfidence(memberMessage: Message, response: string): number {
     let confidence = 0.7; // Base confidence
 
     // Increase confidence for crisis responses
@@ -233,7 +236,7 @@ Your response:`;
     ];
 
     const hasCrisisContent = crisisIndicators.some(indicator =>
-      userMessage.content.toLowerCase().includes(indicator)
+      memberMessage.content.toLowerCase().includes(indicator)
     );
 
     if (hasCrisisContent && hasCrisisResponse) {
@@ -315,22 +318,61 @@ Your response:`;
     }
   }
 
+  async generateResponse(prompt: string): Promise<string> {
+    try {
+      // Check if AI service is available
+      if (!this.genAI || !this.model) {
+        console.log('Gemini AI service not available, using intelligent fallback');
+        // Extract key information from the prompt to provide a more relevant response
+        const promptLower = prompt.toLowerCase();
+        
+        if (promptLower.includes('crisis') || promptLower.includes('suicide')) {
+          return "I'm deeply concerned about what you're sharing. Your life has value and there are people who want to help. Please contact the 988 Suicide & Crisis Lifeline immediately (call or text 988). You don't have to face this alone. Let's also connect you with a crisis counselor right away.";
+        } else if (promptLower.includes('anxiety') || promptLower.includes('anxious')) {
+          return "I hear the anxiety you're experiencing. Let's try a grounding technique together: Take a slow breath in for 4 counts, hold for 4, and exhale for 6. This activates your parasympathetic nervous system. What's the main source of worry right now? Breaking it down can help make it feel more manageable.";
+        } else if (promptLower.includes('depression') || promptLower.includes('sad')) {
+          return "I can feel the weight of what you're carrying. Depression makes everything feel harder, and your feelings are valid. One small step can make a difference - could you do one tiny self-care act today? Even brushing your teeth or drinking water counts. You don't have to do this alone.";
+        } else if (promptLower.includes('coping') || promptLower.includes('strategies')) {
+          return "Here are some evidence-based coping strategies you can try right now: 1) Box breathing (4-4-4-4 counts), 2) Progressive muscle relaxation - tense and release each muscle group, 3) The 5-4-3-2-1 grounding technique using your senses, 4) Write down three things you're grateful for, no matter how small. Which resonates with you?";
+        } else {
+          return "I hear you and I'm here to support you. What you're experiencing matters, and it takes courage to reach out. Let's work through this together - what feels most important to address right now? Sometimes just naming what we're feeling can be the first step toward healing.";
+        }
+      }
+
+      const result = await this.model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (error) {
+      logger.error('Error generating response:', error);
+      return 'I understand you\'re looking for support. While I\'m not able to provide a detailed response right now, please know that your feelings are valid and support is available.';
+    }
+  }
+
   private getFallbackResponse(content: string): any {
     const lowerContent = content.toLowerCase();
 
     // Intelligent fallback responses based on content analysis
-    let message = "Thank you for sharing. How are you feeling right now?";
-
+    let message = "";
+    
+    // Detect emotional states and provide appropriate responses
     if (lowerContent.includes('anxious') || lowerContent.includes('anxiety') || lowerContent.includes('worried')) {
-      message = "I hear that you're feeling anxious. What's one small thing that might help you feel more grounded right now?";
-    } else if (lowerContent.includes('depressed') || lowerContent.includes('sad') || lowerContent.includes('down')) {
-      message = "Thank you for trusting us with how you're feeling. What support do you need from the group today?";
-    } else if (lowerContent.includes('help') || lowerContent.includes('support') || lowerContent.includes('need')) {
-      message = "What kind of support would be most helpful for you right now?";
-    } else if (lowerContent.includes('group') || lowerContent.includes('match') || lowerContent.includes('connect')) {
-      message = "I'd love to help you connect with supportive people. What type of support are you most interested in?";
-    } else if (lowerContent.includes('crisis') || lowerContent.includes('emergency') || lowerContent.includes('hurt myself')) {
-      message = "I'm concerned about you. Please reach out to a crisis helpline immediately. You deserve support and care.";
+      message = "I can hear the anxiety in what you're sharing. That feeling of worry can be so overwhelming. Let's try something together - take a deep breath in for 4 counts, hold for 4, and out for 6. This activates your parasympathetic nervous system and can help calm those anxious feelings. What specific worry is weighing on you most right now?";
+    } else if (lowerContent.includes('sad') || lowerContent.includes('depressed') || lowerContent.includes('down')) {
+      message = "I hear the sadness in your words, and I want you to know it's okay to feel this way. Depression can make everything feel heavy and dark. One small step that might help: can you name one tiny thing you could do today that might bring even a moment of relief? Sometimes starting with the smallest action can create a ripple of change.";
+    } else if (lowerContent.includes('angry') || lowerContent.includes('frustrated') || lowerContent.includes('mad')) {
+      message = "Your frustration is completely valid - anger often signals that something important to us is being threatened or violated. Let's channel that energy constructively. Try this: tense all your muscles for 5 seconds, then release. This can help discharge some of that physical tension. What boundary or need isn't being respected right now?";
+    } else if (lowerContent.includes('lonely') || lowerContent.includes('alone') || lowerContent.includes('isolated')) {
+      message = "Feeling lonely is one of the most painful human experiences, and I'm glad you're reaching out here. Connection is a basic human need. Even this moment of sharing helps break that isolation. What's one small way you could connect with someone today - even a text or a smile to a stranger?";
+    } else if (lowerContent.includes('scared') || lowerContent.includes('afraid') || lowerContent.includes('fear')) {
+      message = "Fear is your mind's way of trying to protect you, though sometimes it overprotects. Let's ground you in the present moment: Name 5 things you can see, 4 you can touch, 3 you can hear, 2 you can smell, and 1 you can taste. This helps your nervous system recognize you're safe right now. What specific fear feels biggest?";
+    } else if (lowerContent.includes('overwhelmed') || lowerContent.includes('too much') || lowerContent.includes('can\'t handle')) {
+      message = "When everything feels like too much, our nervous system gets flooded. Let's break this down together. First, just focus on your breath - you don't have to fix everything right now. Can you identify just ONE thing that needs attention today? We'll start there and take it step by step.";
+    } else if (lowerContent.includes('suicide') || lowerContent.includes('kill myself') || lowerContent.includes('end it')) {
+      message = "I'm deeply concerned about what you're sharing. Your life has value, and there are people who want to help you through this crisis. Please reach out to the 988 Suicide & Crisis Lifeline (call or text 988) right now. You don't have to face this alone. Can you tell me what's brought you to this point?";
+    } else if (lowerContent.includes('progress') || lowerContent.includes('better') || lowerContent.includes('improvement')) {
+      message = "It's wonderful to hear about your progress! Every step forward, no matter how small, is worth celebrating. Growth isn't always linear, so be proud of how far you've come. What specific change have you noticed that feels most meaningful to you?";
+    } else {
+      // Default supportive response
+      message = "Thank you for sharing that with me. It takes courage to open up about what you're experiencing. I'm here to support you through this. Can you tell me more about what this feels like for you right now?";
     }
 
     return {

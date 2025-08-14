@@ -19,12 +19,12 @@ Authorization: Bearer <jwt_token>
 
 #### POST /api/auth/login
 
-Authenticate user and receive JWT token.
+Authenticate member and receive JWT token.
 
 **Request:**
 ```json
 {
-  "email": "user@example.com",
+  "email": "member@example.com",
   "password": "secure_password"
 }
 ```
@@ -34,12 +34,12 @@ Authenticate user and receive JWT token.
 {
   "success": true,
   "data": {
-    "user": {
-      "id": "user_123",
-      "email": "user@example.com",
+    "member": {
+      "id": "member_123",
+      "email": "member@example.com",
       "firstName": "John",
       "lastName": "Doe",
-      "role": "user"
+      "role": "member"
     },
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "expiresAt": "2024-12-31T23:59:59Z"
@@ -50,14 +50,14 @@ Authenticate user and receive JWT token.
 
 #### POST /api/auth/register
 
-Register new user account.
+Register new member account.
 
 **Request:**
 ```json
 {
   "firstName": "John",
-  "lastName": "Doe", 
-  "email": "user@example.com",
+  "lastName": "Doe",
+  "email": "member@example.com",
   "password": "secure_password",
   "recoveryGoals": ["anxiety", "depression"],
   "experienceLevel": "beginner"
@@ -69,9 +69,9 @@ Register new user account.
 {
   "success": true,
   "data": {
-    "user": {
-      "id": "user_123",
-      "email": "user@example.com",
+    "member": {
+      "id": "member_123",
+      "email": "member@example.com",
       "firstName": "John",
       "lastName": "Doe"
     },
@@ -86,7 +86,7 @@ Register new user account.
 
 ### Health & Monitoring
 
-#### GET /api/production-orchestration/health
+#### GET /api/orchestration/health
 
 Comprehensive system health check with metrics.
 
@@ -107,7 +107,7 @@ Comprehensive system health check with metrics.
         "external": 1089536
       },
       "cpu": {
-        "user": 1000000,
+        "member": 1000000,
         "system": 500000
       },
       "platform": "linux",
@@ -125,7 +125,7 @@ Comprehensive system health check with metrics.
 }
 ```
 
-#### GET /api/production-orchestration/metrics
+#### GET /api/orchestration/metrics
 
 Prometheus-compatible metrics endpoint.
 
@@ -135,7 +135,7 @@ Prometheus-compatible metrics endpoint.
 # TYPE peerbond_orchestration_active_sessions gauge
 peerbond_orchestration_active_sessions 142
 
-# HELP peerbond_orchestration_uptime_seconds System uptime in seconds  
+# HELP peerbond_orchestration_uptime_seconds System uptime in seconds
 # TYPE peerbond_orchestration_uptime_seconds counter
 peerbond_orchestration_uptime_seconds 86400
 
@@ -147,7 +147,7 @@ peerbond_memory_usage_bytes{type="heapTotal"} 41943040
 
 ### Session Management
 
-#### POST /api/production-orchestration/session/start
+#### POST /api/orchestration/session/start
 
 Create a new conversation session.
 
@@ -155,7 +155,7 @@ Create a new conversation session.
 ```json
 {
   "groupId": "group_456", // Optional
-  "userProfile": {
+  "memberProfile": {
     "goals": ["anxiety management", "peer support"],
     "preferences": {
       "language": "English",
@@ -181,7 +181,7 @@ Create a new conversation session.
 }
 ```
 
-#### POST /api/production-orchestration/message
+#### POST /api/orchestration/message
 
 Process a message through the AI orchestration system.
 
@@ -190,7 +190,7 @@ Process a message through the AI orchestration system.
 {
   "sessionId": "session_1705316400000_a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "content": "I've been feeling really anxious lately about work and I'm not sure how to cope with the stress.",
-  "messageType": "user" // Optional: "user" | "system"
+  "messageType": "member" // Optional: "member" | "system"
 }
 ```
 
@@ -219,7 +219,7 @@ Process a message through the AI orchestration system.
 }
 ```
 
-#### GET /api/production-orchestration/session/{sessionId}/analytics
+#### GET /api/orchestration/session/{sessionId}/analytics
 
 Get session analytics and metrics.
 
@@ -242,7 +242,7 @@ Get session analytics and metrics.
 }
 ```
 
-#### POST /api/production-orchestration/session/{sessionId}/end
+#### POST /api/orchestration/session/{sessionId}/end
 
 End a conversation session and generate summary.
 
@@ -397,14 +397,14 @@ Get messages for a group.
       {
         "id": "msg_123",
         "groupId": "group_123",
-        "authorId": "user_456",
+        "authorId": "member_456",
         "authorName": "John D.",
         "content": "Thanks everyone for the support today.",
-        "type": "user",
+        "type": "member",
         "timestamp": "2024-01-15T10:25:00Z",
         "reactions": {
-          "❤️": ["user_789"],
-          "👍": ["user_321", "user_654"]
+          "❤️": ["member_789"],
+          "👍": ["member_321", "member_654"]
         }
       },
       {
@@ -431,7 +431,7 @@ Send a message to a group.
 {
   "groupId": "group_123",
   "content": "I wanted to share a breakthrough I had today with managing my anxiety.",
-  "type": "user"
+  "type": "member"
 }
 ```
 
@@ -465,7 +465,7 @@ All error responses follow this format:
 API endpoints are rate limited:
 
 - **General endpoints**: 100 requests per minute per IP
-- **Message endpoints**: 60 requests per minute per user
+- **Message endpoints**: 60 requests per minute per member
 - **Session creation**: 30 requests per minute per IP
 
 Rate limit headers are included in responses:
@@ -518,7 +518,7 @@ const client = new PeerBondClient({
 
 // Start session
 const session = await client.orchestration.startSession({
-  userProfile: {
+  memberProfile: {
     goals: ['anxiety-management'],
     preferences: { language: 'English' }
   }
@@ -546,13 +546,13 @@ client = PeerBondClient(
 
 # Start session
 session = client.orchestration.start_session(
-    user_profile={
+    member_profile={
         "goals": ["anxiety-management"],
         "preferences": {"language": "English"}
     }
 )
 
-# Send message  
+# Send message
 response = client.orchestration.send_message(
     session_id=session["sessionId"],
     content="I'm feeling anxious about work today."
@@ -563,13 +563,13 @@ response = client.orchestration.send_message(
 
 ```bash
 # Start session
-curl -X POST https://api.peerbond.com/api/production-orchestration/session/start \
+curl -X POST https://api.peerbond.com/api/orchestration/session/start \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"userProfile": {"goals": ["anxiety-management"]}}'
+  -d '{"memberProfile": {"goals": ["anxiety-management"]}}'
 
 # Send message
-curl -X POST https://api.peerbond.com/api/production-orchestration/message \
+curl -X POST https://api.peerbond.com/api/orchestration/message \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

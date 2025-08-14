@@ -10,11 +10,11 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function GroupChatPage() {
   const { groupId } = useParams<{ groupId: string }>();
-  const { user } = useAuthStore();
+  const { member } = useAuthStore();
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch group data (assuming API returns PopulatedGroup with full user objects)
+  // Fetch group data (assuming API returns PopulatedGroup with full member objects)
   const { data: group, isLoading } = useQuery({
     queryKey: ['group', groupId],
     queryFn: () => api.getGroup(groupId!),
@@ -25,10 +25,10 @@ export default function GroupChatPage() {
 
   if (isLoading) return <LoadingSpinner />;
   if (!group) return <div>Group not found</div>;
-  if (!user) return <div>Please log in</div>;
+  if (!member) return <div>Please log in</div>;
 
   // For PopulatedGroup, members are User objects, so we can access .id directly
-  const isMember = group.members.some((member: any) => member.id === user.id);
+  const isMember = group.members.some((member: any) => member.id === member.id);
 
   if (!isMember) {
     return (

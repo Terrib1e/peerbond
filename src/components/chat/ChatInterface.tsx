@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, JSXElementConstructor, Key, ReactElement, ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send, Bot, Heart, ThumbsUp, AlertCircle, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -10,24 +10,24 @@ import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 import { api } from '@/lib/api';
 import { wsService } from '@/lib/websocket';
-import { Message, User, Group } from '@/types';
+import { Message, Member, Group } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/utils/cn';
 
 interface ChatInterfaceProps {
   groupId: string;
-  currentUser: User;
+  currentMember: Member;
   group: Group;
 }
 
-interface MessageWithUser extends Message {
-  user?: User;
+interface MessageWithMember extends Message {
+  member?: Member;
   isLoading?: boolean;
   error?: string;
 }
 
-export default function ChatInterface({ groupId, currentUser, group }: ChatInterfaceProps) {
+export default function ChatInterface({ groupId, currentMember, group }: ChatInterfaceProps) {
   const [messageInput, setMessageInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers] = useState<string[]>([]);
@@ -35,7 +35,7 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
   const queryClient = useQueryClient();
 
   // Debug logging
-  console.log('ChatInterface initialized with groupId:', groupId, 'currentUser:', currentUser?.email);
+  console.log('ChatInterface initialized with groupId:', groupId, 'currentMember:', currentMember?.email);
 
   // Fetch messages
   const { data: messages = [], isLoading } = useQuery({
@@ -71,7 +71,7 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
 
           return {
             ...msg,
-            user: currentUser.id === msg.userId ? currentUser : undefined,
+            member: currentMember.id === msg.memberId ? currentMember : undefined,
             timestamp,
           };
         });
@@ -88,24 +88,24 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
-      if (!currentUser || !groupId) {
-        throw new Error('User not authenticated or group not selected');
+      if (!currentMember || !groupId) {
+        throw new Error('Member not authenticated or group not selected');
       }
 
       // Optimistic update - add temporary message
-      const tempMessage: MessageWithUser = {
+      const tempMessage: MessageWithMember = {
         id: `temp-${Date.now()}`,
         groupId,
-        userId: currentUser.id,
+        memberId: currentMember.id,
         content,
         timestamp: new Date(),
-        type: 'user',
+        type: 'member',
         reactions: [],
-        user: currentUser,
+        member: currentMember,
         isLoading: true,
       };
 
-      queryClient.setQueryData<MessageWithUser[]>(['messages', groupId], (old = []) => [
+      queryClient.setQueryData<MessageWithMember[]>(['messages', groupId], (old = []) => [
         ...old,
         tempMessage,
       ]);
@@ -121,7 +121,7 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
           content: content?.substring(0, 50) + '...',
         });
         // Remove failed message from optimistic update
-        queryClient.setQueryData<MessageWithUser[]>(['messages', groupId], (old = []) =>
+        queryClient.setQueryData<MessageWithMember[]>(['messages', groupId], (old = []) =>
           old.filter(msg => !msg.isLoading && !msg.id.startsWith('temp-'))
         );
         throw error;
@@ -129,7 +129,7 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
     },
     onSuccess: (newMessage) => {
       // Replace temporary message with actual message
-      queryClient.setQueryData<MessageWithUser[]>(['messages', groupId], (old = []) => {
+      queryClient.setQueryData<MessageWithMember[]>(['messages', groupId], (old = []) => {
         // Remove all loading messages (temporary ones)
         const filtered = old.filter(msg => !msg.isLoading && !msg.id.startsWith('temp-'));
 
@@ -159,7 +159,7 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
         }
 
         console.log('✅ Adding confirmed message to chat:', newMessage.content.substring(0, 50));
-        return [...filtered, { ...newMessage, user: currentUser, timestamp }];
+        return [...filtered, { ...newMessage, member: currentMember, timestamp }];
       });
 
       setMessageInput('');
@@ -212,19 +212,19 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
     const handleNewMessage = (message: Message) => {
       console.log('📨 Received new message via WebSocket:', message);
       if (isMounted) {
-        queryClient.setQueryData<MessageWithUser[]>(['messages', groupId], (old: MessageWithUser[] | undefined = []) => {
+        queryClient.setQueryData<MessageWithMember[]>(['messages', groupId], (old: MessageWithMember[] | undefined = []) => {
           // Enhanced duplicate prevention - check by ID and content/timestamp similarity
           const isDuplicate = old.some(m => {
             // Check by ID first
             if (m.id === message.id) return true;
-            
-            // Check for near-duplicate content from same user within 5 seconds
-            if (m.userId === message.userId && m.content === message.content) {
+
+            // Check for near-duplicate content from same member within 5 seconds
+            if (m.memberId === message.memberId && m.content === message.content) {
               const messageTime = new Date((message as any).timestamp || (message as any).createdAt || Date.now()).getTime();
               const existingTime = new Date(m.timestamp).getTime();
               return Math.abs(messageTime - existingTime) < 5000; // 5 second window
             }
-            
+
             return false;
           });
 
@@ -253,9 +253,9 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
             timestamp = new Date(); // Fallback to current time
           }
 
-          const messageWithUser: MessageWithUser = {
+          const messageWithUser: MessageWithMember = {
             ...message,
-            user: currentUser.id === message.userId ? currentUser : undefined,
+            member: currentMember.id === message.memberId ? currentMember : undefined,
             timestamp,
           };
 
@@ -277,7 +277,7 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
       wsService.offNewMessage(handleNewMessage);
       wsService.leaveGroup(groupId);
     };
-  }, [groupId, currentUser, queryClient]);
+  }, [groupId, currentMember, queryClient]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -351,10 +351,10 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
             <div className="flex -space-x-2">
               <div
                 className="w-8 h-8 rounded-full bg-primary-100 border-2 border-white flex items-center justify-center"
-                title={`${currentUser.firstName} ${currentUser.lastName}`}
+                title={`${currentMember.firstName} ${currentMember.lastName}`}
               >
                 <span className="text-xs font-medium text-primary-600">
-                  {currentUser.firstName[0]}{currentUser.lastName[0]}
+                  {currentMember.firstName[0]}{currentMember.lastName[0]}
                 </span>
               </div>
               {group.members.length > 1 && (
@@ -382,7 +382,7 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
             >
               <MessageBubble
                 message={message}
-                currentUser={currentUser}
+                currentMember={currentMember}
                 onAddReaction={addReaction}
               />
             </motion.div>
@@ -462,13 +462,13 @@ export default function ChatInterface({ groupId, currentUser, group }: ChatInter
 }
 
 interface MessageBubbleProps {
-  message: MessageWithUser;
-  currentUser: User;
+  message: MessageWithMember;
+  currentMember: Member;
   onAddReaction: (messageId: string, emoji: string) => void;
 }
 
-function MessageBubble({ message, currentUser, onAddReaction }: MessageBubbleProps) {
-  const isOwnMessage = message.userId === currentUser.id;
+function MessageBubble({ message, currentMember, onAddReaction }: MessageBubbleProps) {
+  const isOwnMessage = message.memberId === currentMember.id;
   const isAI = message.type === 'ai_facilitator';
   const isSystem = message.type === 'system';
 
@@ -495,16 +495,23 @@ function MessageBubble({ message, currentUser, onAddReaction }: MessageBubblePro
         {!isOwnMessage && (
           <div className="flex items-center space-x-2 mb-1">
             {isAI ? (
-              <Bot className="w-4 h-4 text-primary-600" />
+              <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center border border-primary-200">
+                <span className="text-xs font-bold text-primary-600">M</span>
+              </div>
             ) : (
               <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
                 <span className="text-xs font-medium text-gray-600">
-                  {message.user?.firstName?.[0] || 'U'}
+                  {message.member?.firstName?.[0] || 'U'}
                 </span>
               </div>
             )}
             <span className="text-sm font-medium text-gray-900">
-              {isAI ? 'AI Facilitator' : (message.user?.firstName || 'Unknown User')}
+              {isAI 
+                ? (message.member?.firstName === 'Maya' 
+                    ? `${message.member.firstName} ${message.member.lastName || '(AI Facilitator)'}` 
+                    : 'Maya (AI Facilitator)')
+                : (message.member?.firstName || 'Unknown User')
+              }
             </span>
             <span className="text-xs text-gray-500">
               {message.timestamp && !isNaN(message.timestamp.getTime())
@@ -565,19 +572,19 @@ function MessageBubble({ message, currentUser, onAddReaction }: MessageBubblePro
           {/* Reactions */}
           {message.reactions && message.reactions.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
-              {message.reactions.map((reaction, index) => (
+              {message.reactions.map((reaction: { emoji: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined; members: string | string[]; }, index: Key | null | undefined) => (
                 <button
                   key={index}
-                  onClick={() => onAddReaction(message.id, reaction.emoji)}
+                  onClick={() => onAddReaction(message.id, reaction.emoji as string)}
                   className={cn(
                     'inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs',
-                    reaction.users.includes(currentUser.id)
+                    reaction.members.includes(currentMember.id)
                       ? 'bg-primary-100 text-primary-800'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   )}
                 >
                   <span>{reaction.emoji}</span>
-                  <span>{reaction.users.length}</span>
+                  <span>{reaction.members.length}</span>
                 </button>
               ))}
             </div>

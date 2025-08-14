@@ -23,8 +23,13 @@ import StatsCard from '@/components/ui/StatsCard';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { api } from '@/lib/api';
+import { getPortalComponentClasses } from '@/lib/design-system';
+import { cn } from '@/utils/cn';
 
 function TherapistDashboard() {
+  const portalType = 'therapist';
+  const portalClasses = getPortalComponentClasses(portalType);
+  
   const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'sessions' | 'progress' | 'crisis' | 'groups'>('overview');
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false);
   const [selectedGroupForManagement, setSelectedGroupForManagement] = useState<{id: string, name: string} | null>(null);
@@ -121,12 +126,12 @@ function TherapistDashboard() {
   const isLoading = statsLoading || clientsLoading || groupsLoading || alertsLoading;
 
   const navigationItems = [
-    { key: 'overview', label: 'Overview', icon: Activity, onClick: () => setActiveTab('overview') },
-    { key: 'clients', label: 'Clients', icon: Users, onClick: () => setActiveTab('clients') },
-    { key: 'groups', label: 'Groups', icon: Users, onClick: () => setActiveTab('groups') },
-    { key: 'sessions', label: 'Sessions', icon: Calendar, onClick: () => setActiveTab('sessions') },
-    { key: 'progress', label: 'Progress', icon: Target, onClick: () => setActiveTab('progress') },
-    { key: 'crisis', label: 'Crisis Monitoring', icon: Shield, onClick: () => setActiveTab('crisis') },
+    { key: 'overview', label: 'Overview', icon: Activity as any, onClick: () => setActiveTab('overview') },
+    { key: 'clients', label: 'Clients', icon: Users as any, onClick: () => setActiveTab('clients') },
+    { key: 'groups', label: 'Groups', icon: Users as any, onClick: () => setActiveTab('groups') },
+    { key: 'sessions', label: 'Sessions', icon: Calendar as any, onClick: () => setActiveTab('sessions') },
+    { key: 'progress', label: 'Progress', icon: Target as any, onClick: () => setActiveTab('progress') },
+    { key: 'crisis', label: 'Crisis Monitoring', icon: Shield as any, onClick: () => setActiveTab('crisis') },
   ];
 
   return (
@@ -134,52 +139,56 @@ function TherapistDashboard() {
       portalType="therapist"
       title="Therapist Portal"
       subtitle="Manage your clients and therapeutic groups"
-      navigationItems={navigationItems}
+      navigationItems={navigationItems as any}
     >
 
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Stats Cards */}
+          {/* Stats Cards - Enhanced with unified design */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <StatsCard
               title="Total Clients"
               value={isLoading ? '...' : stats.totalClients}
               icon={Users}
-              portalType="therapist"
+              portalType={portalType}
               isLoading={isLoading}
+              variant="interactive"
             />
             <StatsCard
               title="Active Groups"
               value={isLoading ? '...' : stats.activeGroups}
               icon={Users}
-              portalType="therapist"
+              portalType={portalType}
               isLoading={isLoading}
+              variant="interactive"
             />
             <StatsCard
               title="Critical Alerts"
               value={isLoading ? '...' : stats.criticalAlerts}
               icon={AlertCircle}
-              portalType="therapist"
+              portalType={portalType}
               isLoading={isLoading}
+              variant="interactive"
             />
             <StatsCard
               title="Avg Engagement"
               value={isLoading ? '...' : `${Math.round(stats.avgEngagement)}%`}
               icon={TrendingUp}
-              portalType="therapist"
+              portalType={portalType}
               isLoading={isLoading}
+              variant="interactive"
             />
           </div>
 
             {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Maya Clinical Assistant Card */}
-              <MayaAccessCard 
-                userRole="therapist" 
-                variant="full" 
+              <MayaAccessCard
+                memberRole="therapist"
+                variant="full"
                 className="md:col-span-1"
               />
-              <Card>
+              <Card className={portalClasses.card('hover')}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
@@ -189,6 +198,7 @@ function TherapistDashboard() {
                       onClick={() => setActiveTab('clients')}
                       className="w-full justify-start"
                       variant="outline"
+                      portalType={portalType}
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Add New Client
@@ -196,7 +206,8 @@ function TherapistDashboard() {
                     <Button
                       onClick={() => setIsCreateGroupDialogOpen(true)}
                       className="w-full justify-start"
-                      variant="outline"
+                      variant="primary"
+                      portalType={portalType}
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Create New Group
@@ -205,6 +216,7 @@ function TherapistDashboard() {
                       onClick={() => setActiveTab('sessions')}
                       className="w-full justify-start"
                       variant="outline"
+                      portalType={portalType}
                     >
                       <Calendar className="w-4 h-4 mr-2" />
                       Schedule Session
@@ -213,13 +225,14 @@ function TherapistDashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className={portalClasses.card('hover')}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">Recent Alerts</h3>
                     <Button
                       variant="outline"
                       size="sm"
+                      portalType={portalType}
                       onClick={() => setActiveTab('crisis')}
                     >
                       View All
@@ -230,7 +243,7 @@ function TherapistDashboard() {
                       <p className="text-sm text-gray-500">Loading alerts...</p>
                     ) : recentAlerts.length > 0 ? (
                       recentAlerts.slice(0, 3).map((alert: any) => (
-                        <div key={alert.id} className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg">
+                        <div key={alert.id} className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200 transition-colors hover:bg-yellow-100">
                           <AlertCircle className="text-yellow-600" size={20} />
                           <div>
                             <p className="text-sm font-medium text-gray-900">{alert.alertType}</p>
@@ -239,7 +252,10 @@ function TherapistDashboard() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-500">No recent alerts</p>
+                      <div className="text-center py-4">
+                        <Shield className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No recent alerts</p>
+                      </div>
                     )}
                   </div>
                 </CardContent>
@@ -256,37 +272,43 @@ function TherapistDashboard() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">Therapeutic Groups</h2>
-              <Button onClick={() => setIsCreateGroupDialogOpen(true)}>
+              <Button 
+                onClick={() => setIsCreateGroupDialogOpen(true)}
+                variant="primary"
+                portalType={portalType}
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Group
               </Button>
             </div>
-            
+
             {isLoading ? (
               <p className="text-gray-500">Loading groups...</p>
             ) : recentGroups.length > 0 ? (
               <div className="grid grid-cols-1 gap-6">
                 {recentGroups.map((group: any) => (
-                  <Card key={group.id}>
+                  <Card key={group.id} className={portalClasses.card('hover')}>
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-xl font-semibold text-gray-900">{group.name}</h3>
                         <div className="flex items-center gap-4">
-                          <span className="text-sm text-gray-500">{group.participants || 0} members</span>
+                          <span className="text-sm text-gray-500 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                            {group.participants || 0} members
+                          </span>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
                               variant="outline"
+                              portalType={portalType}
                               onClick={() => setSelectedGroupForManagement({ id: group.id, name: group.name })}
                             >
                               Manage Members
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="destructive"
                               onClick={() => handleDeleteGroup(group.id, group.name)}
                               disabled={deleteGroupMutation.isPending}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
                             >
                               <Trash2 className="w-4 h-4 mr-1" />
                               Delete
@@ -309,14 +331,14 @@ function TherapistDashboard() {
                           <div className="flex flex-wrap gap-2">
                             {group.members.slice(0, 5).map((member: any) => (
                               <span
-                                key={member.userId}
+                                key={member.memberId}
                                 className={`px-2 py-1 rounded-full text-xs ${
-                                  member.role === 'facilitator' 
-                                    ? 'bg-blue-100 text-blue-800' 
+                                  member.role === 'facilitator'
+                                    ? 'bg-blue-100 text-blue-800'
                                     : 'bg-gray-100 text-gray-800'
                                 }`}
                               >
-                                {member.user?.firstName} {member.user?.lastName} ({member.role})
+                                {member.member?.firstName} {member.member?.lastName} ({member.role})
                               </span>
                             ))}
                             {group.members.length > 5 && (
@@ -332,12 +354,16 @@ function TherapistDashboard() {
                 ))}
               </div>
             ) : (
-              <Card>
+              <Card className={portalClasses.card('base')}>
                 <CardContent className="p-12 text-center">
                   <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No Groups Yet</h3>
                   <p className="text-gray-600 mb-4">Create your first therapeutic group to start managing clients</p>
-                  <Button onClick={() => setIsCreateGroupDialogOpen(true)}>
+                  <Button 
+                    onClick={() => setIsCreateGroupDialogOpen(true)}
+                    variant="primary"
+                    portalType={portalType}
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     Create First Group
                   </Button>

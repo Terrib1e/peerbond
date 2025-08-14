@@ -48,7 +48,7 @@ export interface RateLimitOptions {
 export function createRateLimitMiddleware(options: RateLimitOptions = {}): ToolMiddleware {
   const {
     store = new InMemoryRateLimitStore(),
-    keyGenerator = (tool, context) => `${tool.name}:${context.userId}`,
+    keyGenerator = (tool, context) => `${tool.name}:${context.memberId}`,
     onLimitExceeded
   } = options;
 
