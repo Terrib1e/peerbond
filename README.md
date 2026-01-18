@@ -31,13 +31,27 @@ peerbond/
 │   └── types/             # TypeScript definitions
 ├── server/                # Backend (Node.js + TypeScript)
 │   ├── src/
+│   │   ├── agents/        # AI agent implementations
 │   │   ├── routes/        # API endpoints
 │   │   ├── services/      # Business logic & AI
+│   │   ├── tools/         # AI tool implementations
 │   │   ├── middleware/    # Express middleware
 │   │   └── types/         # TypeScript definitions
+│   ├── tests/
+│   │   └── manual/        # Manual integration tests
 │   └── prisma/            # Database schema & migrations
-├── docs/                  # Documentation
-└── scripts/               # Build and deployment scripts
+├── docs/                  # Comprehensive documentation
+│   ├── README.md          # Documentation index
+│   ├── CLAUDE.md          # AI agent architecture guide
+│   ├── INTERVIEW_PREP.md  # Project demo & pitch guide
+│   ├── GEMINI_SETUP.md    # AI setup instructions
+│   └── ...                # Architecture, deployment, etc.
+├── scripts/               # Build and setup scripts
+│   ├── setup.sh           # Main setup script
+│   ├── quick-setup.sh     # Quick demo setup
+│   └── dev.sh             # Development helper
+├── examples/              # Code examples
+└── [configuration files]  # Package.json, tsconfig, etc.
 ```
 
 ## ✨ Features
@@ -65,10 +79,20 @@ peerbond/
 
 ## 📚 Documentation
 
-- [Project Overview](docs/README.md)
-- [Gemini AI Setup](docs/GEMINI_SETUP.md)
-- [Development Guide](docs/DEVELOPMENT.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
+**Getting Started:**
+- [Project Overview](docs/README.md) - Comprehensive project documentation
+- [Gemini AI Setup](docs/GEMINI_SETUP.md) - Configure AI integration
+- [Development Guide](docs/DEVELOPMENT.md) - Development workflow
+
+**AI System:**
+- [AI Agent Architecture](docs/CLAUDE.md) - Multi-agent system design
+- [Tool System Guide](docs/TOOL_SYSTEM_GUIDE.md) - AI tool implementation
+- [Interview Prep](docs/INTERVIEW_PREP.md) - Demo guide and pitch
+
+**Deployment:**
+- [Deployment Guide](docs/deployment.md) - Production deployment
+- [Architecture](docs/architecture.md) - System architecture
+- [Monitoring](docs/monitoring.md) - Observability setup
 
 ## 🧑‍💻 Development
 
