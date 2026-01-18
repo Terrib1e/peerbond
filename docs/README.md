@@ -110,6 +110,12 @@ npm run dev
 
 ## 🔐 Security & Compliance
 
+### 🚨 Security Documentation
+
+**IMPORTANT: Read these first!**
+- **[Security Best Practices](./SECURITY.md)** - Comprehensive security guidelines for API keys, credentials, and secure development
+- **[Security Quick Reference](./SECURITY_QUICK_REFERENCE.md)** - Quick security checklist and emergency procedures
+
 ### HIPAA Compliance Features
 
 - **Data Encryption**: AES-256 encryption for all sensitive data
