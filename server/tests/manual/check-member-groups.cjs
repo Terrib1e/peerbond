@@ -2,7 +2,7 @@
  * Check what groups the test member is in
  */
 
-const { PrismaClient } = require('./server/node_modules/@prisma/client');
+const { PrismaClient } = require('../../node_modules/@prisma/client');
 
 const prisma = new PrismaClient();
 

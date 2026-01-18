@@ -2,7 +2,7 @@
  * Test simple wellness group search without complex search terms
  */
 
-const { searchGroups } = require('./server/dist/tools/implementations/searchGroups.js');
+const { searchGroups } = require('../../dist/tools/implementations/searchGroups.js');
 
 async function testSimpleWellness() {
   try {

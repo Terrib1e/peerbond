@@ -2,7 +2,7 @@
  * Test what happens with search terms
  */
 
-const { DatabaseService } = require('./server/dist/services/database.js');
+const { DatabaseService } = require('../../dist/services/database.js');
 
 async function testSearchTerm() {
   try {

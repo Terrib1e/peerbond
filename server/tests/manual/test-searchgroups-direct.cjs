@@ -2,7 +2,7 @@
  * Test searchGroups tool directly
  */
 
-const { searchGroups } = require('./server/dist/tools/implementations/searchGroups.js');
+const { searchGroups } = require('../../dist/tools/implementations/searchGroups.js');
 
 async function testSearchGroupsDirect() {
   try {

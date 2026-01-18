@@ -1,4 +1,4 @@
-const { DatabaseService } = require('./server/dist/services/database.js');
+const { DatabaseService } = require('../../dist/services/database.js');
 
 async function test() {
   const dbService = new DatabaseService();
