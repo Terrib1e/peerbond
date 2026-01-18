@@ -44,6 +44,7 @@ Thumbs.db
 # Coverage
 coverage/
 
-# Claude
+# Claude (development-only configuration)
+.claude/
 .claude/server/.env
 ./server/.env
