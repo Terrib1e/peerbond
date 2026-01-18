@@ -7,42 +7,100 @@ dist/
 build/
 */dist/
 */build/
+*.tsbuildinfo
 
-# Environment variables
+# Environment variables - NEVER commit these!
 .env
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
+.env*.local
+server/.env
+server/.env.local
+server/.env.*.local
 
-# Database
+# Sensitive files and backups - CRITICAL: Never commit these
+peerbond_src.txt
+*_src.txt
+*.backup
+*.bak
+*.dump
+*.old
+
+# API keys and credentials - NEVER commit these!
+**/apikeys.txt
+**/api_keys.txt
+**/credentials.txt
+**/secrets.txt
+**/*_key.txt
+**/*_secret.txt
+**/*_keys.txt
+**/*_secrets.txt
+**/config/secrets.*
+**/config/credentials.*
+
+# Database files with potential sensitive data
 *.db
 *.db-journal
+*.sqlite
+*.sqlite3
 prisma/dev.db*
+server/prisma/*.db
+server/prisma/*.db-journal
+# Exception: Keep schema file
+!server/prisma/schema.prisma
 
-# Logs
+# Logs that might contain sensitive info
 *.log
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+pnpm-debug.log*
 
-# IDE
-.vscode/
+# IDE and editor files that might contain secrets
+.vscode/settings.json
+.vscode/launch.json
 .idea/
 *.swp
 *.swo
+*~
+*.sublime-workspace
+*.sublime-project
 
-# OS
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
 
 # Temporary files
 *.tmp
 *.temp
+temp/
+tmp/
+.cache/
 
-# Coverage
+# Coverage and test results
 coverage/
+.nyc_output/
+test-results/
+
+# Package manager files
+.pnpm-debug.log
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
 
 # Claude (development-only configuration)
 .claude/

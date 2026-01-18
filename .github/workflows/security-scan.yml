@@ -1,0 +1,93 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop, copilot/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  secret-scan:
+    name: Scan for Secrets
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for comprehensive scanning
+      
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+          
+  dependency-scan:
+    name: Scan Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+      
+      - name: Check server dependencies
+        run: |
+          cd server
+          npm ci
+          npm audit --audit-level=moderate
+        continue-on-error: true
+          
+  gitignore-check:
+    name: Verify .gitignore
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check for .env files
+        run: |
+          if git ls-files | grep -E '^\.env$|^server/\.env$|\.env\.local$'; then
+            echo "ERROR: .env files found in git! These should be gitignored."
+            exit 1
+          else
+            echo "✅ No .env files found in git"
+          fi
+      
+      - name: Check for common sensitive files
+        run: |
+          SENSITIVE_FILES=$(git ls-files | grep -E '\.(key|pem|p12|pfx|dump|backup|bak)$' || true)
+          if [ -n "$SENSITIVE_FILES" ]; then
+            echo "ERROR: Sensitive files found in git:"
+            echo "$SENSITIVE_FILES"
+            exit 1
+          else
+            echo "✅ No sensitive file patterns found"
+          fi
+      
+      - name: Check for backup text files
+        run: |
+          BACKUP_FILES=$(git ls-files | grep -E '_src\.txt$|_backup\.txt$' || true)
+          if [ -n "$BACKUP_FILES" ]; then
+            echo "ERROR: Backup text files found in git:"
+            echo "$BACKUP_FILES"
+            exit 1
+          else
+            echo "✅ No backup text files found"
+          fi

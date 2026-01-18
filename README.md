@@ -117,6 +117,61 @@ npm run lint
 npm run typecheck
 ```
 
+## 🔐 Security
+
+### ⚠️ CRITICAL: Never Commit Secrets!
+
+**ALWAYS follow these security practices:**
+
+1. **Copy environment templates** (these files are already gitignored):
+   ```bash
+   cp .env.example .env
+   cp server/.env.example server/.env
+   ```
+
+2. **Add your actual API keys** to `.env` files (NOT to `.env.example`)
+
+3. **Verify files are gitignored:**
+   ```bash
+   git check-ignore .env server/.env
+   # Should output: .env and server/.env
+   ```
+
+### 🔑 API Key Management
+
+**Get your API keys:**
+- **Gemini API:** https://aistudio.google.com/
+- **OpenAI API:** https://platform.openai.com/api-keys
+
+**Security rules:**
+- ✅ Store keys in `.env` files ONLY
+- ✅ Use environment variables in code: `process.env.GEMINI_API_KEY`
+- ❌ NEVER hardcode keys in source code
+- ❌ NEVER commit `.env` files
+- ❌ NEVER share keys via email/chat
+- 🔄 Rotate keys every 90 days
+
+### 🚨 If You Expose a Key
+
+**Act immediately:**
+
+1. **Revoke the key** in provider's console
+2. **Generate a new key** 
+3. **Update local `.env`** with new key
+4. **Remove from git history** (see [docs/SECURITY.md](docs/SECURITY.md))
+
+### 📚 Security Documentation
+
+- **[Full Security Guide](docs/SECURITY.md)** - Comprehensive security practices
+- **[Quick Reference](docs/SECURITY_QUICK_REFERENCE.md)** - Quick security checklist
+
+### 🛡️ Automated Security
+
+This repository includes:
+- ✅ Pre-commit hooks to detect secrets
+- ✅ GitHub Actions security scanning
+- ✅ Comprehensive `.gitignore` patterns
+
 ## 🔑 Environment Setup
 
 Copy the example environment file and configure:
@@ -127,7 +182,7 @@ cp server/.env.example server/.env
 
 Required environment variables:
 - `GEMINI_API_KEY` - Get from [Google AI Studio](https://aistudio.google.com/)
-- `JWT_SECRET` - Random secure string
+- `JWT_SECRET` - Generate with: `openssl rand -base64 32`
 - `DATABASE_URL` - Database connection string
 
 ## 🤝 Contributing
