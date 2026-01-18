@@ -44,6 +44,10 @@ node tests/manual/check-groups.cjs
 node server/tests/manual/check-groups.cjs
 ```
 
+**Important:** Test file imports have been updated to reflect their new location. The paths now use `../../` to reference server dependencies:
+- `require('./server/node_modules/@prisma/client')` → `require('../../node_modules/@prisma/client')`
+- `require('./server/dist/services/database.js')` → `require('../../dist/services/database.js')`
+
 See `server/tests/manual/README.md` for detailed test documentation.
 
 ### Documentation Files Consolidated
@@ -191,15 +195,20 @@ After pulling these changes, verify everything works:
 
 ### "Cannot find module" errors in test files
 
-**Problem:** Old absolute path references in your local files.
+**Problem:** Test files can't find their dependencies.
 
-**Solution:** Test files were moved but their internal imports were not changed. They use relative paths like `require('./server/...')` from the old location. When running from the new location:
+**Solution:** Test files have been updated with correct relative paths. Make sure you're running from the correct directory:
 
 ```bash
-# From server directory, adjust paths if needed or run from root:
-cd /path/to/peerbond
+# Run from server directory (recommended)
+cd server
+node tests/manual/test-matching-agent.cjs
+
+# Or run from root
 node server/tests/manual/test-matching-agent.cjs
 ```
+
+The imports now use `../../` to reference server dependencies since the files are now in `server/tests/manual/`.
 
 ### "Command not found: quick-setup.sh"
 

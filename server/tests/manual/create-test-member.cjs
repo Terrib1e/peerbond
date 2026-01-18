@@ -2,8 +2,8 @@
  * Create a test member account for testing
  */
 
-const bcrypt = require('./server/node_modules/bcryptjs');
-const { PrismaClient } = require('./server/node_modules/@prisma/client');
+const bcrypt = require('../../node_modules/bcryptjs');
+const { PrismaClient } = require('../../node_modules/@prisma/client');
 
 const prisma = new PrismaClient();
 
