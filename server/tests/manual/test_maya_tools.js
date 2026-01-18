@@ -2,8 +2,8 @@
  * Test script to verify Maya (FacilitatorAgent) can access and use her tools correctly
  */
 
-import { FacilitatorAgent } from './server/src/agents/FacilitatorAgent.js';
-import ToolExecutor from './server/src/tools/executor.js';
+import { FacilitatorAgent } from '../../src/agents/FacilitatorAgent.js';
+import ToolExecutor from '../../src/tools/executor.js';
 
 async function testMayaTools() {
   console.log('🧪 Testing Maya (FacilitatorAgent) Tool Integration...\n');
